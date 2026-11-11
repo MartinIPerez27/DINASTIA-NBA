@@ -26,7 +26,8 @@ class Tirada {
   final Epoca epoca;
   final Tier tier;
 
-  bool admite(Jugador j) => Carrete.values.every((c) => c.coincide(j, this));
+  /// Estilo 82-0: franquicia y época definen el plantel que sale; la rareza no filtra.
+  bool incluye(Jugador j) => j.franquiciaId == franquiciaId && j.epoca == epoca;
 
   factory Tirada.fromJson(Map<String, dynamic> j) => Tirada(
     franquiciaId: j['franquicia'] as String,

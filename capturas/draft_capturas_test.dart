@@ -82,5 +82,25 @@ void main() {
   testWidgets('draft tirada', (t) => capturar(t, 'draft-tirada', 'CHI', 0));
   testWidgets('draft a mitad', (t) => capturar(t, 'draft-mitad', 'BOS', 3));
   testWidgets('draft completo', (t) => capturar(t, 'draft-completo', 'LAL', 6));
+  testWidgets('ficha jugador', (tester) async {
+    tester.view.physicalSize = const Size(412, 915) * 2.5;
+    tester.view.devicePixelRatio = 2.5;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: temaFranquicia(franquiciaPorId('CHI')),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(child: CartaJugador(jugador: catalogo.first)),
+          ),
+        ),
+      ),
+    );
+    await tester.longPress(find.byType(CartaJugador));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await tester.pumpAndSettle();
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('salida/ficha.png'));
+  });
   testWidgets('draft chico', (t) => capturar(t, 'draft-chico', 'GSW', 2, tamano: const Size(360, 640)));
 }

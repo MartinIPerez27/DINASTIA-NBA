@@ -133,4 +133,10 @@ void main() {
     expect(t.plantel.jugadores.length, 6);
     expect(() => draft.tirar(t), throwsStateError);
   });
+
+  test('estilo 82-0: sale todo el plantel de la franquicia y época, primero el Tier garantizado', () {
+    final draft = Draft(_catalogo, azar: Random(8));
+    final t = nueva.conTirada(const Tirada(franquiciaId: 'CHI', epoca: Epoca.anios90, tier: Tier.a));
+    expect(draft.candidatos(t).map((j) => j.nbaPlayerId), [3, 1, 2]);
+  });
 }

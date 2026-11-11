@@ -9,8 +9,9 @@ import 'entities/tirada.dart';
 /// Reglas del draft 82-0 (GDD §4) sobre una [Temporada]. Cada operación devuelve una temporada
 /// nueva, que se guarda enseguida: cerrar la app no regala una tirada.
 ///
+/// - Estilo 82-0: franquicia y época definen el plantel que sale; se elige entre todas sus cartas.
+/// - El carrete de rareza (sorteado con [pesosRareza]) garantiza al menos una carta de ese Tier.
 /// - Los carretes solo frenan en combinaciones con al menos una carta que entre en un puesto libre.
-/// - La rareza se sortea con [pesosRareza]; después, franquicia y época al azar entre lo posible.
 /// - La primera tirada de cada elección es gratis; volver a tirar cuesta una ficha de Reroll y
 ///   permite retener hasta [maxRetenidos] carretes.
 class Draft {
@@ -24,14 +25,20 @@ class Draft {
 
   Iterable<Jugador> _disponibles(Plantel p) => catalogo.where((j) => p.posicionesDisponiblesPara(j).isNotEmpty);
 
-  /// Cartas que salieron en la tirada actual y todavía entran en el plantel.
+  /// Cartas que salieron: todo el plantel de esa franquicia y época que todavía entra.
+  /// Primero las del Tier del carrete de rareza (garantizado), después por PPP.
   List<Jugador> candidatos(Temporada t) {
     final tirada = t.tirada;
     if (tirada == null) return const [];
     return [
       for (final j in _disponibles(t.plantel))
-        if (tirada.admite(j)) j,
-    ];
+        if (tirada.incluye(j)) j,
+    ]..sort((a, b) {
+      final garantizada = (b.tier == tirada.tier ? 1 : 0) - (a.tier == tirada.tier ? 1 : 0);
+      if (garantizada != 0) return garantizada;
+      final tier = b.tier.index - a.tier.index;
+      return tier != 0 ? tier : b.stats.ppp.compareTo(a.stats.ppp);
+    });
   }
 
   List<Tirada> _combinaciones(Plantel p, Tirada? anterior, Set<Carrete> retenidos) => {

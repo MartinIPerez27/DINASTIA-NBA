@@ -4,10 +4,12 @@ import '../../data/franquicias.dart';
 import '../../domain/entities/jugador.dart';
 import '../tema/tema_franquicia.dart';
 import 'escudo.dart';
+import 'ficha_jugador.dart';
 import 'jugador_avatar.dart';
 import 'texto_led.dart';
 
-/// Carta compacta de jugador: foto, nombre, posición/época/equipo, Tier y PPP/RPP/APP en LED.
+/// Carta compacta de jugador: foto, nombre, posición/época/equipo, Tier y PPP/RPP/APP/IQ en LED.
+/// Mantenerla apretada abre la ficha completa.
 class CartaJugador extends StatelessWidget {
   const CartaJugador({super.key, required this.jugador, this.seleccionada = false, this.onTap});
 
@@ -15,7 +17,7 @@ class CartaJugador extends StatelessWidget {
   final bool seleccionada;
   final VoidCallback? onTap;
 
-  static const ancho = 236.0;
+  static const ancho = 256.0;
   static const alto = 104.0;
 
   @override
@@ -28,10 +30,12 @@ class CartaJugador extends StatelessWidget {
     return Semantics(
       button: onTap != null,
       selected: seleccionada,
+      onLongPressHint: 'ver ficha completa',
+      onLongPress: () => mostrarFichaJugador(context, jugador),
       label:
           '${jugador.nombre}, ${jugador.posiciones.map((p) => p.etiqueta).join(' o ')}, '
           '${franquicia.nombre} ${jugador.epoca.etiqueta}, ${jugador.tier.etiqueta}, '
-          '${s.ppp} puntos, ${s.rpp} rebotes, ${s.app} asistencias',
+          '${s.ppp} puntos, ${s.rpp} rebotes, ${s.app} asistencias, IQ ${s.iq}',
       child: ExcludeSemantics(
         child: Material(
           color: esquema.surfaceContainerLowest,
@@ -45,6 +49,7 @@ class CartaJugador extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
+            onLongPress: () => mostrarFichaJugador(context, jugador),
             child: SizedBox(
               width: ancho,
               height: alto,
@@ -77,7 +82,7 @@ class CartaJugador extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 6),
-                              TextoLed(_tier(jugador.tier), tamano: 16),
+                              TextoLed(codigoTier(jugador.tier), tamano: 16),
                             ],
                           ),
                           const SizedBox(height: 2),
@@ -98,12 +103,20 @@ class CartaJugador extends StatelessWidget {
                           const Spacer(),
                           Row(
                             children: [
-                              for (final (sigla, valor) in [('PPP', s.ppp), ('RPP', s.rpp), ('APP', s.app)])
+                              for (final (sigla, valor) in [
+                                ('PPP', s.ppp.toStringAsFixed(1)),
+                                ('RPP', s.rpp.toStringAsFixed(1)),
+                                ('APP', s.app.toStringAsFixed(1)),
+                                ('IQ', '${s.iq}'),
+                              ])
                                 Expanded(
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerLeft,
-                                    child: _Dato(sigla, valor),
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: _Dato(sigla, valor),
+                                    ),
                                   ),
                                 ),
                             ],
@@ -121,7 +134,7 @@ class CartaJugador extends StatelessWidget {
     );
   }
 
-  static String _tier(Tier t) => switch (t) {
+  static String codigoTier(Tier t) => switch (t) {
     Tier.a => 'A',
     Tier.s => 'S',
     Tier.sPlus => 'S+',
@@ -132,7 +145,7 @@ class _Dato extends StatelessWidget {
   const _Dato(this.sigla, this.valor);
 
   final String sigla;
-  final double valor;
+  final String valor;
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +153,7 @@ class _Dato extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextoLed(valor.toStringAsFixed(1), tamano: 15, color: esquema.onSurface),
+        TextoLed(valor, tamano: 15, color: esquema.onSurface),
         Text(sigla, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: esquema.onSurfaceVariant)),
       ],
     );
