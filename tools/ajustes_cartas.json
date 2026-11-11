@@ -1,0 +1,4 @@
+{
+ "_ayuda": "Correcciones manuales por id de carta: posiciones, rol, tier, iq, dorsal, o {\"excluir\": true}. Se aplican después del cálculo automático.",
+ "977-LAL-00": {"dorsal": 8}
+}

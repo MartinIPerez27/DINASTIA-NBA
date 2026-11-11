@@ -1,0 +1,382 @@
+[
+ {
+  "id": "893-CHI-90",
+  "nbaPlayerId": 893,
+  "nombre": "Michael Jordan",
+  "franquicia": "CHI",
+  "epoca": "anios90",
+  "tier": "sPlus",
+  "posiciones": [
+   "ESCOLTA",
+   "ALERO"
+  ],
+  "rol": "superestrellaAclarados",
+  "dorsal": 23,
+  "stats": {
+   "ppp": 30.1,
+   "rpp": 6.2,
+   "app": 5.3,
+   "robP": 2.3,
+   "tapP": 0.8,
+   "pctTc": 0.497,
+   "pctT3": 0.327,
+   "pctTl": 0.835,
+   "minP": 38.3,
+   "perP": 2.7,
+   "iq": 97
+  }
+ },
+ {
+  "id": "2544-CLE-10",
+  "nbaPlayerId": 2544,
+  "nombre": "LeBron James",
+  "franquicia": "CLE",
+  "epoca": "anios2010",
+  "tier": "sPlus",
+  "posiciones": [
+   "ALERO",
+   "BASE",
+   "ALA-PÍVOT"
+  ],
+  "rol": "controladorTotal",
+  "dorsal": 23,
+  "stats": {
+   "ppp": 27.0,
+   "rpp": 7.5,
+   "app": 7.4,
+   "robP": 1.5,
+   "tapP": 0.7,
+   "pctTc": 0.506,
+   "pctT3": 0.348,
+   "pctTl": 0.736,
+   "minP": 37.9,
+   "perP": 3.5,
+   "iq": 98
+  }
+ },
+ {
+  "id": "77142-LAL-80",
+  "nbaPlayerId": 77142,
+  "nombre": "Magic Johnson",
+  "franquicia": "LAL",
+  "epoca": "anios80",
+  "tier": "sPlus",
+  "posiciones": [
+   "BASE",
+   "ALERO"
+  ],
+  "rol": "organizadorPuro",
+  "dorsal": 32,
+  "stats": {
+   "ppp": 19.5,
+   "rpp": 7.2,
+   "app": 11.2,
+   "robP": 1.9,
+   "tapP": 0.4,
+   "pctTc": 0.52,
+   "pctT3": 0.303,
+   "pctTl": 0.848,
+   "minP": 36.7,
+   "perP": 3.9,
+   "iq": 98
+  }
+ },
+ {
+  "id": "1449-BOS-80",
+  "nbaPlayerId": 1449,
+  "nombre": "Larry Bird",
+  "franquicia": "BOS",
+  "epoca": "anios80",
+  "tier": "sPlus",
+  "posiciones": [
+   "ALERO",
+   "ALA-PÍVOT"
+  ],
+  "rol": "controladorTotal",
+  "dorsal": 33,
+  "stats": {
+   "ppp": 24.3,
+   "rpp": 10.0,
+   "app": 6.3,
+   "robP": 1.7,
+   "tapP": 0.8,
+   "pctTc": 0.496,
+   "pctT3": 0.376,
+   "pctTl": 0.886,
+   "minP": 38.4,
+   "perP": 3.1,
+   "iq": 97
+  }
+ },
+ {
+  "id": "201939-GSW-10",
+  "nbaPlayerId": 201939,
+  "nombre": "Stephen Curry",
+  "franquicia": "GSW",
+  "epoca": "anios2010",
+  "tier": "sPlus",
+  "posiciones": [
+   "BASE",
+   "ESCOLTA"
+  ],
+  "rol": "anotadorExterior",
+  "dorsal": 30,
+  "stats": {
+   "ppp": 24.8,
+   "rpp": 4.7,
+   "app": 6.4,
+   "robP": 1.5,
+   "tapP": 0.2,
+   "pctTc": 0.472,
+   "pctT3": 0.426,
+   "pctTl": 0.91,
+   "minP": 34.3,
+   "perP": 3.1,
+   "iq": 94
+  }
+ },
+ {
+  "id": "977-LAL-00",
+  "nbaPlayerId": 977,
+  "nombre": "Kobe Bryant",
+  "franquicia": "LAL",
+  "epoca": "anios2000",
+  "tier": "sPlus",
+  "posiciones": [
+   "ESCOLTA",
+   "ALERO"
+  ],
+  "rol": "superestrellaAclarados",
+  "dorsal": 24,
+  "stats": {
+   "ppp": 25.0,
+   "rpp": 5.2,
+   "app": 4.7,
+   "robP": 1.4,
+   "tapP": 0.5,
+   "pctTc": 0.447,
+   "pctT3": 0.329,
+   "pctTl": 0.837,
+   "minP": 36.1,
+   "perP": 3.0,
+   "iq": 94
+  }
+ },
+ {
+  "id": "406-LAL-00",
+  "nbaPlayerId": 406,
+  "nombre": "Shaquille O'Neal",
+  "franquicia": "LAL",
+  "epoca": "anios2000",
+  "tier": "sPlus",
+  "posiciones": [
+   "PÍVOT"
+  ],
+  "rol": "goliatPintura",
+  "dorsal": 34,
+  "stats": {
+   "ppp": 23.7,
+   "rpp": 10.9,
+   "app": 2.5,
+   "robP": 0.6,
+   "tapP": 2.3,
+   "pctTc": 0.582,
+   "pctT3": 0.045,
+   "pctTl": 0.527,
+   "minP": 34.7,
+   "perP": 2.7,
+   "iq": 85
+  }
+ },
+ {
+  "id": "1495-SAS-00",
+  "nbaPlayerId": 1495,
+  "nombre": "Tim Duncan",
+  "franquicia": "SAS",
+  "epoca": "anios2000",
+  "tier": "sPlus",
+  "posiciones": [
+   "ALA-PÍVOT",
+   "PIVOT"
+  ],
+  "rol": "maestroPoste",
+  "dorsal": 21,
+  "stats": {
+   "ppp": 19.0,
+   "rpp": 10.8,
+   "app": 3.0,
+   "robP": 0.7,
+   "tapP": 2.2,
+   "pctTc": 0.506,
+   "pctT3": 0.179,
+   "pctTl": 0.696,
+   "minP": 34.0,
+   "perP": 2.4,
+   "iq": 96
+  }
+ },
+ {
+  "id": "201142-OKC-10",
+  "nbaPlayerId": 201142,
+  "nombre": "Kevin Durant",
+  "franquicia": "OKC",
+  "epoca": "anios2010",
+  "tier": "s",
+  "posiciones": [
+   "ALERO",
+   "ALA-PÍVOT"
+  ],
+  "rol": "anotadorTresNiveles",
+  "dorsal": 35,
+  "stats": {
+   "ppp": 27.3,
+   "rpp": 7.0,
+   "app": 4.4,
+   "robP": 1.1,
+   "tapP": 1.1,
+   "pctTc": 0.5,
+   "pctT3": 0.387,
+   "pctTl": 0.884,
+   "minP": 36.8,
+   "perP": 3.2,
+   "iq": 92
+  }
+ },
+ {
+  "id": "203507-MIL-act",
+  "nbaPlayerId": 203507,
+  "nombre": "Giannis Antetokounmpo",
+  "franquicia": "MIL",
+  "epoca": "actualidad",
+  "tier": "s",
+  "posiciones": [
+   "ALA-PÍVOT",
+   "ALERO",
+   "PIVOT"
+  ],
+  "rol": "distribuidorInterior",
+  "dorsal": 34,
+  "stats": {
+   "ppp": 23.6,
+   "rpp": 9.9,
+   "app": 4.9,
+   "robP": 1.1,
+   "tapP": 1.2,
+   "pctTc": 0.55,
+   "pctT3": 0.287,
+   "pctTl": 0.706,
+   "minP": 32.5,
+   "perP": 3.0,
+   "iq": 88
+  }
+ },
+ {
+  "id": "203999-DEN-act",
+  "nbaPlayerId": 203999,
+  "nombre": "Nikola Jokić",
+  "franquicia": "DEN",
+  "epoca": "actualidad",
+  "tier": "s",
+  "posiciones": [
+   "PIVOT",
+   "ALA-PÍVOT"
+  ],
+  "rol": "pivotOrganizador",
+  "dorsal": 15,
+  "stats": {
+   "ppp": 21.6,
+   "rpp": 10.9,
+   "app": 7.0,
+   "robP": 1.3,
+   "tapP": 0.7,
+   "pctTc": 0.559,
+   "pctT3": 0.35,
+   "pctTl": 0.826,
+   "minP": 32.0,
+   "perP": 2.9,
+   "iq": 99
+  }
+ },
+ {
+  "id": "201935-HOU-10",
+  "nbaPlayerId": 201935,
+  "nombre": "James Harden",
+  "franquicia": "HOU",
+  "epoca": "anios2010",
+  "tier": "s",
+  "posiciones": [
+   "ESCOLTA",
+   "BASE"
+  ],
+  "rol": "escoltaGenerador",
+  "dorsal": 13,
+  "stats": {
+   "ppp": 24.2,
+   "rpp": 5.6,
+   "app": 7.0,
+   "robP": 1.5,
+   "tapP": 0.5,
+   "pctTc": 0.442,
+   "pctT3": 0.362,
+   "pctTl": 0.865,
+   "minP": 34.5,
+   "perP": 3.9,
+   "iq": 93
+  }
+ },
+ {
+  "id": "203110-GSW-10",
+  "nbaPlayerId": 203110,
+  "nombre": "Draymond Green",
+  "franquicia": "GSW",
+  "epoca": "anios2010",
+  "tier": "a",
+  "posiciones": [
+   "ALA-PÍVOT",
+   "PIVOT"
+  ],
+  "rol": "distribuidorInterior",
+  "dorsal": 23,
+  "stats": {
+   "ppp": 8.7,
+   "rpp": 6.9,
+   "app": 5.6,
+   "robP": 1.3,
+   "tapP": 0.9,
+   "pctTc": 0.45,
+   "pctT3": 0.316,
+   "pctTl": 0.704,
+   "minP": 28.6,
+   "perP": 2.4,
+   "iq": 96
+  }
+ },
+ {
+  "id": "2199-SAS-00",
+  "nbaPlayerId": 2199,
+  "nombre": "Manu Ginóbili",
+  "franquicia": "SAS",
+  "epoca": "anios2000",
+  "tier": "a",
+  "posiciones": [
+   "ESCOLTA",
+   "BASE",
+   "SEXTO-HOMBRE"
+  ],
+  "rol": "directorSegundaUnidad",
+  "dorsal": 20,
+  "stats": {
+   "ppp": 13.3,
+   "rpp": 3.5,
+   "app": 3.8,
+   "robP": 1.3,
+   "tapP": 0.3,
+   "pctTc": 0.447,
+   "pctT3": 0.369,
+   "pctTl": 0.827,
+   "minP": 25.4,
+   "perP": 2.0,
+   "iq": 95
+  }
+ }
+]
