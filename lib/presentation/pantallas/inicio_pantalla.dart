@@ -281,7 +281,7 @@ class _ItemCinta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final apagado = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38);
+    final apagado = Theme.of(context).colorScheme.onSurfaceVariant;
     return Semantics(
       button: true,
       selected: encendida,

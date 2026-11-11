@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-11T19:40:00Z",
+  "title": "Design System: Dinastía NBA (82-0)",
+  "extensions": {
+    "colorMeta": {
+      "panel-mate": { "role": "neutral", "displayName": "Panel Mate", "canonical": "#0F1012", "tonalRamp": ["#08090A", "#0F1012", "#1B1C1F", "#2B2D31", "#45474C", "#6A6D73", "#A3A6AC", "#E6E7EA"] },
+      "superficie-tenida": { "role": "neutral", "displayName": "Superficie Teñida (Bulls)", "canonical": "panel-mate + 6% colorPrimario de la franquicia; dinámico", "tonalRamp": ["#0E0A0C", "#1A1015", "#2A1B22", "#3F2A33", "#5E434E", "#86666F", "#B89CA3", "#EDE0E2"] },
+      "led-encendido": {
+        "role": "primary",
+        "displayName": "LED Encendido (Bulls)",
+        "canonical": "colorLed(franquicia); dinámico, ≥4.5:1 contra #0F1012",
+        "tonalRamp": ["#3D0614", "#6B0B25", "#9E1037", "#CE1141", "#ED2558", "#F45F83", "#F99AB1", "#FDD6E0"],
+        "ejemplos": { "BOS": "#009940", "BKN": "#FFFFFF", "NYK": "#0083DF", "CHI": "#ED2558", "LAL": "#FDB927", "GSW": "#FFC72C", "SAS": "#C4CED4", "PHX": "#E56020", "SAC": "#71828B", "MEM": "#647CAD" }
+      },
+      "sobre-led": { "role": "neutral", "displayName": "Sobre LED", "canonical": "negro o blanco por mayor contraste con el LED (hoy siempre negro)", "tonalRamp": ["#000000", "#121212", "#262626", "#3D3D3D", "#5C5C5C", "#8A8A8A", "#C2C2C2", "#F2F2F2"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display de estadio", "purpose": "Nombre de la franquicia en el tablero, mayúsculas, una línea." },
+      "headline": { "displayName": "Ciudad", "purpose": "Ciudad sobre el nombre, mayúsculas, onSurfaceVariant." },
+      "title": { "displayName": "Marca", "purpose": "\"DINASTÍA\" en el encabezado." },
+      "led-marcador": { "displayName": "LED Marcador", "purpose": "\"82-0\" con fantasma de 8 al 12%." },
+      "led-sigla": { "displayName": "LED Sigla", "purpose": "Siglas de equipo en la cinta." },
+      "label-boton": { "displayName": "Label Botón", "purpose": "Botón principal, mayúsculas." },
+      "body": { "displayName": "Cuerpo", "purpose": "Conferencia, división y texto de lectura." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "retenido-tema", "value": "250ms cubic-bezier(0.215, 0.61, 0.355, 1)", "purpose": "Re-tinte de toda la app al cambiar de franquicia enfocada (themeAnimationDuration, easeOutCubic)." },
+      { "name": "cambio-tablero", "value": "220ms; entra easeOutCubic, sale easeInCubic; fundido + desplazamiento vertical 3%", "purpose": "Contenido del tablero al cambiar de equipo." },
+      { "name": "cinta-estado", "value": "150ms linear", "purpose": "Opacidad del escudo e indicador LED de la cinta." },
+      { "name": "cinta-centrado", "value": "250ms cubic-bezier(0.215, 0.61, 0.355, 1)", "purpose": "Desplaza la cinta para centrar la franquicia enfocada." },
+      { "name": "foto-entrada", "value": "180ms ease-out", "purpose": "Fundido de entrada de la foto del jugador." },
+      { "name": "animaciones-reducidas", "value": "0ms", "purpose": "Con MediaQuery.disableAnimations todas las duraciones de tablero, cinta y foto pasan a cero." }
+    ],
+    "breakpoints": [
+      { "name": "telefono-chico", "value": "360x640dp" },
+      { "name": "columna-max", "value": "560dp" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón Dirigir",
+      "kind": "button",
+      "refersTo": "boton-dirigir",
+      "description": "Botón principal de ancho completo; confirma la franquicia. Uno por pantalla.",
+      "html": "<button class=\"ds-btn-dirigir\">DIRIGIR A LOS BULLS</button>",
+      "css": ".ds-btn-dirigir { width: 100%; height: 56px; background: #ED2558; color: #000000; border: none; border-radius: 9999px; font-family: 'Big Shoulders Display', Roboto, sans-serif; font-weight: 700; font-size: 20px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: filter 0.15s; } .ds-btn-dirigir:hover { filter: brightness(0.92); } .ds-btn-dirigir:focus-visible { outline: 3px solid #F99AB1; outline-offset: 2px; } .ds-btn-dirigir:active { filter: brightness(0.85); }"
+    },
+    {
+      "name": "Botón Seguir",
+      "kind": "button",
+      "refersTo": "boton-seguir",
+      "description": "Botón con contorno de 48dp; retoma la temporada guardada.",
+      "html": "<button class=\"ds-btn-seguir\">Seguir la temporada de los Bulls</button>",
+      "css": ".ds-btn-seguir { width: 100%; height: 48px; background: transparent; color: #ED2558; border: 1px solid #86666F; border-radius: 9999px; font-family: Roboto, sans-serif; font-weight: 500; font-size: 14px; letter-spacing: 0.1px; cursor: pointer; } .ds-btn-seguir:hover { background: rgba(237,37,88,0.08); } .ds-btn-seguir:focus-visible { outline: 3px solid #F99AB1; outline-offset: 2px; }"
+    },
+    {
+      "name": "Selector de conferencia",
+      "kind": "chip",
+      "refersTo": "segmented-conferencia",
+      "description": "SegmentedButton Material 3 Este/Oeste sin ícono de selección.",
+      "html": "<div class=\"ds-seg\"><button class=\"ds-seg-on\">Este</button><button>Oeste</button></div>",
+      "css": ".ds-seg { display: flex; border: 1px solid #86666F; border-radius: 9999px; overflow: hidden; background: #1A1015; } .ds-seg button { flex: 1; height: 40px; border: none; background: transparent; color: #EDE0E2; font-family: Roboto, sans-serif; font-weight: 500; font-size: 14px; cursor: pointer; } .ds-seg button + button { border-left: 1px solid #86666F; } .ds-seg .ds-seg-on { background: #5E434E; color: #F99AB1; } .ds-seg button:focus-visible { outline: 2px solid #F99AB1; outline-offset: -2px; }"
+    },
+    {
+      "name": "Tablero",
+      "kind": "card",
+      "refersTo": "tablero",
+      "description": "Panel mate con grilla de LED apagados: escudo, ciudad, nombre y conferencia.",
+      "html": "<div class=\"ds-tablero\"><div class=\"ds-tablero-ciudad\">CHICAGO</div><div class=\"ds-tablero-nombre\">BULLS</div><div class=\"ds-tablero-meta\">Conferencia Este · División Central</div></div>",
+      "css": ".ds-tablero { background-color: #0F1012; background-image: radial-gradient(circle, rgba(237,224,226,0.05) 1.2px, transparent 1.3px); background-size: 7px 7px; border: 1px solid rgba(134,102,111,0.5); border-radius: 16px; padding: 20px; text-align: center; } .ds-tablero-ciudad { font-family: 'Big Shoulders Display', Roboto, sans-serif; font-weight: 600; font-size: 24px; letter-spacing: 0.5px; color: #B89CA3; } .ds-tablero-nombre { font-family: 'Big Shoulders Display', Roboto, sans-serif; font-weight: 800; font-size: 76px; line-height: 0.9; color: #EDE0E2; } .ds-tablero-meta { margin-top: 8px; font-family: Roboto, sans-serif; font-size: 14px; line-height: 20px; color: #B89CA3; }"
+    },
+    {
+      "name": "Cinta LED",
+      "kind": "nav",
+      "refersTo": "cinta-item",
+      "description": "Siglas de la conferencia; la enfocada encendida con indicador LED, el resto apagadas.",
+      "html": "<div class=\"ds-cinta\"><button class=\"ds-cinta-item ds-on\"><span class=\"ds-cinta-sigla\">CHI</span><span class=\"ds-cinta-ind\"></span></button><button class=\"ds-cinta-item\"><span class=\"ds-cinta-sigla\">BOS</span><span class=\"ds-cinta-ind\"></span></button><button class=\"ds-cinta-item\"><span class=\"ds-cinta-sigla\">NYK</span><span class=\"ds-cinta-ind\"></span></button></div>",
+      "css": ".ds-cinta { display: flex; background: #1A1015; } .ds-cinta-item { width: 72px; height: 92px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: transparent; border: none; border-radius: 12px; cursor: pointer; } .ds-cinta-item:hover { background: rgba(237,224,226,0.08); } .ds-cinta-item:focus-visible { outline: 2px solid #ED2558; outline-offset: -2px; } .ds-cinta-sigla { font-family: Doto, monospace; font-weight: 800; font-size: 18px; line-height: 1; color: rgba(237,224,226,0.38); } .ds-on .ds-cinta-sigla { color: #ED2558; } .ds-cinta-ind { height: 3px; width: 0; border-radius: 2px; background: #ED2558; transition: width 0.15s; } .ds-on .ds-cinta-ind { width: 28px; }"
+    },
+    {
+      "name": "Texto LED",
+      "kind": "custom",
+      "refersTo": "led-marcador",
+      "description": "Cifras en puntos LED sobre su fantasma de 8 al 12%.",
+      "html": "<span class=\"ds-led\" aria-label=\"82-0\"><span class=\"ds-led-fantasma\" aria-hidden=\"true\">88-8</span><span class=\"ds-led-on\" aria-hidden=\"true\">82-0</span></span>",
+      "css": ".ds-led { position: relative; display: inline-block; font-family: Doto, monospace; font-weight: 800; font-size: 44px; line-height: 1; font-variant-numeric: tabular-nums; } .ds-led-fantasma { color: rgba(237,37,88,0.12); } .ds-led-on { position: absolute; left: 0; top: 0; color: #ED2558; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "El Marcador",
+    "overview": "La app es el tablero central colgado sobre la cancha. Todo sucede sobre un panel mate casi negro; lo que importa se enciende en puntos LED del color de la franquicia y lo que no está activo queda como LED apagado, presente pero tenue. Elegir un equipo es encender el tablero: el tema completo de Material 3 se recalcula a partir de la franquicia enfocada y cruza de un equipo a otro en 250 ms.\n\nLa jerarquía sale casi solo del tamaño de letra: el nombre del equipo en condensada de cartelería de estadio a 76 px domina, la ciudad va arriba más chica y apagada, y el resto es cuerpo en Roboto. La densidad es baja, de pocas decisiones grandes por pantalla: un tablero que ocupa todo el alto disponible, un selector de conferencia, una cinta de siglas y un botón principal de ancho completo. Es una app oscura por diseño, sin modo claro.\n\nEl sistema no tiene color de marca fijo. El color propio es el de la franquicia, filtrado por una regla de legibilidad: sobre el panel, el LED encendido siempre mide al menos 4.5:1. Profundidad sin sombras, sin brillos, sin desenfoque.",
+    "keyCharacteristics": [
+      "Panel mate #0F1012 con un 6% del color principal del equipo como superficie general.",
+      "Un único acento dinámico: el color LED de la franquicia, elegido por contraste.",
+      "Tres voces tipográficas: puntos LED (Doto) para números y siglas, condensada de estadio (Big Shoulders Display) para nombres, Roboto para leer.",
+      "Estados encendido/apagado como lenguaje de selección.",
+      "Movimiento corto y sobrio, que se anula con la preferencia de animaciones reducidas."
+    ],
+    "rules": [
+      { "name": "The 4.5 Rule", "body": "Ningún LED encendido mide menos de 4.5:1 contra el panel #0F1012. Un color nuevo de equipo pasa por `colorLed()`; nunca se pinta el hex del uniforme directamente.", "section": "colors" },
+      { "name": "The One Light Rule", "body": "El LED es el único color vivo de la interfaz. Los escudos traen sus propios colores; el resto es panel, texto tintado y LED apagado.", "section": "colors" },
+      { "name": "The Re-Tint Rule", "body": "El tema se deriva de la franquicia enfocada, no de la elegida: al recorrer equipos toda la app cambia de color en vivo (250 ms, `easeOutCubic`) antes de confirmar.", "section": "colors" },
+      { "name": "The Ghost Digit Rule", "body": "Todo texto LED lleva detrás su versión apagada: cada cifra reemplazada por \"8\" en el mismo color al 12% de opacidad, como los segmentos sin encender de un tablero real. Las letras se dibujan sin fantasma.", "section": "typography" },
+      { "name": "The Dots Are For Numbers Rule", "body": "Doto solo para cifras, marcadores y siglas de tres letras. Nombres en Big Shoulders; frases en Roboto.", "section": "typography" },
+      { "name": "The Matte Panel Rule", "body": "Sin glow, sin blur, sin sombras: un LED encendido se distingue por color y opacidad, nunca por resplandor.", "section": "elevation" }
+    ],
+    "dos": [
+      "**Do** derivar todo color de la franquicia con `temaFranquicia()` y `colorLed()`; el LED siempre a ≥4.5:1 sobre #0F1012.",
+      "**Do** usar el par encendido/apagado para la selección: el elemento activo en color LED y opaco, los demás atenuados.",
+      "**Do** poner cifras y siglas con `TextoLed` (Doto con fantasma de \"8\" al 12%), y nombres en Big Shoulders en mayúsculas.",
+      "**Do** respetar `MediaQuery.disableAnimationsOf`: con animaciones reducidas, las duraciones pasan a cero.",
+      "**Do** mantener objetivos táctiles de 48 dp como mínimo y un único botón principal de 56 dp por pantalla."
+    ],
+    "donts": [
+      "**Don't** usar glow, blur, sombras ni degradados decorativos: el panel es mate.",
+      "**Don't** pintar el hex del uniforme directo sobre el panel sin pasar por la regla de contraste.",
+      "**Don't** usar Doto para frases ni Roboto para nombres de equipo.",
+      "**Don't** agregar un segundo color de acento fijo: el único color vivo es el LED de la franquicia."
+    ]
+  }
+}

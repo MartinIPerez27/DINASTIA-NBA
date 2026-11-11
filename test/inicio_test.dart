@@ -23,6 +23,11 @@ void main() {
         greaterThanOrEqualTo(4.5),
         reason: 'texto del botón de ${f.nombreCompleto}',
       );
+      expect(
+        _contraste(tema.colorScheme.onSurfaceVariant, tema.colorScheme.surfaceContainerLowest),
+        greaterThanOrEqualTo(4.5),
+        reason: 'siglas apagadas de la cinta de ${f.nombreCompleto}',
+      );
     }
   });
 
