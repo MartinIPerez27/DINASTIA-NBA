@@ -48,7 +48,22 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
 
   void _abrirDraft(Temporada t) {
     setState(() => _enfocada = franquiciaPorId(t.franquiciaUsuarioId));
-    _navegador.currentState!.push(MaterialPageRoute(builder: (_) => DraftPantalla(temporada: t)));
+    _navegador.currentState!.push(
+      MaterialPageRoute(
+        builder: (_) => DraftPantalla(temporada: t, onCambio: _guardarCambios),
+      ),
+    );
+  }
+
+  /// Cada paso del draft se guarda al instante (cerrar la app no regala tiradas).
+  Future<void> _guardarCambios(Temporada t) async {
+    setState(() => _guardada = t);
+    try {
+      await widget.db?.guardarTemporada(t);
+    } catch (e) {
+      ScaffoldMessenger.of(_navegador.currentContext!)
+          .showSnackBar(const SnackBar(content: Text('No se pudo guardar el progreso del draft.')));
+    }
   }
 
   Future<void> _dirigir(Franquicia f) async {

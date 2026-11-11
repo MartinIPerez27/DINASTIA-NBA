@@ -4,49 +4,56 @@ import 'package:flutter/material.dart';
 import '../../core/cache_imagenes.dart';
 import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/jugador.dart';
+import '../tema/tema_franquicia.dart';
 
-/// Foto oficial del jugador (cacheada en disco) con fallback vectorial: degradado de la
-/// franquicia + iniciales. El fallback también es el placeholder, así nunca hay un hueco vacío.
+/// Foto oficial del jugador (cacheada en disco) con fallback: iniciales en el LED de la franquicia.
+/// El fallback también es el placeholder, así nunca hay un hueco vacío.
+/// Con [recortar], llena su caja mostrando cabeza y hombros (para miniaturas cuadradas).
 class JugadorAvatar extends StatelessWidget {
-  const JugadorAvatar({super.key, required this.jugador, required this.franquicia});
+  const JugadorAvatar({super.key, required this.jugador, required this.franquicia, this.recortar = false});
 
   final Jugador jugador;
   final Franquicia franquicia;
+  final bool recortar;
 
   /// Proporción nativa de los headshots del CDN (1040x760).
   static const proporcion = 1040 / 760;
+
+  // shortcut: interruptor global para pruebas y capturas (el caché de fotos usa plugins nativos
+  // que no existen en `flutter test`); pasar a inyección de dependencias si aparece otro caso.
+  static bool usarRed = true;
 
   @override
   Widget build(BuildContext context) {
     final sinAnimaciones = MediaQuery.disableAnimationsOf(context);
     final fallback = _AvatarIniciales(jugador: jugador, franquicia: franquicia);
 
+    final foto = Stack(
+      fit: StackFit.expand,
+      children: [
+        fallback,
+        if (usarRed)
+          CachedNetworkImage(
+            imageUrl: jugador.headshotUrl,
+            cacheManager: cacheHeadshots,
+            fit: recortar ? BoxFit.cover : BoxFit.contain,
+            alignment: recortar ? const Alignment(0, -0.6) : Alignment.bottomCenter,
+            fadeInDuration: sinAnimaciones ? Duration.zero : const Duration(milliseconds: 180),
+            fadeInCurve: Curves.easeOut,
+            placeholder: (_, _) => const SizedBox.shrink(),
+            errorWidget: (_, _, _) => const SizedBox.shrink(),
+          ),
+      ],
+    );
     return Semantics(
       label: jugador.nombre,
       image: true,
-      child: AspectRatio(
-        aspectRatio: proporcion,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            fallback,
-            CachedNetworkImage(
-              imageUrl: jugador.headshotUrl,
-              cacheManager: cacheHeadshots,
-              fit: BoxFit.contain,
-              alignment: Alignment.bottomCenter,
-              fadeInDuration: sinAnimaciones ? Duration.zero : const Duration(milliseconds: 180),
-              fadeInCurve: Curves.easeOut,
-              placeholder: (_, _) => const SizedBox.shrink(),
-              errorWidget: (_, _, _) => const SizedBox.shrink(),
-            ),
-          ],
-        ),
-      ),
+      child: recortar ? foto : AspectRatio(aspectRatio: proporcion, child: foto),
     );
   }
 }
 
+/// Sin foto: el panel del tablero con las iniciales encendidas en el LED de la franquicia de la carta.
 class _AvatarIniciales extends StatelessWidget {
   const _AvatarIniciales({required this.jugador, required this.franquicia});
 
@@ -54,36 +61,23 @@ class _AvatarIniciales extends StatelessWidget {
   final Franquicia franquicia;
 
   @override
-  Widget build(BuildContext context) {
-    final primario = Color(franquicia.colorPrimario);
-    final secundario = Color(franquicia.colorSecundario);
-    // Texto blanco o negro según cuál contraste más con el color dominante.
-    final texto = primario.computeLuminance() > 0.4 ? Colors.black : Colors.white;
-
-    return LayoutBuilder(
-      builder: (context, c) => DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [primario, Color.lerp(primario, secundario, 0.35)!],
-          ),
-        ),
-        child: Center(
-          child: ExcludeSemantics(
-            child: Text(
-              jugador.iniciales,
-              style: TextStyle(
-                color: texto,
-                fontSize: c.biggest.shortestSide * 0.38,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-                height: 1,
-              ),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, c) => ColoredBox(
+      color: Theme.of(context).colorScheme.surfaceContainerLowest,
+      child: Center(
+        child: ExcludeSemantics(
+          child: Text(
+            jugador.iniciales,
+            style: TextStyle(
+              fontFamily: Fuentes.estadio,
+              fontVariations: const [FontVariation.weight(800)],
+              color: colorLed(franquicia),
+              fontSize: c.biggest.shortestSide * 0.42,
+              height: 1,
             ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }

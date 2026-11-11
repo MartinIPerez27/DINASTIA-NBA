@@ -2,6 +2,7 @@ import 'franquicia.dart';
 import 'partido.dart';
 import 'plantel.dart';
 import 'tactica.dart';
+import 'tirada.dart';
 
 /// Fila de la tabla de posiciones (Standings).
 class RegistroEquipo {
@@ -98,6 +99,7 @@ class Temporada {
     this.rerollsRestantes = rerollsPorTemporada,
     this.calendario = const [],
     this.series = const [],
+    this.tirada,
   });
 
   static const rerollsPorTemporada = 3;
@@ -111,6 +113,9 @@ class Temporada {
   final int rerollsRestantes;
   final List<Partido> calendario;
   final List<SeriePlayoff> series;
+
+  /// Tirada del tragamonedas pendiente de elegir carta (null si no hay).
+  final Tirada? tirada;
 
   FaseTemporada get fase {
     if (!plantel.completo) return FaseTemporada.draft;
@@ -168,6 +173,18 @@ class Temporada {
     rerollsRestantes: rerollsRestantes ?? this.rerollsRestantes,
     calendario: calendario == null ? this.calendario : List.unmodifiable(calendario),
     series: series == null ? this.series : List.unmodifiable(series),
+    tirada: tirada,
+  );
+
+  Temporada conTirada(Tirada? nueva) => Temporada(
+    id: id,
+    franquiciaUsuarioId: franquiciaUsuarioId,
+    plantel: plantel,
+    tactica: tactica,
+    rerollsRestantes: rerollsRestantes,
+    calendario: calendario,
+    series: series,
+    tirada: nueva,
   );
 
   factory Temporada.fromJson(Map<String, dynamic> j) => Temporada(
@@ -180,6 +197,7 @@ class Temporada {
       for (final p in j['calendario'] as List) Partido.fromJson(p as Map<String, dynamic>),
     ]),
     series: List.unmodifiable([for (final s in j['series'] as List) SeriePlayoff.fromJson(s as Map<String, dynamic>)]),
+    tirada: j['tirada'] == null ? null : Tirada.fromJson(j['tirada'] as Map<String, dynamic>),
   );
 
   Map<String, dynamic> toJson() => {
@@ -190,5 +208,6 @@ class Temporada {
     'rerollsRestantes': rerollsRestantes,
     'calendario': [for (final p in calendario) p.toJson()],
     'series': [for (final s in series) s.toJson()],
+    if (tirada != null) 'tirada': tirada!.toJson(),
   };
 }

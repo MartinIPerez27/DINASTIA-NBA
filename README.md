@@ -1,7 +1,7 @@
 # Dinastía NBA (82-0)
 
 Draft roguelike y simulación de temporada NBA para celulares y tablets. 100% gratuito y offline.
-El diseño completo está en el GDD; este repo avanza por fases (ahora: **Fase 2 — elección de franquicia**).
+El diseño completo está en el GDD; este repo avanza por fases (ahora: **Fase 3 — draft con cancha y tragamonedas**).
 Dirección visual: *El Marcador* (el tablero central del estadio), ver `PRODUCT.md` y `DESIGN.md`.
 
 ## Probarlo en el celular Android (sin instalar nada en la PC)
@@ -49,7 +49,7 @@ con *Depuración USB* activada, y ejecutá:
 flutter run
 ```
 
-La app arranca en el tablero: recorré las franquicias en la cinta LED, la app se tiñe con cada una, y "Dirigir a…" crea la temporada y abre el draft (provisorio hasta la Fase 3, muestra el catálogo de cartas).
+La app arranca en el tablero: recorré las franquicias en la cinta LED, la app se tiñe con cada una, y "Dirigir a…" crea la temporada y abre el draft: tirá los 3 carretes, elegí una de las cartas que salieron y tocá su puesto en la cancha. Volver a tirar cuesta 1 de las 3 fichas y permite retener hasta 2 carretes.
 
 > **Sin Android Studio (solo Windows):** `flutter create --platforms=windows .` y después `flutter run -d windows`
 > (requiere Visual Studio con "Desarrollo para el escritorio con C++"). La versión web no muestra las fotos porque el
