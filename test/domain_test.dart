@@ -36,7 +36,7 @@ void main() {
     'Larry Bird': (1449, [Posicion.alero, Posicion.alaPivot]),
     'Tim Duncan': (1495, [Posicion.alaPivot, Posicion.pivot]),
     'Nikola Jokić': (203999, [Posicion.pivot, Posicion.alaPivot]),
-    'Manu Ginóbili': (2199, [Posicion.escolta, Posicion.base]),
+    'Manu Ginóbili': (1938, [Posicion.escolta, Posicion.base]),
     'Stephen Curry': (201939, [Posicion.base, Posicion.escolta]),
     'Giannis Antetokounmpo': (203507, [Posicion.alaPivot, Posicion.alero, Posicion.pivot]),
   };

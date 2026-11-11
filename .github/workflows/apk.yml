@@ -39,6 +39,7 @@ jobs:
         run: |
           flutter analyze
           flutter test
+          python3 -m pip install --quiet nba_api
           python3 -m unittest discover tools
 
       - name: Compilar APK

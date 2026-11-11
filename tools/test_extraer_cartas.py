@@ -76,7 +76,7 @@ class CartasTest(unittest.TestCase):
         self.assertEqual(ec.cartas_de_jugador(info, corta, [premio("NBA All-Star", "2015-16")]), [])
 
     def test_sexto_hombre_del_anio_define_el_rol(self):
-        info = {"PERSON_ID": 2199, "DISPLAY_FIRST_LAST": "Manu Ginobili", "POSITION": "Guard", "JERSEY": "20"}
+        info = {"PERSON_ID": 1938, "DISPLAY_FIRST_LAST": "Manu Ginobili", "POSITION": "Guard", "JERSEY": "20"}
         carrera = [temporada(s, SAS, gs=20, minutos=28, pts=16, ast=4.0, fg3a=5) for s in ("2006-07", "2007-08")]
         carta = ec.cartas_de_jugador(info, carrera, [premio("NBA Sixth Man of the Year", "2007-08")])[0]
         self.assertEqual(carta["rol"], "directorSegundaUnidad")  # como en el GDD
@@ -95,6 +95,26 @@ class CartasTest(unittest.TestCase):
         self.assertEqual(ec.dorsal_de("23"), 23)
         self.assertEqual(ec.dorsal_de("8-24"), 8)
         self.assertEqual(ec.dorsal_de(""), 0)
+
+
+class CatalogoTest(unittest.TestCase):
+    """Cada carta del catálogo empaquetado usa el ID oficial de ese jugador (evita fotos cruzadas)."""
+
+    def test_ids_coinciden_con_el_nombre(self):
+        try:
+            from nba_api.stats.static import players
+        except ImportError:
+            self.skipTest("nba_api no instalado")
+        import json
+        import unicodedata
+
+        def normalizar(s):
+            return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
+
+        for carta in json.loads(ec.SALIDA.read_text(encoding="utf-8")):
+            oficial = players.find_player_by_id(carta["nbaPlayerId"])
+            self.assertIsNotNone(oficial, carta["id"])
+            self.assertEqual(normalizar(oficial["full_name"]), normalizar(carta["nombre"]), carta["id"])
 
 
 if __name__ == "__main__":
