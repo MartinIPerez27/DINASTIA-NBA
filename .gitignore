@@ -53,3 +53,6 @@ graphify-out/
 # Caché de respuestas de stats.nba.com
 tools/.cache/
 __pycache__/
+
+# Capturas generadas localmente (flutter test capturas --update-goldens)
+capturas/salida/

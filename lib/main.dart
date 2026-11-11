@@ -1,63 +1,83 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import 'data/catalogo_jugadores.dart';
+import 'data/db_local.dart';
 import 'data/franquicias.dart';
-import 'domain/entities/jugador.dart';
-import 'presentation/widgets/jugador_avatar.dart';
+import 'domain/entities/franquicia.dart';
+import 'domain/entities/temporada.dart';
+import 'presentation/pantallas/draft_pantalla.dart';
+import 'presentation/pantallas/inicio_pantalla.dart';
+import 'presentation/tema/tema_franquicia.dart';
 
-void main() => runApp(const DinastiaNbaApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  for (final (familia, archivo) in [('Doto', 'OFL-Doto.txt'), ('Big Shoulders', 'OFL-BigShoulders.txt')]) {
+    LicenseRegistry.addLicense(() async* {
+      yield LicenseEntryWithLineBreaks([familia], await rootBundle.loadString('assets/fonts/$archivo'));
+    });
+  }
 
-class DinastiaNbaApp extends StatelessWidget {
-  const DinastiaNbaApp({super.key});
+  // Sin base de datos se puede jugar igual; solo no se guarda la temporada.
+  DbLocal? db;
+  Temporada? guardada;
+  try {
+    db = await DbLocal.abrir();
+    guardada = await db.ultimaTemporada();
+  } catch (e) {
+    debugPrint('Base local no disponible: $e');
+  }
+  runApp(DinastiaNbaApp(db: db, guardada: guardada));
+}
+
+class DinastiaNbaApp extends StatefulWidget {
+  const DinastiaNbaApp({super.key, this.db, this.guardada});
+
+  final DbLocal? db;
+  final Temporada? guardada;
+
+  @override
+  State<DinastiaNbaApp> createState() => _DinastiaNbaAppState();
+}
+
+class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
+  final _navegador = GlobalKey<NavigatorState>();
+  late Franquicia _enfocada = franquiciaPorId(widget.guardada?.franquiciaUsuarioId ?? 'CHI');
+  late Temporada? _guardada = widget.guardada;
+
+  void _abrirDraft(Temporada t) {
+    setState(() => _enfocada = franquiciaPorId(t.franquiciaUsuarioId));
+    _navegador.currentState!.push(MaterialPageRoute(builder: (_) => DraftPantalla(temporada: t)));
+  }
+
+  Future<void> _dirigir(Franquicia f) async {
+    final t = Temporada(id: DateTime.now().millisecondsSinceEpoch.toString(), franquiciaUsuarioId: f.id);
+    try {
+      await widget.db?.guardarTemporada(t);
+      setState(() => _guardada = t);
+    } catch (e) {
+      ScaffoldMessenger.of(_navegador.currentContext!)
+          .showSnackBar(const SnackBar(content: Text('No se pudo guardar la temporada. Podés jugar igual.')));
+    }
+    _abrirDraft(t);
+  }
 
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Dinastía NBA (82-0)',
+    navigatorKey: _navegador,
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(colorSchemeSeed: const Color(0xFFCE1141), brightness: Brightness.dark),
-    home: const _CatalogoFase1(),
-  );
-}
-
-/// Pantalla provisoria de Fase 1: comprueba catálogo + fotos + fallback. La reemplaza la Fase 2.
-class _CatalogoFase1 extends StatelessWidget {
-  const _CatalogoFase1();
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Catálogo de cartas')),
-    body: FutureBuilder<List<Jugador>>(
-      future: cargarCatalogo(),
-      builder: (context, snap) {
-        if (snap.hasError) return Center(child: Text('Error al cargar: ${snap.error}'));
-        final jugadores = snap.data;
-        if (jugadores == null) return const Center(child: CircularProgressIndicator());
-        return GridView.extent(
-          maxCrossAxisExtent: 220,
-          padding: const EdgeInsets.all(16),
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          children: [
-            for (final j in jugadores)
-              Column(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: JugadorAvatar(jugador: j, franquicia: franquiciaPorId(j.franquiciaId)),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(j.nombre, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text(
-                    '${j.posiciones.first.etiqueta} · ${j.tier.etiqueta}',
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                ],
-              ),
-          ],
-        );
-      },
+    theme: temaFranquicia(_enfocada),
+    themeAnimationDuration: const Duration(milliseconds: 250),
+    themeAnimationCurve: Curves.easeOutCubic,
+    home: InicioPantalla(
+      franquicias: franquicias,
+      enfocada: _enfocada,
+      onEnfocar: (f) => setState(() => _enfocada = f),
+      onDirigir: _dirigir,
+      guardada: _guardada,
+      onSeguir: _guardada == null ? null : () => _abrirDraft(_guardada!),
     ),
   );
 }

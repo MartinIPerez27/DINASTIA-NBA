@@ -33,3 +33,15 @@ flutter:
   uses-material-design: true
   assets:
     - assets/database/
+    - assets/logos/
+    - assets/fonts/OFL-Doto.txt
+    - assets/fonts/OFL-BigShoulders.txt
+  fonts:
+    # Puntos LED para números y siglas (OFL).
+    - family: Doto
+      fonts:
+        - asset: assets/fonts/Doto.ttf
+    # Condensada de cartelería de estadio para nombres (OFL).
+    - family: BigShouldersDisplay
+      fonts:
+        - asset: assets/fonts/BigShouldersDisplay.ttf

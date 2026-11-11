@@ -1,6 +1,6 @@
 # Compila el APK de Android en cada push a main y lo publica en Releases → "Última versión".
 # Descarga directa desde el celular:
-#   https://github.com/MartinIPerez27/DINATIA-NBA/releases/download/ultima/dinastia-nba.apk
+#   https://github.com/MartinIPerez27/DINASTIA-NBA/releases/download/ultima/dinastia-nba.apk
 name: APK Android
 
 on:

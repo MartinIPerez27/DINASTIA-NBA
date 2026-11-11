@@ -1,7 +1,8 @@
 # Dinastía NBA (82-0)
 
 Draft roguelike y simulación de temporada NBA para celulares y tablets. 100% gratuito y offline.
-El diseño completo está en el GDD; este repo avanza por fases (ahora: **Fase 1 — modelos y datos**).
+El diseño completo está en el GDD; este repo avanza por fases (ahora: **Fase 2 — elección de franquicia**).
+Dirección visual: *El Marcador* (el tablero central del estadio), ver `PRODUCT.md` y `DESIGN.md`.
 
 ## Probarlo en el celular Android (sin instalar nada en la PC)
 
@@ -9,7 +10,7 @@ Cada cambio subido a `main` se compila solo en GitHub (pestaña **Actions**, uno
 **Releases → Última versión**.
 
 1. Desde el navegador del celular abrí:
-   https://github.com/MartinIPerez27/DINATIA-NBA/releases/download/ultima/dinastia-nba.apk
+   https://github.com/MartinIPerez27/DINASTIA-NBA/releases/download/ultima/dinastia-nba.apk
 2. Al terminar la descarga, tocá el archivo. Android va a pedir permiso para **instalar apps desconocidas**
    desde el navegador: activalo solo para esa app y volvé atrás.
 3. Tocá **Instalar** y abrí *Dinastía NBA*.
@@ -35,8 +36,8 @@ Si Play Protect avisa "app no verificada", elegí *Instalar de todas formas* (es
 ### 2. Descargar y correr
 
 ```bash
-git clone https://github.com/MartinIPerez27/DINATIA-NBA.git
-cd DINATIA-NBA
+git clone https://github.com/MartinIPerez27/DINASTIA-NBA.git
+cd DINASTIA-NBA
 flutter pub get
 flutter test
 ```
@@ -48,7 +49,7 @@ con *Depuración USB* activada, y ejecutá:
 flutter run
 ```
 
-Por ahora la app muestra el catálogo de cartas (foto oficial o, sin internet, iniciales con los colores de la franquicia).
+La app arranca en el tablero: recorré las franquicias en la cinta LED, la app se tiñe con cada una, y "Dirigir a…" crea la temporada y abre el draft (provisorio hasta la Fase 3, muestra el catálogo de cartas).
 
 > **Sin Android Studio (solo Windows):** `flutter create --platforms=windows .` y después `flutter run -d windows`
 > (requiere Visual Studio con "Desarrollo para el escritorio con C++"). La versión web no muestra las fotos porque el
@@ -88,7 +89,10 @@ lib/
 ├── domain/        Modelos inmutables en Dart puro (sin Flutter): Jugador, Franquicia,
 │                  Plantel (regla de no duplicación), Táctica, Partido, Temporada
 ├── data/          30 franquicias, carga del catálogo JSON, SQLite para partidas guardadas
-└── presentation/  Widgets (foto del jugador con fallback)
+└── presentation/  Tema por franquicia, pantallas (inicio, draft) y widgets (LED, escudo, foto)
 assets/database/   Catálogo de cartas empaquetado en la app
-tools/             Script de extracción de datos (Python + nba_api)
+assets/logos/      30 escudos oficiales en SVG (regenerar: python tools/normalizar_escudos.py)
+assets/fonts/      Doto (LED) y Big Shoulders Display (estadio), licencia OFL
+tools/             Scripts de datos (Python): cartas con nba_api y escudos del CDN
+capturas/          Capturas de pantalla con tipografías reales: flutter test capturas --update-goldens
 ```
