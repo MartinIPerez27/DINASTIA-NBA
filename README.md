@@ -3,6 +3,20 @@
 Draft roguelike y simulación de temporada NBA para celulares y tablets. 100% gratuito y offline.
 El diseño completo está en el GDD; este repo avanza por fases (ahora: **Fase 1 — modelos y datos**).
 
+## Probarlo en el celular Android (sin instalar nada en la PC)
+
+Cada cambio subido a `main` se compila solo en GitHub (pestaña **Actions**, unos 5–8 minutos) y el APK queda en
+**Releases → Última versión**.
+
+1. Desde el navegador del celular abrí:
+   https://github.com/MartinIPerez27/DINATIA-NBA/releases/download/ultima/dinastia-nba.apk
+2. Al terminar la descarga, tocá el archivo. Android va a pedir permiso para **instalar apps desconocidas**
+   desde el navegador: activalo solo para esa app y volvé atrás.
+3. Tocá **Instalar** y abrí *Dinastía NBA*.
+
+Para actualizar, repetí los mismos pasos: la versión nueva se instala encima y conserva los datos.
+Si Play Protect avisa "app no verificada", elegí *Instalar de todas formas* (es tu propia app, sin firmar en Play Store).
+
 ## Probarlo en tu PC
 
 ### 1. Instalar (una sola vez)

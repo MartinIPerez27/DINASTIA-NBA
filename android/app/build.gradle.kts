@@ -29,10 +29,19 @@ android {
         versionName = flutter.versionName
     }
 
+    // Firma de pruebas fija en el repo: así cada APK nuevo se instala encima del anterior.
+    // Antes de publicar en Play Store hay que crear una firma privada (key.properties, fuera del repo).
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

@@ -12,3 +12,6 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Firma de pruebas compartida: solo para instalar APKs de prueba, nunca para Play Store.
+!app/debug.keystore

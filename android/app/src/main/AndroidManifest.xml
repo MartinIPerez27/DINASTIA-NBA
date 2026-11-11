@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Fotos y escudos del CDN de la NBA (se guardan en caché para jugar offline). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="dinastia_nba"
+        android:label="Dinastía NBA"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
