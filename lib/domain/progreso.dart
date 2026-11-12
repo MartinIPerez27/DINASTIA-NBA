@@ -133,6 +133,18 @@ class Progreso {
       if (allStar != null && allStar.de(usuario).length >= 3) lograr(Logro.tresAllStars);
     }
     if (regularTerminada && recordsBatidos(despues, liga).isNotEmpty) lograr(Logro.recordHistorico);
+    // Copa NBA: la final ganada por el usuario (una sola vez, cuando pasa de pendiente a ganada).
+    if (_ganoCopa(despues) && !_ganoCopa(antes)) {
+      lograr(Logro.copaNba);
+      final ahora = DateTime.now().millisecondsSinceEpoch;
+      p = p.copyWith(
+        trofeos: [
+          ...p.trofeos,
+          Trofeo(tipo: TipoTrofeo.copa, temporadaId: despues.id, franquiciaId: usuario, fecha: ahora),
+        ],
+      );
+      novedades.add(Novedad('Trofeo: ${TipoTrofeo.copa.nombre}', destacada: true));
+    }
     p = p.copyWith(logros: logros);
 
     // Cierre de temporada: Salón de la Fama, vitrina y carrera de cada carta.
@@ -267,6 +279,9 @@ class Progreso {
       temporadasCerradas: {...p.temporadasCerradas, t.id},
     );
   }
+
+  bool _ganoCopa(Temporada t) =>
+      t.copa.any((s) => s.ronda == RondaPlayoff.copaFinal && s.terminada && s.ganadorId == t.franquiciaUsuarioId);
 
   /// (victorias, derrotas) del usuario en una serie.
   (int, int) _victorias(SeriePlayoff s, String usuario) => s.altoId == usuario

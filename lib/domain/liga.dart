@@ -138,19 +138,130 @@ class Liga {
     return p;
   }
 
-  EquipoPartido equipo(Temporada t, String franquiciaId) {
+  /// Equipo listo para jugar, con los lesionados afuera: entran los suplentes (o, en los rivales,
+  /// jugadores de su franquicia y época que no están en ningún plantel).
+  EquipoPartido equipo(Temporada t, String franquiciaId, {Map<String, int>? lesiones}) {
+    final les = lesiones ?? t.lesiones;
     if (franquiciaId == t.franquiciaUsuarioId) {
+      final (plantel, reserva) = _conReemplazos(t.plantel, t.suplentes, les);
       return EquipoPartido(
         identidadId: franquiciaId,
-        plantel: t.plantel,
+        plantel: plantel,
         tactica: t.tactica,
         entrenador: Entrenador.porId(t.entrenadorId),
         forma: t.forma,
+        reserva: reserva,
       );
     }
     final r = t.rivales[franquiciaId]!;
-    return EquipoPartido(identidadId: r.identidadId, plantel: plantelDe(r), tactica: r.tactica, forma: t.forma);
+    final base = plantelDe(r);
+    final hayLesionados = base.jugadores.any((j) => les.containsKey(j.id));
+    final (plantel, _) = hayLesionados
+        ? _conReemplazos(base, _reemplazosRival(t, r, base, les), les)
+        : (base, const <Jugador>[]);
+    return EquipoPartido(identidadId: r.identidadId, plantel: plantel, tactica: r.tactica, forma: t.forma);
   }
+
+  /// Saca a los lesionados: cada titular lesionado lo reemplaza el mejor sano que pueda jugar ese puesto
+  /// (el Sexto Hombre o un suplente; si nadie, el mejor aunque sea fuera de puesto). Devuelve el plantel
+  /// del partido y los suplentes sanos que quedan en el banco largo.
+  (Plantel, List<Jugador>) _conReemplazos(Plantel p, List<Jugador> extra, Map<String, int> les) {
+    bool sano(Jugador j) => !les.containsKey(j.id);
+    final sexto = p.sextoHombre;
+    final disponibles = [if (sexto != null && sano(sexto)) sexto, ...extra.where(sano)];
+    if (p.jugadores.every(sano)) return (p, extra.where(sano).toList());
+    final puestos = <Posicion, Jugador>{};
+    for (final pos in Posicion.titulares) {
+      final j = p.en(pos);
+      if (j == null) continue;
+      if (sano(j) || disponibles.isEmpty) {
+        puestos[pos] = j; // sano, o juega tocado porque no hay nadie más
+        continue;
+      }
+      final aptos = disponibles.where((x) => x.puedeJugarEn(pos)).toList();
+      final elegido = (aptos.isEmpty ? disponibles : aptos).reduce((a, b) => a.media >= b.media ? a : b);
+      disponibles.remove(elegido);
+      puestos[pos] = elegido;
+    }
+    if (disponibles.isNotEmpty) {
+      final nuevoSexto = sexto != null && disponibles.contains(sexto)
+          ? sexto
+          : disponibles.reduce((a, b) => a.media >= b.media ? a : b);
+      disponibles.remove(nuevoSexto);
+      puestos[Posicion.sextoHombre] = nuevoSexto;
+    }
+    return (Plantel.deEmergencia(Map.unmodifiable(puestos)), disponibles);
+  }
+
+  /// Reemplazos para un rival: los mejores sanos de su franquicia (y de su época, si es de época)
+  /// que no están en ningún plantel de la liga.
+  List<Jugador> _reemplazosRival(Temporada t, Rival r, Plantel base, Map<String, int> les) {
+    final ocupados = {
+      for (final j in t.plantel.jugadores) j.nbaPlayerId,
+      for (final j in t.suplentes) j.nbaPlayerId,
+      for (final j in base.jugadores) j.nbaPlayerId,
+    };
+    final pool = [
+      for (final j in catalogo)
+        if (j.franquiciaId == r.franquiciaId &&
+            (r.epoca == null || j.epoca == r.epoca) &&
+            !ocupados.contains(j.nbaPlayerId) &&
+            !les.containsKey(j.id))
+          j,
+    ]..sort((a, b) => b.media.compareTo(a.media));
+    return pool.take(4).toList();
+  }
+
+  // ── Banco largo: agentes libres para firmar suplentes ──
+
+  /// 8 agentes libres (cartas A y B que no están en ningún plantel). Cambian cada 10 jornadas.
+  List<Jugador> agentesLibres(Temporada t) {
+    final bloque = (proximoDelUsuario(t)?.jornada ?? 0) ~/ 10;
+    final semilla = '${t.id}-$bloque'.codeUnits.fold(11, (h, c) => (h * 31 + c) & 0x7fffffff);
+    final azar = Random(semilla);
+    final ocupados = {
+      for (final j in t.plantel.jugadores) j.nbaPlayerId,
+      for (final j in t.suplentes) j.nbaPlayerId,
+      for (final r in t.rivales.values)
+        for (final id in r.cartaIds.values) ?_porId[id]?.nbaPlayerId,
+    };
+    final pool = [
+      for (final j in catalogo)
+        if ((j.tier == Tier.a || j.tier == Tier.b) &&
+            j.media >= 72 &&
+            j.media <= 86 &&
+            !ocupados.contains(j.nbaPlayerId))
+          j,
+    ]..shuffle(azar);
+    final elegidos = <Jugador>[];
+    final personas = <int>{};
+    // Variedad: al menos uno por puesto principal, después el resto.
+    for (final pos in Posicion.titulares) {
+      final j = pool.where((x) => x.posiciones.first == pos && !personas.contains(x.nbaPlayerId)).firstOrNull;
+      if (j != null) {
+        elegidos.add(j);
+        personas.add(j.nbaPlayerId);
+      }
+    }
+    for (final j in pool) {
+      if (elegidos.length >= 8) break;
+      if (personas.add(j.nbaPlayerId)) elegidos.add(j);
+    }
+    return elegidos..sort((a, b) => b.media.compareTo(a.media));
+  }
+
+  Temporada firmar(Temporada t, Jugador j) {
+    if (t.suplentes.length >= Temporada.maxSuplentes) throw StateError('El banco largo ya está completo.');
+    if (t.suplentes.any((x) => x.nbaPlayerId == j.nbaPlayerId)) return t;
+    return t.copyWith(suplentes: [...t.suplentes, j]);
+  }
+
+  Temporada liberar(Temporada t, Jugador j) => t.copyWith(
+    suplentes: [
+      for (final x in t.suplentes)
+        if (x.id != j.id) x,
+    ],
+  );
 
   Partido? proximoDelUsuario(Temporada t) {
     for (final p in t.calendario) {
@@ -159,9 +270,9 @@ class Liga {
     return null;
   }
 
-  MotorPartido motor(Temporada t, Partido p, {Random? azar}) => MotorPartido(
-    local: _conDesgaste(equipo(t, p.localId), t, p, p.localId),
-    visitante: _conDesgaste(equipo(t, p.visitanteId), t, p, p.visitanteId),
+  MotorPartido motor(Temporada t, Partido p, {Random? azar, Map<String, int>? lesiones}) => MotorPartido(
+    local: _conDesgaste(equipo(t, p.localId, lesiones: lesiones), t, p, p.localId),
+    visitante: _conDesgaste(equipo(t, p.visitanteId, lesiones: lesiones), t, p, p.visitanteId),
     usuarioLocal: p.localId == t.franquiciaUsuarioId,
     azar: azar ?? _azar,
   );
@@ -198,6 +309,7 @@ class Liga {
       entrenador: e.entrenador,
       forma: e.forma,
       energiaInicial: energia,
+      reserva: e.reserva,
     );
   }
 
@@ -217,20 +329,23 @@ class Liga {
     var cambios = false;
     final lineas = _copia(t.lineas);
     final forma = Map.of(t.forma);
+    final lesiones = Map.of(t.lesiones);
+    final equipoDe = equipos(t);
     final calendario = [
       for (final p in t.calendario)
         if (!p.jugado && p.jornada <= jornada && !p.participa(t.franquiciaUsuarioId))
           () {
             cambios = true;
-            final m = motor(t, p)..simularTodo();
+            final m = motor(t, p, lesiones: lesiones)..simularTodo();
             _sumarBox(lineas, m);
             _actualizarForma(forma, m);
+            _actualizarLesiones(lesiones, p, m, equipoDe);
             return p.conResultado(m.parcialesLocal, m.parcialesVisitante);
           }()
         else
           p,
     ];
-    return cambios ? t.copyWith(calendario: calendario, lineas: lineas, forma: forma) : t;
+    return cambios ? t.copyWith(calendario: calendario, lineas: lineas, forma: forma, lesiones: lesiones) : t;
   }
 
   /// Registra el partido del usuario ya jugado (en vivo o simulado) y suma las estadísticas.
@@ -239,11 +354,37 @@ class Liga {
     _sumarBox(lineas, m);
     final forma = Map.of(t.forma);
     _actualizarForma(forma, m);
+    final lesiones = Map.of(t.lesiones);
+    if (partido.jornada > 0) _actualizarLesiones(lesiones, partido, m, equipos(t));
     final calendario = [
       for (final p in t.calendario) p.id == partido.id ? p.conResultado(m.parcialesLocal, m.parcialesVisitante) : p,
     ];
-    return t.copyWith(calendario: calendario, lineas: lineas, forma: forma);
+    return t.copyWith(calendario: calendario, lineas: lineas, forma: forma, lesiones: lesiones);
   }
+
+  /// Lesiones: los lesionados de los dos equipos se pierden este partido (uno menos); y cada uno que
+  /// jugó tiene una chance chica de lesionarse (casi siempre poco tiempo; a veces, semanas).
+  void _actualizarLesiones(Map<String, int> lesiones, Partido p, MotorPartido m, Map<String, String> equipoDe) {
+    String? equipo(String id) => equipoDe[id] ?? _porId[id]?.franquiciaId;
+    for (final id in lesiones.keys.toList()) {
+      final f = equipo(id);
+      if (f != p.localId && f != p.visitanteId) continue;
+      final quedan = lesiones[id]! - 1;
+      if (quedan <= 0) {
+        lesiones.remove(id);
+      } else {
+        lesiones[id] = quedan;
+      }
+    }
+    for (final e in [...m.boxLocal.entries, ...m.boxVisitante.entries]) {
+      if (e.value.seg < 60 || lesiones.containsKey(e.key) || _azar.nextDouble() >= probabilidadLesion) continue;
+      final r = _azar.nextDouble();
+      lesiones[e.key] = r < 0.6 ? 1 + _azar.nextInt(3) : (r < 0.9 ? 4 + _azar.nextInt(7) : 11 + _azar.nextInt(15));
+    }
+  }
+
+  /// Chance de lesionarse en cada partido que juega (≈ 2-3 lesiones por equipo por temporada).
+  static const probabilidadLesion = 0.005;
 
   /// Forma de las cartas: rendir por encima de lo esperado sube la racha (hasta +3), rendir por
   /// debajo la baja (hasta −3), y con el tiempo todo vuelve a 0.
@@ -297,6 +438,7 @@ class Liga {
   /// Franquicia de cada carta en esta temporada (tu plantel y los 29 rivales).
   Map<String, String> equipos(Temporada t) => {
     for (final j in t.plantel.jugadores) j.id: t.franquiciaUsuarioId,
+    for (final j in t.suplentes) j.id: t.franquiciaUsuarioId,
     for (final r in t.rivales.values)
       for (final id in r.cartaIds.values) id: r.franquiciaId,
   };
