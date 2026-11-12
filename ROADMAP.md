@@ -41,13 +41,13 @@ final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
 
 ## 4. Modos y metajuego
 - [ ] **Modo Dinastía**: temporadas encadenadas, envejecimiento, retiros, mini-draft.
-- [ ] **Salón de la Fama y logros**.
+- [x] ✅ **Salón de la Fama y logros**.
 - [ ] **Desafío del día** (mismo draft para todos según la fecha, offline).
 - [ ] **Modos de draft con reglas**: una sola década, franquicia pura, underdog (solo A y B),
       a ciegas.
 - [ ] **Escenarios históricos** ("Ganá las Finales del 98 con los Jazz").
-- [ ] **Nivel de entrenador con XP** y desbloqueos (canchas retro, uniformes clásicos, carteles).
-- [ ] **Varias partidas guardadas** + exportar/importar.
+- [~] **Nivel de entrenador con XP** (✅ nivel y ventajas; faltan los desbloqueos estéticos) y desbloqueos (canchas retro, uniformes clásicos, carteles).
+- [x] ✅ **Varias partidas guardadas** + exportar/importar.
 - [ ] **Racha infinita**: rivales al azar hasta perder; el récord va al Salón.
 - [ ] **Camino al anillo** (roguelike): 10 rivales históricos crecientes; entre partidos, 1 de 3
       ventajas; si perdés, se termina.
@@ -64,17 +64,17 @@ final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
 - [ ] **Duelo**: dos personas, serie al mejor de 7.
 
 ### Metajuego
-- [ ] **Monedas del juego** (sin dinero real) para abrir sobres.
+- [~] **Monedas del juego** (✅ se ganan jugando; los sobres llegan con la colección) para abrir sobres.
 - [ ] **Colección permanente** de cartas y un modo que solo usa tu colección.
 - [ ] **Misiones diarias y semanales**.
 - [ ] **Pase de temporada offline** con premios estéticos (canchas retro, pelota ABA, uniformes
       clásicos, temas de carteles LED).
-- [ ] **Ventajas del entrenador** que se ganan con el nivel.
-- [ ] **Vitrina de trofeos**.
+- [x] ✅ **Ventajas del entrenador** que se ganan con el nivel.
+- [x] ✅ **Vitrina de trofeos**.
 - [ ] **Historia de tu dinastía** (línea de tiempo narrada).
 - [ ] **Rivalidades que se arrastran** ("Revancha").
-- [ ] **Carrera de cada carta** (usos y promedios con vos).
-- [ ] **Puntaje personal de entrenador** según resultados y dificultad.
+- [x] ✅ **Carrera de cada carta** (usos y promedios con vos).
+- [x] ✅ **Puntaje personal de entrenador** según resultados y dificultad.
 
 ## 5. Compartir
 - [ ] **Imagen para compartir** (plantel, récord, anillo).
@@ -83,6 +83,6 @@ final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
 ## 6. Calidad
 - [ ] **Tablet en serio**: diseño para pantalla grande (BMAX Power 11.4" 2K, apaisada): cancha y
       paneles lado a lado, cartas más grandes, todo nítido a la resolución nativa.
-- [ ] **Pruebas de balance automáticas**: temporadas simuladas que validan la dificultad en cada
+- [x] ✅ **Pruebas de balance automáticas**: temporadas simuladas que validan la dificultad en cada
       cambio del motor.
-- [ ] **Ajustes y tutorial** (velocidad por defecto, sonido, vibración; bienvenida la primera vez).
+- [x] ✅ **Ajustes y tutorial** (velocidad por defecto, sonido, vibración; bienvenida la primera vez).

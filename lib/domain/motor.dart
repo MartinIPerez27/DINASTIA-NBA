@@ -184,6 +184,7 @@ class _Lado {
   final parciales = <int>[0];
   int tiemposMuertos = 5;
   int faltas = 0; // faltas del equipo en el cuarto
+  double recuperoTiempoMuerto = 10; // energía que devuelve cada tiempo muerto
   int racha = 0; // puntos seguidos sin respuesta del rival
   bool acelerar = false, presion = false;
 
@@ -250,6 +251,14 @@ class MotorPartido {
   /// Cuánto pesa en el tiro la diferencia de media entre el tirador y la defensa en cancha.
   static const pesoDiferencia = 1 / 250;
 
+  /// Ventajas del entrenador del usuario (por nivel): tiempos muertos extra y descanso más largo.
+  void ventajasUsuario({int tiemposExtra = 0, bool descansoLargo = false}) {
+    final lado = usuarioLocal == null ? null : (usuarioLocal! ? _l : _v);
+    if (lado == null) return;
+    lado.tiemposMuertos += tiemposExtra;
+    if (descansoLargo) lado.recuperoTiempoMuerto = 20;
+  }
+
   /// Intervenciones del entrenador (GDD §6).
   void acelerarRitmo(bool local, bool activo) => (local ? _l : _v).acelerar = activo;
   void presionAlta(bool local, bool activo) => (local ? _l : _v).presion = activo;
@@ -260,7 +269,7 @@ class MotorPartido {
     if (lado.tiemposMuertos == 0 || terminado) return false;
     lado.tiemposMuertos--;
     for (final id in lado.energia.keys) {
-      lado.energia[id] = min(100, lado.energia[id]! + 10);
+      lado.energia[id] = min(100, lado.energia[id]! + lado.recuperoTiempoMuerto);
     }
     (local ? _v : _l).racha = 0;
     _pausaPendiente = true;

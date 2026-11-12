@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../data/franquicias.dart';
 import '../../domain/entities/jugador.dart';
@@ -9,6 +8,7 @@ import '../../domain/entities/posicion.dart';
 import '../tema/tema_franquicia.dart';
 import '../widgets/carta_vertical.dart';
 import '../widgets/ficha_jugador.dart';
+import '../widgets/haptica.dart';
 
 /// Escena del modo cartas: 5 cartas entran boca abajo, las raras cargan sus LED y se dan vuelta
 /// de a una. Se toca una para elegirla y "FICHAR" la confirma. Mantener apretada abre su ficha.
@@ -105,7 +105,7 @@ class _ReveladoCartasState extends State<ReveladoCartas> {
                             onRevelada: () => setState(() => _reveladas.add(j.id)),
                             onTap: _todasReveladas
                                 ? () {
-                                    HapticFeedback.selectionClick();
+                                    Haptica.seleccion();
                                     setState(() => _elegida = elegida == j ? null : j);
                                   }
                                 : null,
@@ -202,12 +202,12 @@ class _CartaRevelableState extends State<_CartaRevelable> with SingleTickerProvi
     _avisada = true;
     switch (widget.jugador.tier) {
       case Tier.sPlus:
-        HapticFeedback.heavyImpact();
+        Haptica.fuerte();
       case Tier.s:
-        HapticFeedback.mediumImpact();
+        Haptica.media();
       case Tier.a:
       case Tier.b:
-        HapticFeedback.selectionClick();
+        Haptica.seleccion();
     }
     widget.onRevelada();
   }

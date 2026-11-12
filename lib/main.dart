@@ -4,16 +4,25 @@ import 'package:flutter/services.dart';
 
 import 'data/catalogo_jugadores.dart';
 import 'data/db_local.dart';
+import 'data/estado_app.dart';
 import 'data/franquicias.dart';
+import 'domain/entities/ajustes.dart';
 import 'domain/entities/franquicia.dart';
+import 'domain/entities/perfil.dart';
 import 'domain/entities/temporada.dart';
 import 'domain/liga.dart';
+import 'domain/progreso.dart';
+import 'presentation/pantallas/ajustes_pantalla.dart';
 import 'presentation/pantallas/draft_pantalla.dart';
 import 'presentation/pantallas/inicio_pantalla.dart';
+import 'presentation/pantallas/partidas_pantalla.dart';
+import 'presentation/pantallas/perfil_pantalla.dart';
 import 'presentation/pantallas/playbook_pantalla.dart';
 import 'presentation/pantallas/playoffs_pantalla.dart';
 import 'presentation/pantallas/temporada_pantalla.dart';
+import 'presentation/pantallas/tutorial_pantalla.dart';
 import 'presentation/tema/tema_franquicia.dart';
+import 'presentation/widgets/aviso.dart';
 import 'presentation/widgets/elegir_modo.dart';
 
 Future<void> main() async {
@@ -31,6 +40,8 @@ Future<void> main() async {
   try {
     db = await DbLocal.abrir();
     guardada = await db.ultimaTemporada();
+    if (await db.leer('ajustes') case final j?) ajustesApp.value = Ajustes.fromJson(j);
+    if (await db.leer('perfil') case final j?) perfilApp.value = PerfilEntrenador.fromJson(j);
   } catch (e) {
     debugPrint('Base local no disponible: $e');
   }
@@ -51,10 +62,75 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   final _navegador = GlobalKey<NavigatorState>();
   late Franquicia _enfocada = franquiciaPorId(widget.guardada?.franquiciaUsuarioId ?? 'CHI');
   late Temporada? _guardada = widget.guardada;
+  Liga? _liga;
+
+  /// Una sola liga para toda la app (el catálogo se carga una vez).
+  Future<Liga> _ligaLista() async => _liga ??= Liga(await cargarCatalogo(), franquicias);
+
+  @override
+  void initState() {
+    super.initState();
+    if (!ajustesApp.value.tutorialVisto) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _abrirTutorial());
+    }
+  }
+
+  void _abrirTutorial() => _navegador.currentState?.push(
+    MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (c) => TutorialPantalla(
+        onTerminar: () {
+          _guardarAjustes(ajustesApp.value.copyWith(tutorialVisto: true));
+          Navigator.of(c).pop();
+        },
+      ),
+    ),
+  );
+
+  void _guardarAjustes(Ajustes a) {
+    ajustesApp.value = a;
+    widget.db?.escribir('ajustes', a.toJson()).ignore();
+  }
+
+  Future<void> _abrirPerfil() async {
+    final liga = await _ligaLista();
+    _navegador.currentState?.push(MaterialPageRoute<void>(builder: (_) => PerfilPantalla(jugador: liga.jugador)));
+  }
+
+  Future<void> _abrirPartidas() async {
+    Temporada? elegida;
+    await _navegador.currentState?.push(
+      MaterialPageRoute<void>(
+        builder: (c) => PartidasPantalla(
+          db: widget.db,
+          onContinuar: (t) {
+            elegida = t;
+            Navigator.of(c).pop();
+          },
+        ),
+      ),
+    );
+    if (elegida case final t?) {
+      _abrirTemporada(t);
+    } else {
+      // Pudo haber importado o borrado partidas: el "Seguir" de inicio refleja lo que quedó.
+      final ultima = await widget.db?.ultimaTemporada();
+      if (mounted) setState(() => _guardada = ultima);
+    }
+  }
+
+  void _abrirAjustes() => _navegador.currentState?.push(
+    MaterialPageRoute<void>(
+      builder: (_) => AjustesPantalla(onCambio: _guardarAjustes, onTutorial: _abrirTutorial),
+    ),
+  );
 
   /// Abre la pantalla que corresponde a la fase de la temporada.
   Future<void> _abrirTemporada(Temporada t, {bool reemplazar = false}) async {
-    setState(() => _enfocada = franquiciaPorId(t.franquiciaUsuarioId));
+    setState(() {
+      _enfocada = franquiciaPorId(t.franquiciaUsuarioId);
+      _guardada = t;
+    });
     final Widget pantalla;
     switch (t.fase) {
       case FaseTemporada.draft:
@@ -66,7 +142,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       case FaseTemporada.tacticas:
         pantalla = PlaybookPantalla(temporada: t, onConfirmar: _confirmarTacticas);
       case FaseTemporada.temporadaRegular:
-        final liga = Liga(await cargarCatalogo(), franquicias);
+        final liga = await _ligaLista();
         pantalla = TemporadaPantalla(
           temporada: t,
           liga: liga,
@@ -74,7 +150,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
           onPlayoffs: () => _abrirTemporada(_guardada!, reemplazar: true),
         );
       case FaseTemporada.playoffs || FaseTemporada.finalizada:
-        final liga = Liga(await cargarCatalogo(), franquicias);
+        final liga = await _ligaLista();
         pantalla = PlayoffsPantalla(temporada: t, liga: liga, onCambio: _guardarCambios);
     }
     final ruta = MaterialPageRoute<void>(builder: (_) => pantalla);
@@ -84,7 +160,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
 
   /// Con las tácticas confirmadas se arma la temporada (calendario y rivales) y se abre.
   Future<void> _confirmarTacticas(Temporada t) async {
-    final liga = Liga(await cargarCatalogo(), franquicias);
+    final liga = await _ligaLista();
     final lista = t.calendario.isEmpty ? liga.iniciar(t) : t;
     await _guardarCambios(lista);
     await _abrirTemporada(lista, reemplazar: true);
@@ -92,7 +168,17 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
 
   /// Cada paso del draft se guarda al instante (cerrar la app no regala tiradas).
   Future<void> _guardarCambios(Temporada t) async {
+    final antes = _guardada;
     setState(() => _guardada = t);
+    // Metajuego: XP, monedas, puntaje, logros, trofeos e historial por lo que acaba de pasar.
+    if (_liga case final liga?) {
+      final (perfil, novedades) = Progreso(liga).aplicar(perfilApp.value, antes, t);
+      if (!identical(perfil, perfilApp.value)) {
+        perfilApp.value = perfil;
+        widget.db?.escribir('perfil', perfil.toJson()).ignore();
+      }
+      if (_navegador.currentState?.overlay case final overlay?) Avisos.mostrar(overlay, novedades);
+    }
     try {
       await widget.db?.guardarTemporada(t);
     } catch (e) {
@@ -112,6 +198,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       franquiciaUsuarioId: f.id,
       modo: modo,
       dificultad: dificultad,
+      rerollsRestantes: Temporada.rerollsPorTemporada + perfilApp.value.fichasExtra,
     );
     try {
       await widget.db?.guardarTemporada(t);
@@ -139,6 +226,9 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       onDirigir: _dirigir,
       guardada: _guardada,
       onSeguir: _guardada == null ? null : () => _abrirTemporada(_guardada!),
+      onPerfil: _abrirPerfil,
+      onPartidas: _abrirPartidas,
+      onAjustes: _abrirAjustes,
     ),
   );
 }

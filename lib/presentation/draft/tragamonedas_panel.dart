@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../data/franquicias.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/entities/tirada.dart';
 import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
+import '../widgets/haptica.dart';
 
 /// Los 3 carretes en LED (GDD §4.2). Cada vez que cambia [vuelta], los carretes no retenidos
 /// giran y frenan de a uno, con vibración en cada parada.
@@ -125,7 +125,7 @@ class _CarreteState extends State<_Carrete> {
     _freno = Timer(widget.parada, () {
       _ciclo?.cancel();
       _ciclo = null;
-      HapticFeedback.mediumImpact();
+      Haptica.media();
       setState(() => _visible = widget.tirada);
     });
   }

@@ -2,9 +2,10 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../../data/estado_app.dart';
 import '../../domain/entities/franquicia.dart';
+import '../../domain/entities/perfil.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/motor.dart';
 import '../partido/cancha_partido.dart';
@@ -13,6 +14,7 @@ import '../partido/sonido_partido.dart';
 import '../tema/tema_franquicia.dart';
 import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
+import '../widgets/haptica.dart';
 
 enum _Panel { jugadores, tiros, partido, relato }
 
@@ -50,7 +52,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     ..addListener(_alAvanzar)
     ..addStatusListener(_alTerminarJugada);
   Coreografia? _coreo;
-  var _velocidad = 2;
+  var _velocidad = ajustesApp.value.velocidad;
   var _pausado = false;
   var _acelerar = false, _presion = false;
   var _panel = _Panel.jugadores;
@@ -71,7 +73,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
 
   // Transmisión: zoom y paneo, sonido, carteles.
   final _sonido = SonidoPartido();
-  var _silencio = false;
+  var _silencio = !ajustesApp.value.sonido;
   var _zoom = 1.0, _camaraX = Cancha94.ancho / 2, _tiempo = 0.0;
   var _ultimoPique = -1;
   var _sonoAro = false, _sonoSilbato = false;
@@ -102,7 +104,13 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
 
     _ventaja = (media(widget.usuarioLocal) - media(!widget.usuarioLocal)) * 1.3 + (widget.usuarioLocal ? 2 : -2);
     _probabilidad.add((0, _probabilidadGanar(0, 0)));
-    _sonido.iniciar();
+    final perfil = perfilApp.value;
+    _m.ventajasUsuario(
+      tiemposExtra: perfil.tiene(Ventaja.tiempoMuertoExtra) ? 1 : 0,
+      descansoLargo: perfil.tiene(Ventaja.descansoLargo),
+    );
+    _tiemposMuertos = (_m.tiemposMuertos(true), _m.tiemposMuertos(false));
+    _sonido.iniciar().then((_) => _sonido.silencio = _silencio);
     imagenEscudo(widget.franquiciaUsuario).then((imagen) {
       if (mounted) setState(() => _escudo = imagen);
     });
@@ -202,7 +210,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     if (!_anotado && e.puntos > 0 && t >= coreo.momentoCanasta) {
       _anotado = true;
       setState(() => _marcador = (e.marcadorLocal, e.marcadorVisitante));
-      if (e.local == widget.usuarioLocal) HapticFeedback.lightImpact();
+      if (e.local == widget.usuarioLocal) Haptica.ligera();
       _sonido.red();
       // El público de local estalla con las jugadas grandes de su equipo.
       if (e.local && (e.triple || e.texto.contains('Sangre fría') || e.contraataque)) _sonido.ovacion();
@@ -227,7 +235,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     final objetivo = coreo.foco(t);
     _camara += (objetivo - _camara) * (1 - exp(-dt * 3.5));
     // Zoom de transmisión: se acerca en el ataque armado y se abre en las transiciones.
-    final reducido = MediaQuery.disableAnimationsOf(context);
+    final reducido = MediaQuery.disableAnimationsOf(context) || ajustesApp.value.efectosReducidos;
     final zoom = reducido ? 1.0 : coreo.zoom(t);
     _zoom += (zoom - _zoom) * (1 - exp(-dt * 1.8));
     _camaraX +=
@@ -309,7 +317,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     widget.onTerminado(_m);
     setState(() => _final = true);
     _sonido.chicharra();
-    HapticFeedback.heavyImpact();
+    Haptica.fuerte();
   }
 
   Future<void> _salir() async {
@@ -571,7 +579,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                     onTiempoMuerto: _final
                         ? null
                         : () {
-                            if (_m.pedirTiempoMuerto(usuarioLocal)) HapticFeedback.mediumImpact();
+                            if (_m.pedirTiempoMuerto(usuarioLocal)) Haptica.media();
                             setState(() {});
                           },
                     acelerar: _acelerar,

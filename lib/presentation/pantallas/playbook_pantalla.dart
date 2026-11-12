@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../data/franquicias.dart';
 import '../../domain/entities/tactica.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/playbook.dart';
 import '../widgets/texto_led.dart';
+import '../widgets/haptica.dart';
 
 enum _Lado { ofensiva, defensiva }
 
@@ -34,7 +34,7 @@ class _PlaybookPantallaState extends State<PlaybookPantalla> {
   ].join(' · ');
 
   void _elegir(Tactica t) {
-    HapticFeedback.selectionClick();
+    Haptica.seleccion();
     setState(() => _tactica = t);
   }
 

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../data/estado_app.dart';
 import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/temporada.dart';
 import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
+import '../widgets/haptica.dart';
 
 /// Inicio: el marcador del estadio. Al recorrer franquicias, toda la app se tiñe en vivo
 /// ([onEnfocar]); el botón principal confirma ([onDirigir]).
@@ -17,6 +19,9 @@ class InicioPantalla extends StatelessWidget {
     required this.onDirigir,
     this.guardada,
     this.onSeguir,
+    this.onPerfil,
+    this.onPartidas,
+    this.onAjustes,
   });
 
   final List<Franquicia> franquicias;
@@ -26,9 +31,12 @@ class InicioPantalla extends StatelessWidget {
   final Temporada? guardada;
   final VoidCallback? onSeguir;
 
+  /// Tu carrera (nivel, vitrina, logros), las partidas guardadas y los ajustes.
+  final VoidCallback? onPerfil, onPartidas, onAjustes;
+
   void _enfocar(Franquicia f) {
     if (f == enfocada) return;
-    HapticFeedback.selectionClick();
+    Haptica.seleccion();
     onEnfocar(f);
   }
 
@@ -49,6 +57,8 @@ class InicioPantalla extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    _BarraCarrera(onPerfil: onPerfil, onPartidas: onPartidas, onAjustes: onAjustes),
+                    const SizedBox(height: 8),
                     const _Encabezado(),
                     const SizedBox(height: 16),
                     Expanded(child: _Tablero(franquicia: enfocada)),
@@ -90,6 +100,76 @@ class InicioPantalla extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Nivel y monedas del entrenador (abre tu carrera), partidas guardadas y ajustes.
+class _BarraCarrera extends StatelessWidget {
+  const _BarraCarrera({required this.onPerfil, required this.onPartidas, required this.onAjustes});
+
+  final VoidCallback? onPerfil, onPartidas, onAjustes;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    return ValueListenableBuilder(
+      valueListenable: perfilApp,
+      builder: (context, perfil, _) => Row(
+        children: [
+          Semantics(
+            button: true,
+            label: 'Tu carrera: nivel ${perfil.nivel}, ${perfil.monedas} monedas',
+            child: ExcludeSemantics(
+              child: Material(
+                color: esquema.surfaceContainerLowest,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  side: BorderSide(color: esquema.outlineVariant.withValues(alpha: 0.6)),
+                ),
+                child: InkWell(
+                  onTap: onPerfil,
+                  borderRadius: BorderRadius.circular(24),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 48),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('NIV', style: tema.textTheme.labelMedium?.copyWith(color: esquema.onSurfaceVariant)),
+                          const SizedBox(width: 6),
+                          TextoLed('${perfil.nivel}', tamano: 20),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 42,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(2),
+                              child: LinearProgressIndicator(value: perfil.avanceNivel, minHeight: 4),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(Icons.toll, size: 18, color: esquema.onSurfaceVariant),
+                          const SizedBox(width: 4),
+                          TextoLed('${perfil.monedas}', tamano: 18, color: esquema.onSurface),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            onPressed: onPartidas,
+            icon: const Icon(Icons.folder_open_outlined),
+            tooltip: 'Partidas guardadas',
+          ),
+          IconButton(onPressed: onAjustes, icon: const Icon(Icons.settings_outlined), tooltip: 'Ajustes'),
+        ],
       ),
     );
   }

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../data/catalogo_jugadores.dart';
 import '../../data/franquicias.dart';
@@ -19,6 +18,7 @@ import '../draft/tragamonedas_panel.dart';
 import '../widgets/carta_jugador.dart';
 import '../widgets/carta_vertical.dart';
 import '../widgets/ficha_jugador.dart';
+import '../widgets/haptica.dart';
 
 /// Draft 82-0 (GDD §4). Modo ruleta: tirar los carretes, elegir una de las cartas que salieron y
 /// tocar su puesto. Modo cartas: tocar un puesto, se revelan 5 cartas y se ficha una.
@@ -101,7 +101,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
       return;
     }
     final animar = !MediaQuery.disableAnimationsOf(context);
-    HapticFeedback.lightImpact();
+    Haptica.ligera();
     setState(() {
       _guardar(nueva);
       _vuelta++;
@@ -130,7 +130,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
   void _tocarPuesto(Posicion p) {
     if (_modoCartas) {
       if (_t.oferta != null || _plantelAntes != null || !_draft!.puedeRepartir(_t, p)) return;
-      HapticFeedback.lightImpact();
+      Haptica.ligera();
       setState(() {
         _guardar(_draft!.repartir(_t, p));
         _ubicada = null;
@@ -144,7 +144,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
       return;
     }
     if (!_t.plantel.posicionesDisponiblesPara(elegida).contains(p)) return;
-    HapticFeedback.heavyImpact();
+    Haptica.fuerte();
     setState(() {
       _guardar(_draft!.elegir(_t, elegida, p));
       _elegida = null;
@@ -162,7 +162,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
     final caja = _clavesPuestos[posicion]!.currentContext?.findRenderObject() as RenderBox?;
     setState(() => _guardar(_draft!.fichar(_t, carta)));
     if (MediaQuery.disableAnimationsOf(context) || caja == null) {
-      HapticFeedback.heavyImpact();
+      Haptica.fuerte();
       setState(() => _ubicada = posicion);
       return;
     }
@@ -175,7 +175,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
         destino: caja.localToGlobal(Offset.zero) & caja.size,
         onFin: () {
           vuelo.remove();
-          HapticFeedback.heavyImpact();
+          Haptica.fuerte();
           if (mounted) {
             setState(() {
               _plantelAntes = null;
@@ -394,7 +394,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
                       child: ExcludeSemantics(
                         child: GestureDetector(
                           onTap: () {
-                            HapticFeedback.selectionClick();
+                            Haptica.seleccion();
                             setState(() => _elegida = j == _elegida ? null : j);
                           },
                           onLongPress: () => mostrarFichaJugador(context, j),

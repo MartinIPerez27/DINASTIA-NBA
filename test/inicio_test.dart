@@ -3,6 +3,8 @@ import 'package:dinastia_nba/main.dart';
 import 'package:dinastia_nba/presentation/tema/tema_franquicia.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:dinastia_nba/data/estado_app.dart';
+import 'package:dinastia_nba/domain/entities/ajustes.dart';
 
 double _contraste(Color a, Color b) {
   final (x, y) = (a.computeLuminance(), b.computeLuminance());
@@ -10,6 +12,7 @@ double _contraste(Color a, Color b) {
 }
 
 void main() {
+  setUp(() => ajustesApp.value = const Ajustes(tutorialVisto: true));
   test('el color LED de las 30 franquicias se lee sobre el tablero (≥ 4.5:1)', () {
     for (final f in franquicias) {
       final tema = temaFranquicia(f);
