@@ -34,6 +34,10 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
   var _conferencia = Conferencia.este;
   var _ocupado = false;
 
+  /// Resumen de lo último que simulaste, dentro de la pantalla (no como aviso flotante: esos se
+  /// encolaban y aparecían después, en medio de otro partido).
+  String? _resumen;
+
   Liga get _liga => widget.liga;
 
   @override
@@ -68,6 +72,8 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
   );
 
   Future<void> _jugarEnVivo(Partido p) async {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    setState(() => _resumen = null);
     final antes = _liga.simularOtrosHasta(_t, p.jornada);
     _guardar(antes);
     final motor = _liga.motor(antes, p);
@@ -90,20 +96,25 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
     await Future<void>.delayed(Duration.zero);
     var t = _t;
     String? ultimo;
+    var ganados = 0, jugados = 0;
     for (var i = 0; i < partidos && _liga.proximoDelUsuario(t) != null; i++) {
       final p = _liga.proximoDelUsuario(t)!;
       t = _liga.simularProximo(t);
       final jugado = t.calendario.firstWhere((x) => x.id == p.id);
       final gano = jugado.ganadorId == t.franquiciaUsuarioId;
+      jugados++;
+      if (gano) ganados++;
       final rival = _identidad(p.localId == t.franquiciaUsuarioId ? p.visitanteId : p.localId);
       ultimo = '${gano ? 'Ganaste' : 'Perdiste'} ${jugado.puntosLocal}-${jugado.puntosVisitante} vs ${rival.nombre}.';
     }
     if (_liga.proximoDelUsuario(t) == null) t = _liga.simularOtrosHasta(t, 1 << 30);
     _guardar(t);
-    setState(() => _ocupado = false);
-    if (mounted && ultimo != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(partidos == 1 ? ultimo : 'Último: $ultimo')));
-    }
+    setState(() {
+      _ocupado = false;
+      if (ultimo != null) {
+        _resumen = jugados == 1 ? ultimo : 'Simulaste $jugados: $ganados-${jugados - ganados}. Último: $ultimo';
+      }
+    });
   }
 
   @override
@@ -126,6 +137,10 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
               sliver: SliverList.list(
                 children: [
                   _Encabezado(temporada: _t),
+                  if (_resumen case final resumen?) ...[
+                    const SizedBox(height: 8),
+                    Text(resumen, style: tema.textTheme.bodyMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
+                  ],
                   const SizedBox(height: 12),
                   if (proximo != null)
                     _ProximoPartido(

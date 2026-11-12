@@ -88,7 +88,8 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       await widget.db?.guardarTemporada(t);
     } catch (e) {
       ScaffoldMessenger.of(_navegador.currentContext!)
-          .showSnackBar(const SnackBar(content: Text('No se pudo guardar el progreso.')));
+        ..clearSnackBars()
+        ..showSnackBar(const SnackBar(content: Text('No se pudo guardar el progreso.')));
     }
   }
 
@@ -101,7 +102,8 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       setState(() => _guardada = t);
     } catch (e) {
       ScaffoldMessenger.of(_navegador.currentContext!)
-          .showSnackBar(const SnackBar(content: Text('No se pudo guardar la temporada. Podés jugar igual.')));
+        ..clearSnackBars()
+        ..showSnackBar(const SnackBar(content: Text('No se pudo guardar la temporada. Podés jugar igual.')));
     }
     _abrirTemporada(t);
   }

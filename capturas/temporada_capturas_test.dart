@@ -95,7 +95,7 @@ void main() {
     for (var i = 0; i < 40; i++) {
       await t.pump(const Duration(milliseconds: 300));
     }
-    for (final (i, ms) in [(1, 250), (2, 250), (3, 250)]) {
+    for (final (i, ms) in [(1, 300), (2, 300), (3, 300), (4, 300), (5, 300), (6, 300)]) {
       await t.pump(Duration(milliseconds: ms));
       await expectLater(find.byType(MaterialApp), matchesGoldenFile('salida/vivo-$i.png'));
     }

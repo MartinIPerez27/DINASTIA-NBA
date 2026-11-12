@@ -81,9 +81,26 @@ void main() {
       await t.pump(const Duration(milliseconds: 400));
     }
     expect(motor.puntosLocal + motor.puntosVisitante, greaterThan(0));
-    await t.tap(find.textContaining('TIEMPO MUERTO'));
+    await t.tap(find.textContaining('TIEMPO MUERTO ·'));
     await t.pump();
     expect(find.text('TIEMPO MUERTO · 4'), findsOneWidget);
+
+    // Pausa: el partido no avanza hasta que se reanuda.
+    await t.tap(find.byTooltip('Pausa'));
+    await t.pump();
+    final congelado = motor.puntosLocal + motor.puntosVisitante;
+    final cuarto = motor.cuarto, reloj = motor.reloj;
+    for (var i = 0; i < 10; i++) {
+      await t.pump(const Duration(milliseconds: 400));
+    }
+    expect((motor.puntosLocal + motor.puntosVisitante, motor.cuarto, motor.reloj), (congelado, cuarto, reloj));
+    expect(find.text('PAUSA'), findsOneWidget);
+    await t.tap(find.byTooltip('Seguir'));
+    await t.pump();
+    for (var i = 0; i < 10; i++) {
+      await t.pump(const Duration(milliseconds: 400));
+    }
+    expect(motor.reloj, isNot(reloj));
 
     await t.tap(find.byTooltip('Salir del partido'));
     await t.pumpAndSettle();

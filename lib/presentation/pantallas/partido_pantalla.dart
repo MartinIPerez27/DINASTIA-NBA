@@ -7,13 +7,17 @@ import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/motor.dart';
 import '../partido/cancha_partido.dart';
+import '../partido/coreografia.dart';
 import '../tema/tema_franquicia.dart';
 import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
 
-/// Partido en vivo 2D (GDD §6): marcador LED desde 0-0, reloj por cuarto, fichas que se mueven, pases,
-/// tiros con estela, cambios del Sexto Hombre e intervenciones del entrenador. Al terminar (o si el
-/// usuario sale, que simula lo que falta) llama a [onTerminado] con el motor ya completo.
+enum _Panel { jugadores, relato }
+
+/// Partido en vivo 2D estilo transmisión (GDD §6): cámara que sigue la jugada, posesiones continuas
+/// (subida, pases, tiro con estela, rebote), marcador de TV con reloj corriendo desde 0-0, pausa,
+/// intervenciones del entrenador y estadísticas en vivo de tu equipo. Al terminar (o si el usuario
+/// sale, que simula lo que falta) llama a [onTerminado] con el motor completo.
 class PartidoPantalla extends StatefulWidget {
   const PartidoPantalla({
     super.key,
@@ -36,75 +40,151 @@ class PartidoPantalla extends StatefulWidget {
   State<PartidoPantalla> createState() => _PartidoPantallaState();
 }
 
-class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this)..addStatusListener(_alTerminarEvento);
-  EventoPartido? _evento;
-  var _velocidad = 1;
+class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final AnimationController _c = AnimationController(vsync: this)
+    ..addListener(_alAvanzar)
+    ..addStatusListener(_alTerminarJugada);
+  Coreografia? _coreo;
+  var _velocidad = 2;
+  var _pausado = false;
   var _acelerar = false, _presion = false;
+  var _panel = _Panel.jugadores;
   var _marcador = (0, 0);
   var _cuarto = 1;
-  var _reloj = 720.0;
+  var _relojDesde = 720.0, _relojHasta = 720.0;
+  var _anotado = false;
   final _relato = <String>[];
-  final _posiciones = <String, Offset>{}; // dónde quedó cada jugador al terminar la jugada anterior
-  late List<Jugador> _canchaLocal = widget.motor.enCancha(true), _canchaVisitante = widget.motor.enCancha(false);
+  final _posiciones = <String, Offset>{};
+  var _balonFin = const Offset(25, 47);
+  String? _poseedorFin;
+  var _segundaOportunidad = false;
+  var _camara = 47.0;
+  Duration? _ultimoCuadro;
+  Map<String, LineaEstadistica> _box = {};
   bool _final = false, _registrado = false;
 
   MotorPartido get _m => widget.motor;
 
-  static const _ataque = [Offset(25, 26), Offset(42, 19), Offset(8, 19), Offset(33, 11), Offset(18, 7)];
-  static const _defensa = [Offset(25, 20), Offset(37, 15), Offset(13, 15), Offset(30, 8), Offset(21, 5)];
-
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _proximo());
+    WidgetsBinding.instance.addObserver(this);
+    _box = _copiaBox();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _proxima());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _c.dispose();
     super.dispose();
   }
 
-  void _proximo() {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState estado) {
+    if (estado != AppLifecycleState.resumed && !_pausado && !_final) _alternarPausa();
+  }
+
+  Map<String, LineaEstadistica> _copiaBox() => {
+    for (final e in (widget.usuarioLocal ? _m.boxLocal : _m.boxVisitante).entries)
+      e.key: LineaEstadistica()..sumar(e.value),
+  };
+
+  bool _haciaArriba(bool local) => local == (_cuarto <= 2);
+
+  void _proxima() {
     if (!mounted || _m.terminado) return;
     final e = _m.siguiente();
-    _canchaLocal = _m.enCancha(true);
-    _canchaVisitante = _m.enCancha(false);
-    final base = switch (e.tipo) {
-      TipoEvento.tiro => e.contraataque ? 900 : 1150,
-      TipoEvento.libres => 950,
-      TipoEvento.perdida => 750,
-      TipoEvento.cambio => 900,
-      TipoEvento.tiempoMuerto => 1500,
-      TipoEvento.finCuarto || TipoEvento.finPartido => 1600,
+    final ataca = switch (e.tipo) {
+      TipoEvento.tiro || TipoEvento.libres || TipoEvento.perdida || TipoEvento.cambio => e.local,
+      _ => widget.usuarioLocal,
     };
+    if (e.cuarto != _cuarto) _relojDesde = e.cuarto > 4 ? 300 : 720;
+    _cuarto = e.tipo == TipoEvento.finCuarto ? e.cuarto - 1 : e.cuarto;
+    _relojHasta = e.tipo == TipoEvento.finCuarto ? 0 : e.reloj;
+    final saliente = e.tipo == TipoEvento.cambio ? widget.motor.enBanco(e.local) : null;
+    _coreo = Coreografia(
+      evento: e,
+      atacantes: _m.enCancha(ataca),
+      defensores: _m.enCancha(!ataca),
+      haciaArriba: _haciaArriba(ataca),
+      desde: Map.of(_posiciones),
+      balonDesde: _balonFin,
+      poseedorDesde: _poseedorFin,
+      segundaOportunidad: _segundaOportunidad,
+      saliente: saliente,
+    );
+    _anotado = false;
     final reducido = MediaQuery.disableAnimationsOf(context);
-    setState(() => _evento = e);
-    _c.duration = Duration(milliseconds: reducido ? 250 : base ~/ _velocidad);
+    _c.duration = Duration(milliseconds: reducido ? 300 : (_coreo!.duracion * 1000 / _velocidad).round());
     _c.forward(from: 0);
   }
 
-  void _alTerminarEvento(AnimationStatus s) {
+  void _alAvanzar() {
+    final coreo = _coreo;
+    if (coreo == null) return;
+    // Marcador y "+N" en el momento en que entra la pelota.
+    final e = coreo.evento;
+    if (!_anotado && e.puntos > 0 && _c.value >= coreo.momentoCanasta) {
+      _anotado = true;
+      setState(() => _marcador = (e.marcadorLocal, e.marcadorVisitante));
+      if (e.local == widget.usuarioLocal) HapticFeedback.lightImpact();
+    }
+    // Cámara: sigue al balón con suavidad (resorte crítico).
+    final ahora = _c.lastElapsedDuration ?? Duration.zero;
+    final dt = _ultimoCuadro == null ? 0.016 : max(0, (ahora - _ultimoCuadro!).inMicroseconds) / 1e6;
+    _ultimoCuadro = ahora;
+    final objetivo = coreo.foco(_c.value);
+    _camara += (objetivo - _camara) * (1 - exp(-dt * 3.5));
+  }
+
+  void _alTerminarJugada(AnimationStatus s) {
     if (s != AnimationStatus.completed) return;
-    final e = _evento!;
-    // Guardar dónde quedó cada ficha para que la próxima jugada arranque desde ahí.
-    for (final (id, pos) in _fichasEn(e, 1).map((f) => (f.$1, f.$2))) {
+    _ultimoCuadro = null;
+    final coreo = _coreo!;
+    final e = coreo.evento;
+    for (final (id, pos, _, _) in _fichas(coreo, 1)) {
       _posiciones[id] = pos;
     }
+    final (balon, _, poseedor) = coreo.balon(1);
+    _balonFin = balon;
+    _poseedorFin = e.convertido || e.tipo == TipoEvento.libres || e.tipo == TipoEvento.perdida
+        ? e.defensorId
+        : poseedor;
+    _segundaOportunidad = e.tipo == TipoEvento.tiro && e.reboteOfensivo;
     setState(() {
       _marcador = (e.marcadorLocal, e.marcadorVisitante);
-      _cuarto = e.cuarto;
-      _reloj = e.reloj;
+      _relojDesde = _relojHasta;
       _relato.insert(0, e.texto);
-      if (_relato.length > 3) _relato.removeLast();
+      if (_relato.length > 40) _relato.removeLast();
+      _box = _copiaBox();
     });
-    if (e.convertido && e.puntos > 0 && (e.local == widget.usuarioLocal)) HapticFeedback.lightImpact();
     if (e.tipo == TipoEvento.finPartido) {
       _terminar();
-    } else {
-      _proximo();
+    } else if (!_pausado) {
+      _proxima();
     }
+  }
+
+  void _alternarPausa() {
+    setState(() => _pausado = !_pausado);
+    if (_pausado) {
+      _c.stop();
+    } else if (_c.isCompleted || _coreo == null) {
+      _proxima();
+    } else {
+      _ultimoCuadro = null;
+      _c.forward();
+    }
+  }
+
+  void _cambiarVelocidad(int v) {
+    final avance = _c.value;
+    setState(() => _velocidad = v);
+    final coreo = _coreo;
+    if (coreo == null || MediaQuery.disableAnimationsOf(context)) return;
+    _c.duration = Duration(milliseconds: (coreo.duracion * 1000 / v).round());
+    if (_c.isAnimating) _c.forward(from: avance);
   }
 
   void _terminar() {
@@ -120,103 +200,79 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
       Navigator.of(context).pop();
       return;
     }
-    final seguir = await showDialog<bool>(
+    final estabaPausado = _pausado;
+    if (!estabaPausado) _alternarPausa();
+    final salir = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('¿Salir del partido?'),
-        content: const Text('Lo que falta se simula al instante con el resultado que salga.'),
+        content: const Text('Lo que falta se simula al instante, con el resultado que salga.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Seguir mirando')),
           FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Simular y salir')),
         ],
       ),
     );
-    if (seguir != true || !mounted) return;
+    if (!mounted) return;
+    if (salir != true) {
+      if (!estabaPausado) _alternarPausa();
+      return;
+    }
     _c.stop();
     _m.simularTodo();
     _terminar();
     if (mounted) Navigator.of(context).pop();
   }
 
-  bool _haciaArriba(bool local) => (local) == (_cuarto <= 2);
-
-  Offset _formacion(List<Offset> base, int i, bool haciaArriba) {
-    final o = base[i];
-    return Offset(o.dx, haciaArriba ? o.dy : Cancha94.largo - o.dy);
-  }
-
-  /// Posición de cada jugador en el instante t (0–1) de la jugada: corren desde donde estaban hasta su
-  /// formación, con un vaivén leve para que se vean vivos.
-  List<(String, Offset, bool)> _fichasEn(EventoPartido e, double t) {
-    final ataqueLocal = e.local;
-    final resultado = <(String, Offset, bool)>[];
-    for (final local in [true, false]) {
-      final jugadores = local ? _canchaLocal : _canchaVisitante;
-      final ataca = local == ataqueLocal && e.tipo != TipoEvento.finCuarto && e.tipo != TipoEvento.tiempoMuerto;
-      final haciaArriba = _haciaArriba(ataqueLocal);
-      for (final (i, j) in jugadores.indexed) {
-        var destino = _formacion(ataca ? _ataque : _defensa, i, haciaArriba);
-        if (e.tipo == TipoEvento.finCuarto || e.tipo == TipoEvento.tiempoMuerto) {
-          destino = Offset(local ? 8 + i * 1.5 : 42 - i * 1.5, 40 + i * 3.5); // a los bancos
-        }
-        if (ataca && e.contraataque && j.id == e.jugadorId) {
-          destino = Cancha94.aro(haciaArriba) + Offset(0, haciaArriba ? 4 : -4);
-        }
-        final desde = _posiciones[j.id] ?? destino;
-        final corrida = Curves.easeInOutCubic.transform((t / 0.45).clamp(0.0, 1.0));
-        final vaiven = Offset(sin(t * 6 + i) * 0.8, cos(t * 5 + i * 2) * 0.8);
-        resultado.add((j.id, Offset.lerp(desde, destino, corrida)! + vaiven * (1 - corrida * 0.5), local));
-      }
+  /// Las 10 fichas (y el que sale en un cambio) en el instante t: (id, posición, local, opacidad).
+  List<(String, Offset, bool, double)> _fichas(Coreografia coreo, double t) {
+    final atacaLocal = coreo.atacantes.isNotEmpty && _m.enCancha(true).contains(coreo.atacantes.first);
+    final resultado = <(String, Offset, bool, double)>[];
+    final marcas = <Offset>[];
+    for (final (i, j) in coreo.atacantes.indexed) {
+      final p = coreo.atacante(j, i, t);
+      marcas.add(p);
+      resultado.add((j.id, p, atacaLocal, 1));
+    }
+    for (final (i, j) in coreo.defensores.indexed) {
+      resultado.add((j.id, coreo.defensor(j, i, marcas[min(i, marcas.length - 1)], t), !atacaLocal, 1));
+    }
+    if (coreo.salienteEn(t) case (final p, final opacidad)) {
+      resultado.add((coreo.saliente!.id, p, coreo.evento.local, opacidad));
     }
     return resultado;
-  }
-
-  /// Recorrido del balón: pases → tiro en arco hasta el aro → adentro o al rebote.
-  (Offset, double) _balonEn(EventoPartido e, double t, Map<String, Offset> pos) {
-    final aro = Cancha94.aro(_haciaArriba(e.local));
-    Offset de(String? id) => pos[id] ?? const Offset(25, 47);
-    switch (e.tipo) {
-      case TipoEvento.tiro || TipoEvento.libres:
-        final tirador = e.tipo == TipoEvento.libres
-            ? Offset(25, _haciaArriba(e.local) ? 19 : Cancha94.largo - 19)
-            : de(e.jugadorId);
-        final inicio = e.asistenteId != null ? de(e.asistenteId) : tirador;
-        if (t < 0.45) return (Offset.lerp(inicio, tirador, Curves.easeInOut.transform((t / 0.45).clamp(0, 1)))!, 0);
-        if (t < 0.78) {
-          final u = (t - 0.45) / 0.33;
-          return (Offset.lerp(tirador, aro, u)!, sin(pi * u));
-        }
-        final u = (t - 0.78) / 0.22;
-        if (e.convertido || e.reboteId == null) return (aro + Offset(0, u * 1.5), 0);
-        return (Offset.lerp(aro, de(e.reboteId), Curves.easeOut.transform(u))!, 0.2 * (1 - u));
-      case TipoEvento.perdida:
-        return (Offset.lerp(de(e.jugadorId), de(e.defensorId ?? e.jugadorId), Curves.easeInOut.transform(t))!, 0);
-      default:
-        return (const Offset(25, 47), 0);
-    }
   }
 
   Color _contraste(Color c) => c.computeLuminance() > 0.4 ? Colors.black : Colors.white;
 
   (Color, Color) _coloresRival(Franquicia rival) {
     final propio = Color(widget.franquiciaUsuario.colorPrimario);
-    var color = Color(rival.colorPrimario);
     double distancia(Color a, Color b) => (a.r - b.r).abs() + (a.g - b.g).abs() + (a.b - b.b).abs();
+    var color = Color(rival.colorPrimario);
     if (distancia(color, propio) < 0.35) color = Color(rival.colorSecundario);
     if (distancia(color, propio) < 0.35) color = propio.computeLuminance() > 0.4 ? Colors.black : Colors.white;
     return (color, _contraste(color));
   }
 
-  String _etiqueta(Jugador j) => j.dorsal > 0 ? '${j.dorsal}' : j.iniciales;
+  String _apellido(Jugador j) => j.nombre.split(' ').last.toUpperCase();
 
   @override
   Widget build(BuildContext context) {
-    final tema = Theme.of(context);
-    final esquema = tema.colorScheme;
+    final esquema = Theme.of(context).colorScheme;
     final usuarioLocal = widget.usuarioLocal;
-    final rival = usuarioLocal ? widget.identidadVisitante : widget.identidadLocal;
-    final (colorRival, textoRival) = _coloresRival(rival);
+    final (colorRival, textoRival) = _coloresRival(usuarioLocal ? widget.identidadVisitante : widget.identidadLocal);
     final colorPropio = Color(widget.franquiciaUsuario.colorPrimario);
+    final todos = {
+      for (final local in [true, false]) ...{
+        for (final j in [..._m.enCancha(local), ?_m.enBanco(local)]) j.id: j,
+      },
+    };
+    final banner = switch (_coreo?.evento.tipo) {
+      TipoEvento.tiempoMuerto => 'TIEMPO MUERTO',
+      TipoEvento.finCuarto => _coreo!.evento.texto.toUpperCase(),
+      TipoEvento.cambio => 'CAMBIO · ENTRA ${_apellido(todos[_coreo!.evento.entraId]!)}',
+      _ => null,
+    };
 
     return PopScope(
       canPop: false,
@@ -224,93 +280,123 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
         if (!didPop) _salir();
       },
       child: Scaffold(
+        backgroundColor: esquema.surfaceContainerLowest,
         body: SafeArea(
           child: Stack(
             children: [
               Column(
                 children: [
-                  _Marcador(
-                    local: widget.identidadLocal,
-                    visitante: widget.identidadVisitante,
-                    puntos: _marcador,
-                    cuarto: _cuarto,
-                    reloj: _reloj,
-                    onSalir: _salir,
-                  ),
                   Expanded(
-                    child: Center(
-                      child: AspectRatio(
-                        aspectRatio: Cancha94.proporcion,
-                        child: LayoutBuilder(
-                          builder: (context, c) {
-                            final pie = c.maxWidth / (Cancha94.ancho + 2 * Cancha94.borde);
-                            final escudo = 10 * pie;
-                            return Stack(
-                              children: [
-                                Positioned.fill(
-                                  child: AnimatedBuilder(
-                                    animation: _c,
-                                    builder: (context, _) {
-                                      final e = _evento;
-                                      final t = _c.value;
-                                      final fichas = e == null ? const <(String, Offset, bool)>[] : _fichasEn(e, t);
-                                      final pos = {for (final f in fichas) f.$1: f.$2};
-                                      final (balon, altura) = e == null
-                                          ? (const Offset(25, 47), 0.0)
-                                          : _balonEn(e, t, pos);
-                                      final estela = [
-                                        if (e != null &&
-                                            (e.tipo == TipoEvento.tiro || e.tipo == TipoEvento.libres) &&
-                                            t > 0.45 &&
-                                            t < 0.8)
-                                          for (var k = 1; k <= 6; k++) _balonEn(e, max(0.45, t - k * 0.02), pos).$1,
-                                      ];
-                                      final todos = {
-                                        for (final j in [..._canchaLocal, ..._canchaVisitante]) j.id: j,
-                                      };
-                                      return CustomPaint(
-                                        painter: CanchaPartidoPainter(
-                                          franquicia: widget.franquiciaUsuario,
-                                          colorLed: esquema.primary,
-                                          balon: balon,
-                                          alturaBalon: altura,
-                                          estela: estela,
-                                          fichas: [
-                                            for (final (id, p, local) in fichas)
-                                              Ficha(
-                                                posicion: p,
-                                                relleno: local == usuarioLocal ? colorPropio : colorRival,
-                                                texto: local == usuarioLocal ? _contraste(colorPropio) : textoRival,
-                                                etiqueta: _etiqueta(todos[id]!),
-                                                conBalon: e?.jugadorId == id && t < 0.5,
-                                              ),
-                                          ],
-                                        ),
-                                      );
-                                    },
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        GestureDetector(
+                          onTap: _final ? null : _alternarPausa,
+                          child: AnimatedBuilder(
+                            animation: _c,
+                            builder: (context, _) {
+                              final coreo = _coreo;
+                              if (coreo == null) {
+                                return CustomPaint(
+                                  painter: CanchaPartidoPainter(
+                                    franquicia: widget.franquiciaUsuario,
+                                    fichas: const [],
+                                    balon: const Offset(25, 47),
+                                    camaraY: _camara,
+                                    colorLed: esquema.primary,
                                   ),
+                                );
+                              }
+                              final t = _c.value;
+                              final (balon, altura, poseedor) = coreo.balon(t);
+                              final e = coreo.evento;
+                              final estela = [
+                                if (coreo.enTiro(t))
+                                  for (var k = 1; k <= 7; k++) coreo.balon(max(0, t - k * 0.012)).$1,
+                              ];
+                              return CustomPaint(
+                                painter: CanchaPartidoPainter(
+                                  franquicia: widget.franquiciaUsuario,
+                                  colorLed: esquema.primary,
+                                  camaraY: _camara,
+                                  margenArriba: 60,
+                                  margenAbajo: 50,
+                                  balon: balon,
+                                  alturaBalon: altura,
+                                  estela: estela,
+                                  tanto: e.puntos > 0 && t >= coreo.momentoCanasta
+                                      ? Tanto(
+                                          '+${e.puntos}',
+                                          coreo.aro,
+                                          ((t - coreo.momentoCanasta) / (1 - coreo.momentoCanasta + 0.0001)).clamp(
+                                            0,
+                                            1,
+                                          ),
+                                        )
+                                      : null,
+                                  fichas: [
+                                    for (final (id, p, local, opacidad) in _fichas(coreo, t))
+                                      Ficha(
+                                        posicion: p,
+                                        relleno: local == usuarioLocal ? colorPropio : colorRival,
+                                        texto: local == usuarioLocal ? _contraste(colorPropio) : textoRival,
+                                        etiqueta: todos[id]!.dorsal > 0 ? '${todos[id]!.dorsal}' : todos[id]!.iniciales,
+                                        conBalon: poseedor == id,
+                                        nombre: poseedor == id ? _apellido(todos[id]!) : null,
+                                        opacidad: opacidad,
+                                      ),
+                                  ],
                                 ),
-                                Positioned(
-                                  left: c.maxWidth / 2 - escudo / 2,
-                                  top: (47 + Cancha94.borde) * pie - escudo / 2,
-                                  child: IgnorePointer(
-                                    child: Opacity(
-                                      opacity: 0.85,
-                                      child: Escudo(widget.franquiciaUsuario, tamano: escudo),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
-                      ),
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          right: 8,
+                          child: AnimatedBuilder(
+                            animation: _c,
+                            builder: (context, _) => _MarcadorTV(
+                              local: widget.identidadLocal,
+                              visitante: widget.identidadVisitante,
+                              puntos: _marcador,
+                              cuarto: _cuarto,
+                              reloj: _relojDesde + (_relojHasta - _relojDesde) * _c.value,
+                              onSalir: _salir,
+                            ),
+                          ),
+                        ),
+                        if (banner != null) Center(child: _Banner(texto: banner)),
+                        if (_relato.isNotEmpty)
+                          Positioned(left: 12, right: 12, bottom: 10, child: _Zocalo(texto: _relato.first)),
+                        if (_pausado && !_final)
+                          Positioned.fill(
+                            child: GestureDetector(
+                              onTap: _alternarPausa,
+                              child: ColoredBox(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const _Banner(texto: 'PAUSA'),
+                                      const SizedBox(height: 8),
+                                      Text('Tocá para seguir', style: TextStyle(color: esquema.onSurface)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                  _Relato(lineas: _relato),
                   _Controles(
+                    pausado: _pausado,
+                    onPausa: _final ? null : _alternarPausa,
                     velocidad: _velocidad,
-                    onVelocidad: (v) => setState(() => _velocidad = v),
+                    onVelocidad: _cambiarVelocidad,
                     tiemposMuertos: _m.tiemposMuertos(usuarioLocal),
                     onTiempoMuerto: _final
                         ? null
@@ -329,10 +415,35 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                       setState(() => _presion = v);
                     },
                   ),
-                  _Estamina(
-                    jugadores: [...(usuarioLocal ? _canchaLocal : _canchaVisitante), ?_m.enBanco(usuarioLocal)],
-                    todos: _m.energias(usuarioLocal),
-                    banco: _m.enBanco(usuarioLocal)?.id,
+                  SizedBox(
+                    height: 236,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: SegmentedButton<_Panel>(
+                            segments: const [
+                              ButtonSegment(value: _Panel.jugadores, label: Text('Mis jugadores')),
+                              ButtonSegment(value: _Panel.relato, label: Text('Relato')),
+                            ],
+                            selected: {_panel},
+                            showSelectedIcon: false,
+                            onSelectionChanged: (s) => setState(() => _panel = s.first),
+                            style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                          ),
+                        ),
+                        Expanded(
+                          child: _panel == _Panel.jugadores
+                              ? _EstadisticasVivo(
+                                  jugadores: [..._m.enCancha(usuarioLocal), ?_m.enBanco(usuarioLocal)],
+                                  enCancha: {for (final j in _m.enCancha(usuarioLocal)) j.id},
+                                  box: _box,
+                                  energia: _m.energias(usuarioLocal),
+                                )
+                              : _RelatoCompleto(lineas: _relato),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -354,8 +465,9 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   }
 }
 
-class _Marcador extends StatelessWidget {
-  const _Marcador({
+/// Marcador estilo transmisión, sobre la cancha.
+class _MarcadorTV extends StatelessWidget {
+  const _MarcadorTV({
     required this.local,
     required this.visitante,
     required this.puntos,
@@ -373,90 +485,138 @@ class _Marcador extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final esquema = Theme.of(context).colorScheme;
-    final minutos = reloj ~/ 60, segundos = (reloj % 60).floor();
+    final r = max(0.0, reloj);
+    final minutos = r ~/ 60, segundos = (r % 60).floor();
     final periodo = cuarto > 4 ? 'OT${cuarto > 5 ? cuarto - 4 : ''}' : 'Q$cuarto';
-    Widget equipo(Franquicia f, int pts, bool derecha) => Expanded(
-      child: Row(
-        mainAxisAlignment: derecha ? MainAxisAlignment.end : MainAxisAlignment.start,
-        children: [
-          if (!derecha) ...[Escudo(f, tamano: 30), const SizedBox(width: 6)],
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Column(
-                crossAxisAlignment: derecha ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                children: [
-                  TextoLed(f.id, tamano: 13, color: esquema.onSurfaceVariant),
-                  TextoLed('$pts', tamano: 34, color: Color.lerp(colorLed(f), Colors.white, 0.1)),
-                ],
-              ),
+    Widget equipo(Franquicia f, int pts, bool derecha) {
+      final color = Color(f.colorPrimario);
+      return Expanded(
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: Color.alphaBlend(color.withValues(alpha: 0.55), esquema.surfaceContainerLowest),
+            borderRadius: BorderRadius.horizontal(
+              left: Radius.circular(derecha ? 0 : 10),
+              right: Radius.circular(derecha ? 10 : 0),
             ),
           ),
-          if (derecha) ...[const SizedBox(width: 6), Escudo(f, tamano: 30)],
-        ],
-      ),
-    );
+          child: Row(
+            textDirection: derecha ? TextDirection.rtl : TextDirection.ltr,
+            children: [
+              Escudo(f, tamano: 28),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  f.id,
+                  maxLines: 1,
+                  overflow: TextOverflow.clip,
+                  style: const TextStyle(
+                    fontFamily: Fuentes.estadio,
+                    fontVariations: [FontVariation.weight(800)],
+                    fontSize: 18,
+                    color: Colors.white,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              FittedBox(child: TextoLed('$pts', tamano: 28, color: Colors.white)),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Semantics(
       label:
           '${local.nombre} ${puntos.$1}, ${visitante.nombre} ${puntos.$2}, $periodo, $minutos minutos $segundos segundos',
-      liveRegion: true,
       child: ExcludeSemantics(
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-          padding: const EdgeInsets.fromLTRB(4, 8, 12, 8),
-          decoration: BoxDecoration(
-            color: esquema.surfaceContainerLowest,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: esquema.outlineVariant.withValues(alpha: 0.5)),
-          ),
-          child: Row(
-            children: [
-              IconButton(onPressed: onSalir, icon: const Icon(Icons.close), tooltip: 'Salir del partido'),
-              equipo(local, puntos.$1, false),
-              Column(
-                children: [
-                  TextoLed(periodo, tamano: 14, color: esquema.onSurfaceVariant),
-                  TextoLed('$minutos:${'$segundos'.padLeft(2, '0')}', tamano: 22),
-                ],
+        child: Row(
+          children: [
+            Material(
+              color: esquema.surfaceContainerLowest.withValues(alpha: 0.9),
+              shape: const CircleBorder(),
+              child: IconButton(onPressed: onSalir, icon: const Icon(Icons.close), tooltip: 'Salir del partido'),
+            ),
+            const SizedBox(width: 6),
+            equipo(local, puntos.$1, false),
+            Container(
+              height: 44,
+              width: 74,
+              color: esquema.surfaceContainerLowest,
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: FittedBox(
+                child: Column(
+                  children: [
+                    TextoLed(periodo, tamano: 12, color: esquema.onSurfaceVariant),
+                    TextoLed('$minutos:${'$segundos'.padLeft(2, '0')}', tamano: 19),
+                  ],
+                ),
               ),
-              equipo(visitante, puntos.$2, true),
-            ],
-          ),
+            ),
+            equipo(visitante, puntos.$2, true),
+          ],
         ),
       ),
     );
   }
 }
 
-class _Relato extends StatelessWidget {
-  const _Relato({required this.lineas});
+/// Zócalo inferior con la última jugada, como en la tele.
+class _Zocalo extends StatelessWidget {
+  const _Zocalo({required this.texto});
 
-  final List<String> lineas;
+  final String texto;
 
   @override
   Widget build(BuildContext context) {
-    final tema = Theme.of(context);
-    return SizedBox(
-      height: 58,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            for (final (i, l) in lineas.take(3).indexed)
-              Text(
-                l,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: tema.textTheme.bodySmall?.copyWith(
-                  color: i == 0
-                      ? tema.colorScheme.onSurface
-                      : tema.colorScheme.onSurfaceVariant.withValues(alpha: 0.8 - i * 0.2),
-                  fontWeight: i == 0 ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
-          ],
+    final esquema = Theme.of(context).colorScheme;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child: Container(
+        key: ValueKey(texto),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: esquema.surfaceContainerLowest.withValues(alpha: 0.88),
+          borderRadius: BorderRadius.circular(8),
+          border: Border(left: BorderSide(color: esquema.primary, width: 1)),
+        ),
+        child: Text(
+          texto,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: esquema.onSurface, fontSize: 13),
+        ),
+      ),
+    );
+  }
+}
+
+class _Banner extends StatelessWidget {
+  const _Banner({required this.texto});
+
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    final esquema = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      decoration: BoxDecoration(
+        color: esquema.surfaceContainerLowest.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: esquema.primary, width: 1.5),
+      ),
+      child: Text(
+        texto,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontFamily: Fuentes.estadio,
+          fontVariations: const [FontVariation.weight(800)],
+          fontSize: 22,
+          letterSpacing: 1.5,
+          color: esquema.onSurface,
         ),
       ),
     );
@@ -465,6 +625,8 @@ class _Relato extends StatelessWidget {
 
 class _Controles extends StatelessWidget {
   const _Controles({
+    required this.pausado,
+    required this.onPausa,
     required this.velocidad,
     required this.onVelocidad,
     required this.tiemposMuertos,
@@ -475,6 +637,8 @@ class _Controles extends StatelessWidget {
     required this.onPresion,
   });
 
+  final bool pausado;
+  final VoidCallback? onPausa;
   final int velocidad;
   final ValueChanged<int> onVelocidad;
   final int tiemposMuertos;
@@ -484,11 +648,17 @@ class _Controles extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+    padding: const EdgeInsets.fromLTRB(8, 8, 12, 4),
     child: Column(
       children: [
         Row(
           children: [
+            IconButton.filledTonal(
+              onPressed: onPausa,
+              icon: Icon(pausado ? Icons.play_arrow : Icons.pause),
+              tooltip: pausado ? 'Seguir' : 'Pausa',
+            ),
+            const SizedBox(width: 6),
             SegmentedButton<int>(
               segments: const [
                 ButtonSegment(value: 1, label: Text('x1')),
@@ -521,62 +691,126 @@ class _Controles extends StatelessWidget {
   );
 }
 
-class _Estamina extends StatelessWidget {
-  const _Estamina({required this.jugadores, required this.todos, required this.banco});
+/// Box score en vivo de tu equipo (se actualiza al terminar cada jugada, sin adelantar resultados).
+class _EstadisticasVivo extends StatelessWidget {
+  const _EstadisticasVivo({required this.jugadores, required this.enCancha, required this.box, required this.energia});
 
   final List<Jugador> jugadores;
-  final Map<String, double> todos;
-
-  /// Quién está en el banco (se ve atenuado).
-  final String? banco;
+  final Set<String> enCancha;
+  final Map<String, LineaEstadistica> box;
+  final Map<String, double> energia;
 
   @override
   Widget build(BuildContext context) {
-    final esquema = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-      child: Row(
-        children: [
-          for (final j in jugadores)
-            Expanded(
-              child: Semantics(
-                label: '${j.nombre}${j.id == banco ? ' (banco)' : ''}: estamina ${todos[j.id]!.round()}',
-                child: ExcludeSemantics(
-                  child: Opacity(
-                    opacity: j.id == banco ? 0.45 : 1,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: Column(
-                        children: [
-                          Text(
-                            j.nombre.split(' ').last.toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.clip,
-                            style: TextStyle(
-                              fontFamily: Fuentes.estadio,
-                              fontVariations: const [FontVariation.weight(700)],
-                              fontSize: 11,
-                              color: esquema.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
-                            child: LinearProgressIndicator(
-                              value: todos[j.id]! / 100,
-                              minHeight: 5,
-                              color: todos[j.id]! < 60 ? esquema.error : esquema.primary,
-                              backgroundColor: esquema.surfaceContainerLowest,
-                            ),
-                          ),
-                        ],
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final cabecera = tema.textTheme.labelSmall?.copyWith(color: esquema.onSurfaceVariant, letterSpacing: 0.5);
+    Widget celda(String texto, {TextStyle? estilo, double ancho = 34}) => SizedBox(
+      width: ancho,
+      child: Text(texto, textAlign: TextAlign.end, style: estilo),
+    );
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text('JUGADOR', style: cabecera)),
+            for (final c in ['MIN', 'PTS', 'REB', 'AST']) celda(c, estilo: cabecera),
+            celda('TC', estilo: cabecera, ancho: 46),
+          ],
+        ),
+        for (final j in jugadores)
+          () {
+            final l = box[j.id] ?? LineaEstadistica();
+            final juega = enCancha.contains(j.id);
+            final valores = TextStyle(
+              fontFamily: Fuentes.led,
+              fontVariations: const [FontVariation.weight(800)],
+              fontFeatures: const [FontFeature.tabularFigures()],
+              fontSize: 15,
+              color: juega ? esquema.onSurface : esquema.onSurfaceVariant,
+            );
+            return Semantics(
+              label:
+                  '${j.nombre}${juega ? '' : ', en el banco'}: ${l.pts} puntos, ${l.reb} rebotes, ${l.ast} asistencias',
+              child: ExcludeSemantics(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: juega ? esquema.primary : esquema.outlineVariant,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              j.nombre,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: tema.textTheme.bodySmall?.copyWith(
+                                color: juega ? esquema.onSurface : esquema.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            FractionallySizedBox(
+                              widthFactor: 0.7,
+                              alignment: Alignment.centerLeft,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(2),
+                                child: LinearProgressIndicator(
+                                  value: (energia[j.id] ?? 100) / 100,
+                                  minHeight: 3,
+                                  color: (energia[j.id] ?? 100) < 60 ? esquema.error : esquema.primary,
+                                  backgroundColor: esquema.surfaceContainerHighest,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      celda('${(l.seg / 60).floor()}', estilo: valores),
+                      celda('${l.pts}', estilo: valores.copyWith(color: juega ? esquema.primary : null)),
+                      celda('${l.reb}', estilo: valores),
+                      celda('${l.ast}', estilo: valores),
+                      celda('${l.tcI}/${l.tcA}', estilo: valores, ancho: 46),
+                    ],
                   ),
                 ),
               ),
-            ),
-        ],
+            );
+          }(),
+      ],
+    );
+  }
+}
+
+class _RelatoCompleto extends StatelessWidget {
+  const _RelatoCompleto({required this.lineas});
+
+  final List<String> lineas;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+      itemCount: lineas.length,
+      itemBuilder: (_, i) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Text(
+          lineas[i],
+          style: tema.textTheme.bodySmall?.copyWith(
+            color: i == 0 ? tema.colorScheme.onSurface : tema.colorScheme.onSurfaceVariant,
+          ),
+        ),
       ),
     );
   }

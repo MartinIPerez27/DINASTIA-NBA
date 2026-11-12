@@ -49,7 +49,7 @@ con *Depuración USB* activada, y ejecutá:
 flutter run
 ```
 
-La app arranca en el tablero: recorré las franquicias en la cinta LED, la app se tiñe con cada una, y "Dirigir a…" te deja elegir cómo armar el plantel: **Ruleta** (3 carretes estilo 82-0: franquicia, época y rareza; retené hasta 2 al volver a tirar) o **Cartas** (tocá un puesto y fichá 1 de 5 cartas reveladas). Con el plantel completo, el playbook recomienda tácticas y arranca la **temporada de 82**: calendario oficial, 29 rivales (mitad "Históricos" con lo mejor de su franquicia, mitad "de Época" con su plantel real de una década) y cada partido se mira **en vivo en 2D** (x1/x2/x4, tiempo muerto, acelerar ritmo, presión alta) o se **simula**.
+La app arranca en el tablero: recorré las franquicias en la cinta LED, la app se tiñe con cada una, y "Dirigir a…" te deja elegir cómo armar el plantel: **Ruleta** (3 carretes estilo 82-0: franquicia, época y rareza; retené hasta 2 al volver a tirar) o **Cartas** (tocá un puesto y fichá 1 de 5 cartas reveladas). Con el plantel completo, el playbook recomienda tácticas y arranca la **temporada de 82**: calendario oficial, 29 rivales (mitad "Históricos" con lo mejor de su franquicia, mitad "de Época" con su plantel real de una década) y cada partido se mira **en vivo en 2D** con cámara que sigue la jugada, pausa, x1/x2/x4, tiempo muerto, acelerar ritmo, presión alta y estadísticas en vivo de tu equipo o se **simula**.
 
 > **Sin Android Studio (solo Windows):** `flutter create --platforms=windows .` y después `flutter run -d windows`
 > (requiere Visual Studio con "Desarrollo para el escritorio con C++"). La versión web no muestra las fotos porque el

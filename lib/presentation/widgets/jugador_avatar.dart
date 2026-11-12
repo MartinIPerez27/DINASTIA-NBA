@@ -8,8 +8,10 @@ import '../../domain/entities/jugador.dart';
 import '../tema/tema_franquicia.dart';
 
 /// Foto del jugador (cacheada en disco). Prueba sus fuentes en orden (NBA, Basketball-Reference,
-/// Wikipedia) y, si ninguna carga, quedan las iniciales en el LED de la franquicia, que también
-/// son el placeholder: nunca hay un hueco vacío.
+/// Wikipedia). Las iniciales aparecen solo mientras carga o si no hay ninguna foto: nunca debajo de
+/// una foto (las de la NBA tienen fondo transparente y se verían superpuestas).
+/// Las fotos de archivo (con fondos de cualquier tipo) se muestran a dos tonos: el fondo pasa a ser
+/// el color del equipo, como un retrato de estudio, y se funde con el panel abajo.
 /// Con [recortar], llena su caja mostrando cabeza y hombros (para miniaturas cuadradas).
 class JugadorAvatar extends StatelessWidget {
   const JugadorAvatar({super.key, required this.jugador, required this.franquicia, this.recortar = false});
@@ -27,15 +29,20 @@ class JugadorAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sinAnimaciones = MediaQuery.disableAnimationsOf(context);
-    final fallback = _AvatarIniciales(jugador: jugador, franquicia: franquicia);
-
-    final foto = Stack(
-      fit: StackFit.expand,
-      children: [
-        fallback,
-        if (usarRed) _FotoEnCadena(urls: jugador.urlsFoto, recortar: recortar, animar: !sinAnimaciones),
-      ],
+    final panel = Theme.of(context).colorScheme.surfaceContainerLowest;
+    final iniciales = _AvatarIniciales(jugador: jugador, franquicia: franquicia);
+    final foto = ColoredBox(
+      color: panel,
+      child: usarRed
+          ? _FotoEnCadena(
+              urls: jugador.urlsFoto,
+              recortar: recortar,
+              animar: !MediaQuery.disableAnimationsOf(context),
+              sinFoto: iniciales,
+              duotono: _duotono(panel, Color.lerp(colorLed(franquicia), Colors.white, 0.2)!),
+              panel: panel,
+            )
+          : iniciales,
     );
     return Semantics(
       label: jugador.nombre,
@@ -43,41 +50,106 @@ class JugadorAvatar extends StatelessWidget {
       child: recortar ? foto : AspectRatio(aspectRatio: proporcion, child: foto),
     );
   }
+
+  /// Mapea la luminancia de la foto entre el panel (sombras) y un tono claro del equipo (luces).
+  static ColorFilter _duotono(Color oscuro, Color claro) {
+    List<double> fila(double o, double c) => [(c - o) * 0.2126, (c - o) * 0.7152, (c - o) * 0.0722, 0, o * 255];
+    return ColorFilter.matrix([
+      ...fila(oscuro.r, claro.r),
+      ...fila(oscuro.g, claro.g),
+      ...fila(oscuro.b, claro.b),
+      0,
+      0,
+      0,
+      1,
+      0,
+    ]);
+  }
 }
 
-/// Prueba la primera URL; si falla, la siguiente; si no queda ninguna, no dibuja nada.
+/// Prueba la primera URL; si falla, la siguiente; sin ninguna, muestra [sinFoto].
 class _FotoEnCadena extends StatelessWidget {
-  const _FotoEnCadena({required this.urls, required this.recortar, required this.animar});
+  const _FotoEnCadena({
+    required this.urls,
+    required this.recortar,
+    required this.animar,
+    required this.sinFoto,
+    required this.duotono,
+    required this.panel,
+  });
 
   final List<String> urls;
   final bool recortar;
   final bool animar;
+  final Widget sinFoto;
+  final ColorFilter duotono;
+  final Color panel;
 
   @override
   Widget build(BuildContext context) {
-    if (urls.isEmpty) return const SizedBox.shrink();
-    final siguiente = _FotoEnCadena(urls: urls.sublist(1), recortar: recortar, animar: animar);
-    if (urls.first.startsWith('wiki:')) {
+    if (urls.isEmpty) return sinFoto;
+    final siguiente = _FotoEnCadena(
+      urls: urls.sublist(1),
+      recortar: recortar,
+      animar: animar,
+      sinFoto: sinFoto,
+      duotono: duotono,
+      panel: panel,
+    );
+    final url = urls.first;
+    if (url.startsWith('wiki:')) {
       return FutureBuilder<String?>(
-        future: fotoWikipedia(urls.first.substring(5)),
+        future: fotoWikipedia(url.substring(5)),
         builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) return const SizedBox.shrink();
-          final url = snap.data;
-          return url == null
+          if (snap.connectionState != ConnectionState.done) return sinFoto;
+          final resuelta = snap.data;
+          return resuelta == null
               ? siguiente
-              : _FotoEnCadena(urls: [url, ...urls.sublist(1)], recortar: recortar, animar: animar);
+              : _FotoEnCadena(
+                  urls: [resuelta, ...urls.sublist(1)],
+                  recortar: recortar,
+                  animar: animar,
+                  sinFoto: sinFoto,
+                  duotono: duotono,
+                  panel: panel,
+                );
         },
       );
     }
+    final archivo = !url.contains('cdn.nba.com');
     return CachedNetworkImage(
-      imageUrl: urls.first,
+      imageUrl: url,
       cacheManager: cacheHeadshots,
-      fit: recortar ? BoxFit.cover : BoxFit.contain,
-      alignment: recortar ? const Alignment(0, -0.6) : Alignment.bottomCenter,
       fadeInDuration: animar ? const Duration(milliseconds: 180) : Duration.zero,
       fadeInCurve: Curves.easeOut,
-      placeholder: (_, _) => const SizedBox.shrink(),
+      placeholder: (_, _) => sinFoto,
       errorWidget: (_, _, _) => siguiente,
+      imageBuilder: (_, imagen) {
+        final dibujo = Image(
+          image: imagen,
+          fit: recortar || archivo ? BoxFit.cover : BoxFit.contain,
+          alignment: recortar || archivo ? const Alignment(0, -0.6) : Alignment.bottomCenter,
+          width: double.infinity,
+          height: double.infinity,
+        );
+        if (!archivo) return dibujo;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            ColorFiltered(colorFilter: duotono, child: dibujo),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [panel.withValues(alpha: 0), panel.withValues(alpha: 0), panel],
+                  stops: const [0, 0.62, 1],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

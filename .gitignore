@@ -56,3 +56,4 @@ __pycache__/
 
 # Capturas generadas localmente (flutter test capturas --update-goldens)
 capturas/salida/
+dinastia-nba.apk
