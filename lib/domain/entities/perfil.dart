@@ -20,7 +20,8 @@ enum Logro {
   anotadorPropio('Máquina de puntos', 'Un jugador tuyo es el Máximo Anotador.'),
   tresTemporadas('Trayectoria', 'Terminá 3 temporadas.'),
   recordHistorico('Para la historia', 'Batí un récord de una temporada de la NBA.'),
-  tresAllStars('Constelación', 'Tené 3 o más jugadores en el All-Star.');
+  tresAllStars('Constelación', 'Tené 3 o más jugadores en el All-Star.'),
+  copaNba('Campeón de la Copa NBA', 'Ganá la Copa NBA de mitad de temporada.');
 
   const Logro(this.nombre, this.descripcion);
   final String nombre;
@@ -39,7 +40,8 @@ enum TipoTrofeo {
   mip('Jugador Más Mejorado'),
   allNba('Quinteto All-NBA'),
   allStar('All-Star'),
-  record('Récord histórico');
+  record('Récord histórico'),
+  copa('Copa NBA');
 
   const TipoTrofeo(this.nombre);
   final String nombre;

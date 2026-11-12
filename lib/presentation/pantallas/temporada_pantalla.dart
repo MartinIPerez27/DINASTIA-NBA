@@ -8,12 +8,18 @@ import '../../domain/entities/partido.dart';
 import '../../domain/entities/posicion.dart';
 import '../../domain/entities/rival.dart';
 import '../../domain/entities/temporada.dart';
+import '../../domain/copa.dart';
 import '../../domain/liga.dart';
+import '../../domain/mercado.dart';
 import '../../domain/motor.dart';
 import '../temporada/clima_temporada.dart';
+import '../temporada/copa.dart';
+import '../../domain/entities/jugador.dart';
+import '../widgets/carta_jugador.dart';
 import '../widgets/escudo.dart';
 import '../widgets/indicador_forma.dart';
 import '../widgets/texto_led.dart';
+import 'mercado_pantalla.dart';
 import 'partido_pantalla.dart';
 import 'playbook_pantalla.dart';
 import 'stats82_pantalla.dart';
@@ -64,6 +70,7 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
   }
 
   void _guardar(Temporada t) {
+    t = CopaNba(_liga).alDia(t);
     setState(() => _t = t);
     widget.onCambio(t);
   }
@@ -111,6 +118,18 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
         ),
       ),
     );
+    if (mounted) setState(() => _resumen = _avisoLesiones(antes, _t));
+  }
+
+  /// "Se lesionó X: se pierde N" para los tuyos que se lesionaron entre dos estados de la temporada.
+  String? _avisoLesiones(Temporada antes, Temporada despues) {
+    final mios = [...despues.plantel.jugadores, ...despues.suplentes];
+    final nuevos = [
+      for (final j in mios)
+        if (despues.lesiones.containsKey(j.id) && !antes.lesiones.containsKey(j.id))
+          '${j.nombre} (${despues.lesiones[j.id]} PJ)',
+    ];
+    return nuevos.isEmpty ? null : 'Lesión: ${nuevos.join(', ')}. Entra el banco.';
   }
 
   /// Simula el resto de la temporada regular (pide confirmación: no se puede volver atrás).
@@ -138,6 +157,7 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
     });
     await Future<void>.delayed(Duration.zero);
     var t = _t;
+    final inicio = _t;
     String? ultimo;
     var ganados = 0, jugados = 0;
     for (var i = 0; i < partidos && _liga.proximoDelUsuario(t) != null; i++) {
@@ -164,6 +184,7 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
       _progreso = null;
       if (ultimo != null) {
         _resumen = jugados == 1 ? ultimo : 'Simulaste $jugados: $ganados-${jugados - ganados}. Último: $ultimo';
+        if (_avisoLesiones(inicio, t) case final aviso?) _resumen = '$_resumen\n$aviso';
       }
     });
   }
@@ -246,19 +267,38 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
                     )
                   else
                     _FinTemporada(temporada: _t, onPlayoffs: widget.onPlayoffs),
+                  TarjetaCopa(
+                    temporada: _t,
+                    liga: _liga,
+                    onCambio: _guardar,
+                    franquiciaUsuario: franquiciaPorId(_t.franquiciaUsuarioId),
+                  ),
                   // Lo que no se puede perder: récords en juego y el fin de semana All-Star.
                   RecordsEnJuego(temporada: _t, liga: _liga),
                   TarjetaAllStar(temporada: _t, liga: _liga),
                   const SizedBox(height: 16),
                   SegmentedButton<_Vista>(
                     segments: const [
-                      ButtonSegment(value: _Vista.resultados, label: Text('Resultados')),
-                      ButtonSegment(value: _Vista.posiciones, label: Text('Posiciones')),
-                      ButtonSegment(value: _Vista.plantel, label: Text('Plantel')),
-                      ButtonSegment(value: _Vista.noticias, label: Text('Noticias')),
+                      ButtonSegment(
+                        value: _Vista.resultados,
+                        label: FittedBox(child: Text('Resultados', maxLines: 1)),
+                      ),
+                      ButtonSegment(
+                        value: _Vista.posiciones,
+                        label: FittedBox(child: Text('Posiciones', maxLines: 1)),
+                      ),
+                      ButtonSegment(
+                        value: _Vista.plantel,
+                        label: FittedBox(child: Text('Plantel', maxLines: 1)),
+                      ),
+                      ButtonSegment(
+                        value: _Vista.noticias,
+                        label: FittedBox(child: Text('Noticias', maxLines: 1)),
+                      ),
                     ],
                     selected: {_vista},
                     showSelectedIcon: false,
+                    style: SegmentedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
                     onSelectionChanged: (s) => setState(() => _vista = s.first),
                   ),
                   const SizedBox(height: 12),
@@ -375,7 +415,10 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
                 ],
               ),
               subtitle: Text(
-                '${p.etiqueta} · $pj PJ · ${l == null || l.tcA == 0 ? '-' : (100 * l.tcI / l.tcA).toStringAsFixed(1)} %TC',
+                _t.lesiones.containsKey(j.id)
+                    ? '${p.etiqueta} · ${_lesion(j.id)}'
+                    : '${p.etiqueta} · $pj PJ · ${l == null || l.tcA == 0 ? '-' : (100 * l.tcI / l.tcA).toStringAsFixed(1)} %TC',
+                style: _t.lesiones.containsKey(j.id) ? TextStyle(color: tema.colorScheme.error) : null,
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -394,8 +437,97 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
               ),
             );
           }(),
+      if (_liga.proximoDelUsuario(_t) != null) ...[
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.swap_horiz),
+          label: Text(
+            Mercado(_liga).abierto(_t)
+                ? 'MERCADO DE PASES · ${Mercado(_liga).pasesRestantes(_t)} RESTANTES'
+                : 'MERCADO DE PASES · CERRADO',
+          ),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => MercadoPantalla(temporada: _t, liga: _liga, onCambio: _guardar),
+            ),
+          ),
+        ),
+      ],
+      const SizedBox(height: 16),
+      Row(
+        children: [
+          Expanded(child: Text('Banco largo', style: tema.textTheme.titleMedium)),
+          if (_t.suplentes.length < Temporada.maxSuplentes && _liga.proximoDelUsuario(_t) != null)
+            TextButton.icon(
+              onPressed: _firmarSuplente,
+              icon: const Icon(Icons.person_add_alt_1),
+              label: const Text('FIRMAR'),
+            ),
+        ],
+      ),
+      Text(
+        'Hasta ${Temporada.maxSuplentes} suplentes además del Sexto Hombre: entran si alguien se lesiona o está fundido.',
+        style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+      ),
+      for (final j in _t.suplentes)
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(j.nombre),
+          subtitle: Text(
+            _t.lesiones.containsKey(j.id)
+                ? 'SUPLENTE · ${_lesion(j.id)}'
+                : 'SUPLENTE · ${j.posiciones.map((x) => x.etiqueta).join(' / ')} · ${_t.lineas[j.id]?.pj ?? 0} PJ',
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextoLed('${j.media}', tamano: 18),
+              IconButton(
+                onPressed: () => _guardar(_liga.liberar(_t, j)),
+                icon: const Icon(Icons.person_remove_alt_1_outlined),
+                tooltip: 'Liberar a ${j.nombre}',
+              ),
+            ],
+          ),
+        ),
     ],
   );
+
+  String _lesion(String id) {
+    final n = _t.lesiones[id] ?? 0;
+    return 'LESIONADO: se pierde $n partido${n == 1 ? '' : 's'}';
+  }
+
+  Future<void> _firmarSuplente() async {
+    final libres = _liga.agentesLibres(_t);
+    final elegido = await showModalBottomSheet<Jugador>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (c) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.75,
+        builder: (c, scroll) => ListView(
+          controller: scroll,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          children: [
+            Text('AGENTES LIBRES', style: Theme.of(c).textTheme.headlineSmall),
+            Text('Cambian cada 10 jornadas. Elegí uno para tu banco largo.', style: Theme.of(c).textTheme.bodySmall),
+            const SizedBox(height: 12),
+            for (final j in libres)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Center(
+                  child: CartaJugador(jugador: j, onTap: () => Navigator.of(c).pop(j)),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (elegido != null && mounted) _guardar(_liga.firmar(_t, elegido));
+  }
 }
 
 class _Encabezado extends StatelessWidget {

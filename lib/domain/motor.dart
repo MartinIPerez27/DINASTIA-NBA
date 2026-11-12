@@ -71,6 +71,7 @@ class EquipoPartido {
     this.entrenador,
     this.forma = const {},
     this.energiaInicial = 100,
+    this.reserva = const [],
   });
 
   final String identidadId;
@@ -83,6 +84,9 @@ class EquipoPartido {
 
   /// Energía con la que arrancan (menos en un back-to-back o al final de una gira larga).
   final double energiaInicial;
+
+  /// Suplentes del banco largo (además del Sexto Hombre): entran cuando alguien está fundido.
+  final List<Jugador> reserva;
 }
 
 enum TipoEvento { tiro, libres, perdida, cambio, tiempoMuerto, finCuarto, finPartido }
@@ -220,6 +224,11 @@ class _Lado {
       if (j != null) enCancha.add(j);
     }
     banco = equipo.plantel.sextoHombre;
+    reserva.addAll(equipo.reserva);
+    for (final j in equipo.reserva) {
+      energia[j.id] = equipo.energiaInicial;
+      box[j.id] = LineaEstadistica(); // PJ recién cuando entra
+    }
     for (final j in equipo.plantel.jugadores) {
       energia[j.id] = equipo.energiaInicial;
       box[j.id] = LineaEstadistica()..pj = 1;
@@ -237,6 +246,7 @@ class _Lado {
   double get ordenEntrenador => 1 - ((equipo.entrenador?.nivel ?? 80) - 80) / 320;
   final enCancha = <Jugador>[];
   Jugador? banco;
+  final reserva = <Jugador>[];
   final energia = <String, double>{};
   final box = <String, LineaEstadistica>{};
   final parciales = <int>[0];
@@ -297,6 +307,9 @@ class MotorPartido {
   Map<String, double> energias(bool local) => Map.unmodifiable((local ? _l : _v).energia);
   List<Jugador> enCancha(bool local) => List.unmodifiable((local ? _l : _v).enCancha);
   Jugador? enBanco(bool local) => (local ? _l : _v).banco;
+
+  /// Suplentes del banco largo que todavía no entraron (o que volvieron al banco).
+  List<Jugador> reservas(bool local) => List.unmodifiable((local ? _l : _v).reserva);
   int tiemposMuertos(bool local) => (local ? _l : _v).tiemposMuertos;
 
   // ── Jugada clave, cambios y minutos (intervenciones del entrenador del usuario) ──
@@ -470,6 +483,26 @@ class MotorPartido {
       );
     }
     final cansado = lado.enCancha.reduce((a, b) => lado.energia[a.id]! < lado.energia[b.id]! ? a : b);
+    // Banco largo: si alguien está fundido y el Sexto no puede, entra un suplente descansado.
+    final reserva = lado.reserva.where((j) => lado.energia[j.id]! > 80 && !lado.expulsados.contains(j.id)).toList();
+    final liquidado = cuarto >= 4 && (_l.puntos - _v.puntos).abs() >= 18;
+    final fundido = lado.energia[cansado.id]! < 56 && lado.energia[banco.id]! < 78;
+    if (reserva.isNotEmpty && (fundido || (liquidado && !lado.reserva.contains(cansado)))) {
+      final entra = reserva.reduce((a, b) => a.media >= b.media ? a : b);
+      lado.posesionesDesdeCambio = 0;
+      lado.enCancha[lado.enCancha.indexOf(cansado)] = entra;
+      lado.reserva
+        ..remove(entra)
+        ..add(cansado);
+      lado.box[entra.id]!.pj = 1;
+      return _evento(
+        TipoEvento.cambio,
+        local,
+        'Cambio: entra ${entra.nombre} desde el banco largo por ${cansado.nombre}.',
+        entraId: entra.id,
+        saleId: cansado.id,
+      );
+    }
     final umbralEntra = 62 + lado.minutosBanco * 10, umbralVuelve = 92 + lado.minutosBanco * 4;
     final debeEntrar = lado.energia[cansado.id]! < umbralEntra && lado.energia[banco.id]! > 75;
     final debeVolver = lado.energia[banco.id]! > umbralVuelve && lado.energia[cansado.id]! < umbralEntra + 8;

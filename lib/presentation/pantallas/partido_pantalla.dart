@@ -101,7 +101,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   final _voz = VozRelator();
   late final Map<String, Jugador> _jugadores = {
     for (final local in [true, false])
-      for (final j in [..._m.enCancha(local), ?_m.enBanco(local)]) j.id: j,
+      for (final j in [..._m.enCancha(local), ?_m.enBanco(local), ..._m.reservas(local)]) j.id: j,
   };
   final _destacadas = <Destacada>[];
   var _eligiendoJugada = false, _noPreguntar = false;
@@ -219,7 +219,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     if (e.cuarto != _cuarto) _relojDesde = e.cuarto > 4 ? 300 : 720;
     _cuarto = e.tipo == TipoEvento.finCuarto ? e.cuarto - 1 : e.cuarto;
     _relojHasta = e.tipo == TipoEvento.finCuarto ? 0 : e.reloj;
-    final saliente = e.tipo == TipoEvento.cambio ? widget.motor.enBanco(e.local) : null;
+    final saliente = e.tipo == TipoEvento.cambio ? _jugadores[e.saleId] : null;
     _atacaLocal = ataca;
     final posesion = e.tipo == TipoEvento.tiro || e.tipo == TipoEvento.perdida || e.tipo == TipoEvento.libres;
     if (posesion) _inicio24 = _segundaOportunidad ? 14 : 24;
@@ -522,7 +522,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     final energias = {..._m.energias(true), ..._m.energias(false)};
     final todos = {
       for (final local in [true, false]) ...{
-        for (final j in [..._m.enCancha(local), ?_m.enBanco(local)]) j.id: j,
+        for (final j in [..._m.enCancha(local), ?_m.enBanco(local), ..._m.reservas(local)]) j.id: j,
       },
     };
     final banner = switch (_coreo?.evento.tipo) {
@@ -746,7 +746,11 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                         Expanded(
                           child: switch (_panel) {
                             _Panel.jugadores => _EstadisticasVivo(
-                              jugadores: [..._m.enCancha(usuarioLocal), ?_m.enBanco(usuarioLocal)],
+                              jugadores: [
+                                ..._m.enCancha(usuarioLocal),
+                                ?_m.enBanco(usuarioLocal),
+                                ..._m.reservas(usuarioLocal),
+                              ],
                               enCancha: {for (final j in _m.enCancha(usuarioLocal)) j.id},
                               box: _box,
                               energia: _m.energias(usuarioLocal),

@@ -29,14 +29,14 @@ final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
 - [x] ✅ **Pospartido**: jugador del partido, box score de ambos equipos y las 3 mejores jugadas.
 
 ## 3. Temporada y liga
-- [ ] **Banco más largo y lesiones** (rotación de 8).
-- [ ] **Mercado de pases** con fecha límite.
+- [x] ✅ **Banco más largo y lesiones**: 2 suplentes firmables (agentes libres), lesiones de 1 a 25 partidos con reemplazo automático.
+- [x] ✅ **Mercado de pases** con fecha límite (60 % de la temporada, 3 pases, intocables S+, contraofertas).
 - [x] ✅ **Clima de temporada**: titulares semanales, carrera al MVP en vivo, fin de semana All-Star.
 - [x] ✅ **Play-In** (7.º a 10.º).
 - [x] ✅ **Premios completos**: DPOY, 6.º Hombre, Más Mejorado, quintetos All-NBA.
 - [x] ✅ **Récords históricos en vivo** (100 de Chamberlain, rachas).
 - [x] ✅ **Desempates oficiales** e historial contra cada rival.
-- [ ] **Copa NBA** a mitad de temporada.
+- [x] ✅ **Copa NBA** a mitad de temporada: cuartos, semis y final a partido único, trofeo y logro propios.
 - [x] ✅ **Calendario con desgaste** (back-to-back, giras).
 
 ## 4. Modos y metajuego
