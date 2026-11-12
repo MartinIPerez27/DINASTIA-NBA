@@ -6,7 +6,6 @@ import 'package:dinastia_nba/domain/entities/oferta.dart';
 import 'package:dinastia_nba/domain/entities/temporada.dart';
 import 'package:dinastia_nba/presentation/pantallas/draft_pantalla.dart';
 import 'package:dinastia_nba/presentation/tema/tema_franquicia.dart';
-import 'package:dinastia_nba/presentation/widgets/carta_jugador.dart';
 import 'package:dinastia_nba/presentation/widgets/carta_vertical.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,7 +38,7 @@ void main() {
       expect(guardadas.last.tirada, isNotNull, reason: 'la tirada se guarda antes de terminar de girar');
       await tester.pump(const Duration(seconds: 2));
 
-      await tester.tap(find.byType(CartaJugador).first);
+      await tester.tap(find.byType(CartaVertical).first);
       await tester.pump();
       final libre = find.bySemanticsLabel(RegExp('disponible'));
       expect(libre, findsWidgets);

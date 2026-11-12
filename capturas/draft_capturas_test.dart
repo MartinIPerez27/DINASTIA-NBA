@@ -13,6 +13,7 @@ import '../test/playbook_pantalla_test.dart' show temporadaConPlantel;
 
 import 'package:dinastia_nba/presentation/tema/tema_franquicia.dart';
 import 'package:dinastia_nba/presentation/widgets/carta_jugador.dart';
+import 'package:dinastia_nba/presentation/widgets/carta_vertical.dart';
 import 'package:dinastia_nba/presentation/widgets/jugador_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -65,7 +66,7 @@ void main() {
       await tester.tap(find.text('TIRAR'));
       await tester.pump(); // el giro arranca en el cuadro siguiente al toque
       await tester.pump(const Duration(seconds: 2));
-      await tester.tap(find.byType(CartaJugador).first);
+      await tester.tap(find.byType(CartaVertical).first);
       await tester.pump();
       await tester.tap(find.bySemanticsLabel(RegExp('disponible')).first);
       await tester.pump(const Duration(seconds: 1));
@@ -74,7 +75,7 @@ void main() {
       await tester.tap(find.text('TIRAR'));
       await tester.pump(); // el giro arranca en el cuadro siguiente al toque
       await tester.pump(const Duration(seconds: 2));
-      await tester.tap(find.byType(CartaJugador).first);
+      await tester.tap(find.byType(CartaVertical).first);
       await tester.pump();
     }
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 500)));

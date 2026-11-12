@@ -18,6 +18,7 @@ import '../draft/revelado_cartas.dart';
 import '../draft/tragamonedas_panel.dart';
 import '../widgets/carta_jugador.dart';
 import '../widgets/carta_vertical.dart';
+import '../widgets/ficha_jugador.dart';
 
 /// Draft 82-0 (GDD §4). Modo ruleta: tirar los carretes, elegir una de las cartas que salieron y
 /// tocar su puesto. Modo cartas: tocar un puesto, se revelan 5 cartas y se ficha una.
@@ -56,6 +57,9 @@ class _DraftPantallaState extends State<DraftPantalla> {
   Jugador? _elegida;
   Posicion? _ubicada;
   Timer? _finGiro;
+
+  /// Ruleta: filtro de la grilla por puesto (null = todas).
+  Posicion? _filtro;
   final _clavesPuestos = {for (final p in Posicion.values) p: GlobalKey()};
 
   /// Mientras una carta vuela a la cancha, se muestra el plantel de antes (el puesto sigue vacío).
@@ -104,6 +108,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
       _girando = animar;
       _elegida = null;
       _ubicada = null;
+      _filtro = null;
       if (!animar) _retenidos = {};
     });
     if (animar) {
@@ -133,11 +138,17 @@ class _DraftPantallaState extends State<DraftPantalla> {
       return;
     }
     final elegida = _elegida;
-    if (elegida == null || !_t.plantel.posicionesDisponiblesPara(elegida).contains(p)) return;
+    if (elegida == null) {
+      // Sin carta elegida, tocar un puesto libre filtra la grilla por ese puesto.
+      if (_t.tirada != null && !_t.plantel.estaOcupada(p)) setState(() => _filtro = _filtro == p ? null : p);
+      return;
+    }
+    if (!_t.plantel.posicionesDisponiblesPara(elegida).contains(p)) return;
     HapticFeedback.heavyImpact();
     setState(() {
       _guardar(_draft!.elegir(_t, elegida, p));
       _elegida = null;
+      _filtro = null;
       _ubicada = p;
     });
   }
@@ -201,6 +212,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
+                      flex: 4,
                       child: Center(
                         child: Cancha(
                           franquicia: franquicia,
@@ -237,7 +249,10 @@ class _DraftPantallaState extends State<DraftPantalla> {
                       ),
                       const SizedBox(height: 12),
                     ],
-                    _zonaInferior(draft),
+                    if (!_modoCartas && _t.tirada != null && !_t.plantel.completo)
+                      Expanded(flex: 5, child: _zonaInferior(draft))
+                    else
+                      _zonaInferior(draft),
                   ],
                 ),
               ),
@@ -323,22 +338,79 @@ class _DraftPantallaState extends State<DraftPantalla> {
       texto = 'Elegí una carta y tocá su puesto en la cancha.';
     }
 
+    // Grilla de cartas verticales ordenada por media, con filtro por puesto libre.
+    final libres = [
+      for (final p in Posicion.values)
+        if (!_t.plantel.estaOcupada(p)) p,
+    ];
+    final filtro = _filtro;
+    final visibles = [
+      for (final j in candidatos)
+        if (filtro == null || _t.plantel.posicionesDisponiblesPara(j).contains(filtro)) j,
+    ]..sort((a, b) => b.media.compareTo(a.media));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          height: CartaJugador.alto,
-          child: ListView.separated(
+          height: 40,
+          child: ListView(
             scrollDirection: Axis.horizontal,
-            itemCount: candidatos.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (_, i) => CartaJugador(
-              jugador: candidatos[i],
-              seleccionada: candidatos[i] == _elegida,
-              onTap: () => setState(() => _elegida = candidatos[i] == _elegida ? null : candidatos[i]),
-            ),
+            children: [
+              for (final p in [null, ...libres]) ...[
+                ChoiceChip(
+                  label: Text(
+                    '${p?.etiqueta ?? 'TODAS'} · ${p == null ? candidatos.length : candidatos.where((j) => _t.plantel.posicionesDisponiblesPara(j).contains(p)).length}',
+                  ),
+                  selected: filtro == p,
+                  onSelected: _girando ? null : (_) => setState(() => _filtro = p),
+                  visualDensity: VisualDensity.compact,
+                  showCheckmark: false,
+                ),
+                const SizedBox(width: 6),
+              ],
+            ],
           ),
         ),
+        const SizedBox(height: 6),
+        Expanded(
+          child: _girando
+              ? const SizedBox.shrink()
+              : GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    childAspectRatio: proporcionCarta,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                  ),
+                  itemCount: visibles.length,
+                  itemBuilder: (_, i) {
+                    final j = visibles[i];
+                    return Semantics(
+                      button: true,
+                      selected: j == _elegida,
+                      label: '${j.nombre}, media ${j.media}, ${j.tier.etiqueta}, ${j.rol.etiqueta}',
+                      onLongPressHint: 'ver ficha completa',
+                      child: ExcludeSemantics(
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _elegida = j == _elegida ? null : j);
+                          },
+                          onLongPress: () => mostrarFichaJugador(context, j),
+                          child: AnimatedOpacity(
+                            opacity: _elegida == null || _elegida == j ? 1 : 0.55,
+                            duration: const Duration(milliseconds: 150),
+                            child: CartaVertical(jugador: j, seleccionada: j == _elegida),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        if (visibles.isEmpty && !_girando)
+          Text('Ninguna carta de esta tirada juega de ${filtro?.etiqueta}.', style: tema.textTheme.bodySmall),
         const SizedBox(height: 8),
         Text(texto, style: ayuda, textAlign: TextAlign.center),
         const SizedBox(height: 8),
