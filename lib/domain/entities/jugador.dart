@@ -101,6 +101,7 @@ class Jugador {
     required this.rol,
     required this.dorsal,
     required this.stats,
+    this.media = 75,
   });
 
   final String id;
@@ -115,6 +116,9 @@ class Jugador {
   final RolCancha rol;
   final int dorsal;
   final EstadisticasJugador stats;
+
+  /// Valoración general 62–99 (eficiencia y premios en el tramo), estilo carta de Ultimate Team.
+  final int media;
 
   String get headshotUrl => NbaCdn.headshot(nbaPlayerId);
 
@@ -142,6 +146,7 @@ class Jugador {
       rol: RolCancha.values.byName(j['rol'] as String),
       dorsal: j['dorsal'] as int,
       stats: EstadisticasJugador.fromJson(j['stats'] as Map<String, dynamic>),
+      media: j['media'] as int? ?? 75,
     );
   }
 
@@ -156,6 +161,7 @@ class Jugador {
     'rol': rol.name,
     'dorsal': dorsal,
     'stats': stats.toJson(),
+    'media': media,
   };
 
   @override

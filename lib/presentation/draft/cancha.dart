@@ -25,6 +25,7 @@ class Cancha extends StatelessWidget {
     this.resaltadas = const {},
     this.onTocar,
     this.recienUbicada,
+    this.clavesPuestos = const {},
   });
 
   final Franquicia franquicia;
@@ -36,6 +37,9 @@ class Cancha extends StatelessWidget {
 
   /// Puesto que se acaba de llenar: se "enciende" una vez.
   final Posicion? recienUbicada;
+
+  /// Claves para ubicar cada puesto en pantalla (destino de la carta que vuela en el modo cartas).
+  final Map<Posicion, GlobalKey> clavesPuestos;
 
   // Vista: borde de 3 pies a los lados y 4 abajo; arriba se corta pasando el círculo central.
   static const _izq = -3.0, _der = 53.0, _arriba = -7.0, _abajo = 51.0;
@@ -83,6 +87,7 @@ class Cancha extends StatelessWidget {
                   width: puestoAncho,
                   height: puestoAlto,
                   child: _Puesto(
+                    key: clavesPuestos[p],
                     posicion: p,
                     jugador: plantel.en(p),
                     franquicia: franquicia,
@@ -101,6 +106,7 @@ class Cancha extends StatelessWidget {
 
 class _Puesto extends StatelessWidget {
   const _Puesto({
+    super.key,
     required this.posicion,
     required this.jugador,
     required this.franquicia,

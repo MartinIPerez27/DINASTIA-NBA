@@ -248,9 +248,13 @@ def main():
             "stats": ec.stats_de(t),
             "_perfil": p,
             "_puntos": pts,
+            "_puntaje": eficiencia(t) + 0.6 * pts,
         })
 
     ec.asignar_iq(cartas)
+    # Media (62–99), estilo valoración general: percentil de eficiencia + premios en el tramo.
+    for carta, rango in zip(cartas, ec._percentiles([c["_puntaje"] for c in cartas])):
+        carta["media"] = round(62 + 37 * rango)
     ajustes = json.loads(ec.AJUSTES.read_text(encoding="utf-8")) if ec.AJUSTES.exists() else {}
     ec.aplicar_ajustes(cartas, ajustes)
     orden = {"sPlus": 0, "s": 1, "a": 2}

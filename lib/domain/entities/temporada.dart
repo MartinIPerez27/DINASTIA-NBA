@@ -1,6 +1,7 @@
 import 'franquicia.dart';
 import 'partido.dart';
 import 'plantel.dart';
+import 'oferta.dart';
 import 'tactica.dart';
 import 'tirada.dart';
 
@@ -101,6 +102,8 @@ class Temporada {
     this.series = const [],
     this.tirada,
     this.tacticaConfirmada = false,
+    this.modo = ModoDraft.ruleta,
+    this.oferta,
   });
 
   static const rerollsPorTemporada = 3;
@@ -120,6 +123,11 @@ class Temporada {
 
   /// El usuario ya eligió su playbook (Fase 4); se puede seguir cambiando durante la temporada.
   final bool tacticaConfirmada;
+
+  final ModoDraft modo;
+
+  /// Modo cartas: las 5 cartas repartidas para un puesto, pendientes de elegir.
+  final Oferta? oferta;
 
   FaseTemporada get fase {
     if (!plantel.completo) return FaseTemporada.draft;
@@ -181,9 +189,15 @@ class Temporada {
     series: series == null ? this.series : List.unmodifiable(series),
     tirada: tirada,
     tacticaConfirmada: tacticaConfirmada ?? this.tacticaConfirmada,
+    modo: modo,
+    oferta: oferta,
   );
 
-  Temporada conTirada(Tirada? nueva) => Temporada(
+  Temporada conTirada(Tirada? nueva) => _con(tirada: nueva, oferta: oferta);
+
+  Temporada conOferta(Oferta? nueva) => _con(tirada: tirada, oferta: nueva);
+
+  Temporada _con({required Tirada? tirada, required Oferta? oferta}) => Temporada(
     id: id,
     franquiciaUsuarioId: franquiciaUsuarioId,
     plantel: plantel,
@@ -191,8 +205,10 @@ class Temporada {
     rerollsRestantes: rerollsRestantes,
     calendario: calendario,
     series: series,
-    tirada: nueva,
+    tirada: tirada,
     tacticaConfirmada: tacticaConfirmada,
+    modo: modo,
+    oferta: oferta,
   );
 
   factory Temporada.fromJson(Map<String, dynamic> j) => Temporada(
@@ -207,6 +223,8 @@ class Temporada {
     series: List.unmodifiable([for (final s in j['series'] as List) SeriePlayoff.fromJson(s as Map<String, dynamic>)]),
     tirada: j['tirada'] == null ? null : Tirada.fromJson(j['tirada'] as Map<String, dynamic>),
     tacticaConfirmada: j['tacticaConfirmada'] as bool? ?? false,
+    modo: ModoDraft.values.byName(j['modo'] as String? ?? 'ruleta'),
+    oferta: j['oferta'] == null ? null : Oferta.fromJson(j['oferta'] as Map<String, dynamic>),
   );
 
   Map<String, dynamic> toJson() => {
@@ -219,5 +237,7 @@ class Temporada {
     'series': [for (final s in series) s.toJson()],
     if (tirada != null) 'tirada': tirada!.toJson(),
     'tacticaConfirmada': tacticaConfirmada,
+    'modo': modo.name,
+    if (oferta != null) 'oferta': oferta!.toJson(),
   };
 }

@@ -8,15 +8,20 @@ import '../../data/catalogo_jugadores.dart';
 import '../../data/franquicias.dart';
 import '../../domain/draft.dart';
 import '../../domain/entities/jugador.dart';
+import '../../domain/entities/oferta.dart';
+import '../../domain/entities/plantel.dart';
 import '../../domain/entities/posicion.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/entities/tirada.dart';
 import '../draft/cancha.dart';
+import '../draft/revelado_cartas.dart';
 import '../draft/tragamonedas_panel.dart';
 import '../widgets/carta_jugador.dart';
+import '../widgets/carta_vertical.dart';
 
-/// Draft 82-0 (GDD §4): tirar los carretes, elegir una de las cartas que salieron y tocar su
-/// puesto en la cancha. Cada cambio se informa con [onCambio] para guardarlo al instante.
+/// Draft 82-0 (GDD §4). Modo ruleta: tirar los carretes, elegir una de las cartas que salieron y
+/// tocar su puesto. Modo cartas: tocar un puesto, se revelan 5 cartas y se ficha una.
+/// Cada cambio se informa con [onCambio] para guardarlo al instante.
 class DraftPantalla extends StatefulWidget {
   const DraftPantalla({
     super.key,
@@ -51,6 +56,12 @@ class _DraftPantallaState extends State<DraftPantalla> {
   Jugador? _elegida;
   Posicion? _ubicada;
   Timer? _finGiro;
+  final _clavesPuestos = {for (final p in Posicion.values) p: GlobalKey()};
+
+  /// Mientras una carta vuela a la cancha, se muestra el plantel de antes (el puesto sigue vacío).
+  Plantel? _plantelAntes;
+
+  bool get _modoCartas => _t.modo == ModoDraft.cartas;
 
   @override
   void initState() {
@@ -112,6 +123,15 @@ class _DraftPantallaState extends State<DraftPantalla> {
   });
 
   void _tocarPuesto(Posicion p) {
+    if (_modoCartas) {
+      if (_t.oferta != null || _plantelAntes != null || !_draft!.puedeRepartir(_t, p)) return;
+      HapticFeedback.lightImpact();
+      setState(() {
+        _guardar(_draft!.repartir(_t, p));
+        _ubicada = null;
+      });
+      return;
+    }
     final elegida = _elegida;
     if (elegida == null || !_t.plantel.posicionesDisponiblesPara(elegida).contains(p)) return;
     HapticFeedback.heavyImpact();
@@ -120,6 +140,41 @@ class _DraftPantallaState extends State<DraftPantalla> {
       _elegida = null;
       _ubicada = p;
     });
+  }
+
+  void _volverARepartir() => setState(() => _guardar(_draft!.volverARepartir(_t)));
+
+  /// Se guarda al instante; la carta vuela desde la escena del reparto hasta su puesto.
+  void _fichar(Jugador carta, Rect origen) {
+    final posicion = _t.oferta!.posicion;
+    final antes = _t.plantel;
+    final caja = _clavesPuestos[posicion]!.currentContext?.findRenderObject() as RenderBox?;
+    setState(() => _guardar(_draft!.fichar(_t, carta)));
+    if (MediaQuery.disableAnimationsOf(context) || caja == null) {
+      HapticFeedback.heavyImpact();
+      setState(() => _ubicada = posicion);
+      return;
+    }
+    setState(() => _plantelAntes = antes);
+    late final OverlayEntry vuelo;
+    vuelo = OverlayEntry(
+      builder: (_) => _CartaEnVuelo(
+        jugador: carta,
+        origen: origen,
+        destino: caja.localToGlobal(Offset.zero) & caja.size,
+        onFin: () {
+          vuelo.remove();
+          HapticFeedback.heavyImpact();
+          if (mounted) {
+            setState(() {
+              _plantelAntes = null;
+              _ubicada = posicion;
+            });
+          }
+        },
+      ),
+    );
+    Overlay.of(context).insert(vuelo);
   }
 
   @override
@@ -138,40 +193,64 @@ class _DraftPantallaState extends State<DraftPantalla> {
         child: switch ((draft, _errorCatalogo)) {
           (_, final Object e) => Center(child: Text('No se pudo cargar el catálogo: $e')),
           (null, _) => const Center(child: CircularProgressIndicator()),
-          (final Draft draft, _) => Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Center(
-                    child: Cancha(
-                      franquicia: franquicia,
-                      plantel: _t.plantel,
-                      resaltadas: elegida == null ? const {} : _t.plantel.posicionesDisponiblesPara(elegida).toSet(),
-                      onTocar: _tocarPuesto,
-                      recienUbicada: _ubicada,
+          (final Draft draft, _) => Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: Cancha(
+                          franquicia: franquicia,
+                          plantel: _plantelAntes ?? _t.plantel,
+                          resaltadas: _modoCartas
+                              ? (_t.oferta == null && _plantelAntes == null
+                                    ? {
+                                        for (final p in Posicion.values)
+                                          if (!_t.plantel.estaOcupada(p)) p,
+                                      }
+                                    : const {})
+                              : elegida == null
+                              ? const {}
+                              : _t.plantel.posicionesDisponiblesPara(elegida).toSet(),
+                          onTocar: _tocarPuesto,
+                          recienUbicada: _ubicada,
+                          clavesPuestos: _clavesPuestos,
+                        ),
+                      ),
                     ),
+                    const SizedBox(height: 12),
+                    if (!_t.plantel.completo && !_modoCartas) ...[
+                      TragamonedasPanel(
+                        tirada: _t.tirada,
+                        vuelta: _vuelta,
+                        retenidos: _retenidos,
+                        puedeRetener:
+                            !_girando &&
+                            _t.tirada != null &&
+                            _t.rerollsRestantes > 0 &&
+                            _retenidos.length < Draft.maxRetenidos,
+                        onRetener: _retener,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    _zonaInferior(draft),
+                  ],
+                ),
+              ),
+              if (_modoCartas && _t.oferta != null)
+                Positioned.fill(
+                  child: ReveladoCartas(
+                    posicion: _t.oferta!.posicion,
+                    cartas: draft.cartasDeOferta(_t),
+                    rerollsRestantes: _t.rerollsRestantes,
+                    onFichar: _fichar,
+                    onVolverARepartir: _volverARepartir,
                   ),
                 ),
-                const SizedBox(height: 12),
-                if (!_t.plantel.completo) ...[
-                  TragamonedasPanel(
-                    tirada: _t.tirada,
-                    vuelta: _vuelta,
-                    retenidos: _retenidos,
-                    puedeRetener:
-                        !_girando &&
-                        _t.tirada != null &&
-                        _t.rerollsRestantes > 0 &&
-                        _retenidos.length < Draft.maxRetenidos,
-                    onRetener: _retener,
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                _zonaInferior(draft),
-              ],
-            ),
+            ],
           ),
         },
       ),
@@ -194,6 +273,19 @@ class _DraftPantallaState extends State<DraftPantalla> {
           const SizedBox(height: 12),
           FilledButton(onPressed: widget.onCompleto, child: const Text('ELEGIR TÁCTICAS')),
         ],
+      );
+    }
+
+    if (_modoCartas) {
+      return SizedBox(
+        height: 72,
+        child: Center(
+          child: Text(
+            _t.oferta == null ? 'Tocá un puesto marcado en la cancha: se revelan 5 cartas y fichás una.' : '',
+            style: ayuda,
+            textAlign: TextAlign.center,
+          ),
+        ),
       );
     }
 
@@ -287,4 +379,51 @@ class _Fichas extends StatelessWidget {
       ),
     );
   }
+}
+
+/// La carta elegida vuela desde el reparto hasta su puesto en la cancha.
+class _CartaEnVuelo extends StatefulWidget {
+  const _CartaEnVuelo({required this.jugador, required this.origen, required this.destino, required this.onFin});
+
+  final Jugador jugador;
+  final Rect origen;
+  final Rect destino;
+  final VoidCallback onFin;
+
+  @override
+  State<_CartaEnVuelo> createState() => _CartaEnVueloState();
+}
+
+class _CartaEnVueloState extends State<_CartaEnVuelo> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 520))
+    ..addStatusListener((s) {
+      if (s == AnimationStatus.completed) widget.onFin();
+    })
+    ..forward();
+  late final _curva = CurvedAnimation(parent: _c, curve: Curves.easeInOutCubic);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _curva,
+    builder: (context, _) {
+      final rect = Rect.lerp(widget.origen, widget.destino, _curva.value)!;
+      return Positioned.fromRect(
+        rect: rect,
+        child: IgnorePointer(
+          child: FittedBox(
+            child: SizedBox(
+              width: widget.origen.width,
+              child: CartaVertical(jugador: widget.jugador, seleccionada: true),
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }

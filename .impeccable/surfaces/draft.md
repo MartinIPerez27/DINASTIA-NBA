@@ -21,3 +21,13 @@ Las fichas de Reroll son LED del equipo (un solo color vivo, DESIGN.md), no dora
   madera, escudo pintado en el piso, marcas de la zona. Excepción al "sin degradados" de
   DESIGN.md: la penumbra radial de la luz del estadio es iluminación de la escena, no decoración.
 - Cartas: PPP/RPP/APP/IQ; mantener apretado abre la ficha con las 11 estadísticas y el rol.
+
+## Modo cartas (pedido del usuario: "estilo Ultimate Team, con más animaciones y efectos, 5 opciones")
+- Tocar un puesto marcado → se reparten 5 cartas que juegan en ese puesto (rareza por carta 6/3/1,
+  sin repetir persona). Hay que fichar una; volver a repartir cuesta 1 ficha. Se guarda al instante.
+- Carta vertical propia (no copia de EA): media en LED grande con el color de SU franquicia, escudo,
+  época, foto, apellido sobre placa del color de la franquicia y PPP/RPP/APP/IQ. Marco según rareza.
+- Coreografía: entrada escalonada (70 ms), giro 3D de a una (260 ms entre cartas), las S y S+ cargan
+  sus LED antes de girar, destello de encendido y vibración por rareza; la elegida vuela a su puesto.
+  Con "quitar animaciones": todo de frente y sin vuelo. Excepción pedida por el usuario a la
+  sobriedad de DESIGN.md, acotada a esta escena.

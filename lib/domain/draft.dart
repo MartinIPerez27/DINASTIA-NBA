@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'entities/jugador.dart';
+import 'entities/oferta.dart';
 import 'entities/plantel.dart';
 import 'entities/posicion.dart';
 import 'entities/temporada.dart';
@@ -22,6 +23,9 @@ class Draft {
 
   static const pesosRareza = {Tier.a: 6, Tier.s: 3, Tier.sPlus: 1};
   static const maxRetenidos = 2;
+  static const cartasPorReparto = 5;
+
+  late final Map<String, Jugador> _porId = {for (final j in catalogo) j.id: j};
 
   Iterable<Jugador> _disponibles(Plantel p) => catalogo.where((j) => p.posicionesDisponiblesPara(j).isNotEmpty);
 
@@ -69,6 +73,64 @@ class Draft {
   Temporada elegir(Temporada t, Jugador j, Posicion p) {
     if (!candidatos(t).contains(j)) throw ReglaPlantelException('${j.nombre} no salió en esta tirada.');
     return t.copyWith(plantel: t.plantel.asignar(j, p)).conTirada(null);
+  }
+
+  // ── Modo cartas: tocar un puesto, se reparten 5 cartas y se ficha una ──
+
+  List<Jugador> cartasDeOferta(Temporada t) => [for (final id in t.oferta?.cartaIds ?? const <String>[]) ?_porId[id]];
+
+  bool puedeRepartir(Temporada t, Posicion p) =>
+      t.oferta == null && !t.plantel.estaOcupada(p) && _elegibles(t.plantel, p).isNotEmpty;
+
+  Temporada repartir(Temporada t, Posicion p) {
+    if (t.oferta != null) throw StateError('Primero fichá una de las cartas repartidas.');
+    if (t.plantel.estaOcupada(p)) throw ReglaPlantelException('${p.etiqueta} ya está ocupado.');
+    return t.conOferta(Oferta(posicion: p, cartaIds: _repartir(t.plantel, p)));
+  }
+
+  /// Cuesta una ficha de Reroll; evita repetir las cartas de la oferta anterior si hay suficientes.
+  Temporada volverARepartir(Temporada t) {
+    final oferta = t.oferta;
+    if (oferta == null) throw StateError('No hay cartas repartidas.');
+    if (t.rerollsRestantes == 0) throw StateError('No quedan fichas de Reroll.');
+    final nuevas = _repartir(t.plantel, oferta.posicion, evitar: oferta.cartaIds.toSet());
+    return t.usarReroll().conOferta(Oferta(posicion: oferta.posicion, cartaIds: nuevas));
+  }
+
+  Temporada fichar(Temporada t, Jugador j) {
+    final oferta = t.oferta;
+    if (oferta == null || !oferta.cartaIds.contains(j.id)) {
+      throw ReglaPlantelException('${j.nombre} no está entre las cartas repartidas.');
+    }
+    return t.copyWith(plantel: t.plantel.asignar(j, oferta.posicion)).conOferta(null);
+  }
+
+  List<Jugador> _elegibles(Plantel p, Posicion pos) => [
+    for (final j in catalogo)
+      if (p.posicionesDisponiblesPara(j).contains(pos)) j,
+  ];
+
+  /// Cada carta: primero se sortea la rareza (6/3/1), después una carta de esa rareza.
+  /// Nunca dos cartas de la misma persona.
+  List<String> _repartir(Plantel p, Posicion pos, {Set<String> evitar = const {}}) {
+    var pool = _elegibles(p, pos);
+    final nuevas = pool.where((j) => !evitar.contains(j.id)).toList();
+    if (nuevas.length >= cartasPorReparto) pool = nuevas;
+    final elegidas = <Jugador>[];
+    while (elegidas.length < cartasPorReparto && pool.isNotEmpty) {
+      final rareza = _sortearRareza({for (final j in pool) j.tier});
+      final deEsaRareza = pool.where((j) => j.tier == rareza).toList();
+      final carta = deEsaRareza[_azar.nextInt(deEsaRareza.length)];
+      elegidas.add(carta);
+      pool = pool.where((j) => j.nbaPlayerId != carta.nbaPlayerId).toList();
+    }
+    return [for (final j in elegidas) j.id];
+  }
+
+  Tier _sortearRareza(Set<Tier> disponibles) {
+    final rarezas = Tier.values.where(disponibles.contains).toList();
+    var dado = _azar.nextInt(rarezas.fold(0, (s, t) => s + pesosRareza[t]!));
+    return rarezas.firstWhere((t) => (dado -= pesosRareza[t]!) < 0);
   }
 
   Tirada _sortear(List<Tirada> combinaciones) {

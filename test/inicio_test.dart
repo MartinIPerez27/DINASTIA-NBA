@@ -46,6 +46,9 @@ void main() {
     expect(find.text('NUGGETS'), findsOneWidget, reason: 'cambiar de conferencia enfoca su primer equipo');
 
     await tester.tap(find.text('DIRIGIR A LOS NUGGETS'));
+    await tester.pumpAndSettle();
+    expect(find.text('¿CÓMO ARMÁS TU PLANTEL?'), findsOneWidget);
+    await tester.tap(find.text('CARTAS'));
     // El catálogo grande se decodifica en otro isolate: no se espera a que termine de cargar.
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));

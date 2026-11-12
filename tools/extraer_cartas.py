@@ -243,9 +243,9 @@ def cartas_de_jugador(info, carrera, premios):
 
 
 def _percentiles(valores):
-    orden = sorted(valores)
-    n = len(orden)
-    return [orden.index(v) / (n - 1) if n > 1 else 1.0 for v in valores]
+    posicion = {v: i for i, v in enumerate(sorted(valores))}  # O(n log n): el catálogo tiene miles
+    n = len(valores)
+    return [posicion[v] / (n - 1) if n > 1 else 1.0 for v in valores]
 
 
 def asignar_iq(cartas):

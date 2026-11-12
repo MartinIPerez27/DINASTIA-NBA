@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
+import 'package:dinastia_nba/data/catalogo_jugadores.dart';
 import 'package:dinastia_nba/domain/draft.dart';
+import 'package:dinastia_nba/domain/entities/oferta.dart';
 import 'package:dinastia_nba/domain/entities/jugador.dart';
 import 'package:dinastia_nba/domain/entities/plantel.dart';
 import 'package:dinastia_nba/domain/entities/posicion.dart';
@@ -138,5 +141,48 @@ void main() {
     final draft = Draft(_catalogo, azar: Random(8));
     final t = nueva.conTirada(const Tirada(franquiciaId: 'CHI', epoca: Epoca.anios90, tier: Tier.a));
     expect(draft.candidatos(t).map((j) => j.nbaPlayerId), [3, 1, 2]);
+  });
+
+  group('modo cartas', () {
+    final catalogo = parsearCatalogo(File(rutaCatalogo).readAsStringSync());
+    const cartas = Temporada(id: 't', franquiciaUsuarioId: 'CHI', modo: ModoDraft.cartas);
+
+    test('reparte 5 cartas distintas que juegan en ese puesto, y obliga a fichar una', () {
+      final draft = Draft(catalogo, azar: Random(1));
+      final t = draft.repartir(cartas, Posicion.pivot);
+      final repartidas = draft.cartasDeOferta(t);
+      expect(repartidas, hasLength(5));
+      expect(repartidas.map((j) => j.nbaPlayerId).toSet(), hasLength(5), reason: 'sin repetir persona');
+      expect(repartidas.every((j) => j.posiciones.contains(Posicion.pivot)), isTrue);
+      expect(() => draft.repartir(t, Posicion.base), throwsStateError, reason: 'primero se ficha');
+      expect(draft.puedeRepartir(t, Posicion.base), isFalse);
+
+      final fichado = draft.fichar(t, repartidas[2]);
+      expect(fichado.plantel.en(Posicion.pivot), repartidas[2]);
+      expect(fichado.oferta, isNull);
+      expect(() => draft.fichar(fichado, repartidas[0]), throwsA(isA<ReglaPlantelException>()));
+    });
+
+    test('volver a repartir gasta una ficha y trae cartas nuevas', () {
+      final draft = Draft(catalogo, azar: Random(2));
+      final t = draft.repartir(cartas, Posicion.alero);
+      final otra = draft.volverARepartir(t);
+      expect(otra.rerollsRestantes, 2);
+      expect(otra.oferta!.cartaIds.toSet().intersection(t.oferta!.cartaIds.toSet()), isEmpty);
+      final guardada = Temporada.fromJson(jsonDecode(jsonEncode(otra.toJson())) as Map<String, dynamic>);
+      expect(guardada.oferta!.cartaIds, otra.oferta!.cartaIds);
+      expect(guardada.modo, ModoDraft.cartas);
+    });
+
+    test('rareza por carta 6/3/1: en promedio media carta S+ por reparto', () {
+      final draft = Draft(catalogo, azar: Random(3));
+      var sPlus = 0, total = 0;
+      for (var i = 0; i < 400; i++) {
+        final repartidas = draft.cartasDeOferta(draft.repartir(cartas, Posicion.sextoHombre));
+        total += repartidas.length;
+        sPlus += repartidas.where((j) => j.tier == Tier.sPlus).length;
+      }
+      expect(sPlus / total, closeTo(0.1, 0.03));
+    });
   });
 }

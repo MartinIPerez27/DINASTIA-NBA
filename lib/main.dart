@@ -10,6 +10,7 @@ import 'presentation/pantallas/draft_pantalla.dart';
 import 'presentation/pantallas/inicio_pantalla.dart';
 import 'presentation/pantallas/playbook_pantalla.dart';
 import 'presentation/tema/tema_franquicia.dart';
+import 'presentation/widgets/elegir_modo.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -83,7 +84,9 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   }
 
   Future<void> _dirigir(Franquicia f) async {
-    final t = Temporada(id: DateTime.now().millisecondsSinceEpoch.toString(), franquiciaUsuarioId: f.id);
+    final modo = await elegirModoDraft(_navegador.currentContext!);
+    if (modo == null) return;
+    final t = Temporada(id: DateTime.now().millisecondsSinceEpoch.toString(), franquiciaUsuarioId: f.id, modo: modo);
     try {
       await widget.db?.guardarTemporada(t);
       setState(() => _guardada = t);
