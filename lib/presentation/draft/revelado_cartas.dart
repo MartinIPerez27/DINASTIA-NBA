@@ -1,17 +1,22 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 import '../../data/franquicias.dart';
+import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/entities/posicion.dart';
 import '../tema/tema_franquicia.dart';
 import '../widgets/carta_vertical.dart';
+import '../widgets/escudo.dart';
 import '../widgets/ficha_jugador.dart';
 import '../widgets/haptica.dart';
 
 /// Escena del modo cartas: 5 cartas entran boca abajo, las raras cargan sus LED y se dan vuelta
 /// de a una. Se toca una para elegirla y "FICHAR" la confirma. Mantener apretada abre su ficha.
+/// La [sorpresaId] queda boca abajo hasta que la tocás; con [ciega] ninguna se da vuelta.
+/// Si hubo [robadas] (draft en serpiente), primero se muestra qué se llevaron los rivales.
 class ReveladoCartas extends StatefulWidget {
   const ReveladoCartas({
     super.key,
@@ -20,7 +25,19 @@ class ReveladoCartas extends StatefulWidget {
     required this.rerollsRestantes,
     required this.onFichar,
     required this.onVolverARepartir,
+    this.sorpresaId,
+    this.ciega = false,
+    this.robadas = const [],
   });
+
+  /// Carta que viene boca abajo hasta tocarla.
+  final String? sorpresaId;
+
+  /// Draft a ciegas: todas boca abajo, se elige sin verlas.
+  final bool ciega;
+
+  /// Cartas que los rivales eligieron antes que vos, con la franquicia que se las llevó.
+  final List<(Jugador, Franquicia)> robadas;
 
   final Posicion posicion;
   final List<Jugador> cartas;
@@ -38,8 +55,27 @@ class _ReveladoCartasState extends State<ReveladoCartas> {
   final _claves = <String, GlobalKey>{};
   final _reveladas = <String>{};
   Jugador? _elegida;
+  late bool _viendoRobos = widget.robadas.isNotEmpty;
+  Timer? _finRobos;
 
   bool get _todasReveladas => _reveladas.length == widget.cartas.length;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_viendoRobos) _finRobos = Timer(const Duration(milliseconds: 2800), _seguir);
+  }
+
+  @override
+  void dispose() {
+    _finRobos?.cancel();
+    super.dispose();
+  }
+
+  void _seguir() {
+    _finRobos?.cancel();
+    if (mounted && _viendoRobos) setState(() => _viendoRobos = false);
+  }
 
   @override
   void didUpdateWidget(ReveladoCartas anterior) {
@@ -47,6 +83,8 @@ class _ReveladoCartasState extends State<ReveladoCartas> {
     if (anterior.cartas.map((j) => j.id).join() != widget.cartas.map((j) => j.id).join()) {
       _reveladas.clear();
       _elegida = null;
+      _viendoRobos = widget.robadas.isNotEmpty;
+      if (_viendoRobos) _finRobos = Timer(const Duration(milliseconds: 2800), _seguir);
     }
   }
 
@@ -57,14 +95,74 @@ class _ReveladoCartasState extends State<ReveladoCartas> {
     widget.onFichar(elegida, caja.localToGlobal(Offset.zero) & caja.size);
   }
 
+  /// Draft en serpiente: lo que se llevaron los rivales antes de que elijas.
+  Widget _robos(BuildContext context) {
+    final tema = Theme.of(context);
+    return ColoredBox(
+      color: tema.colorScheme.surfaceContainerLowest.withValues(alpha: 0.97),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Text(
+                'TE GANARON DE MANO',
+                textAlign: TextAlign.center,
+                style: tema.textTheme.headlineSmall?.copyWith(fontSize: 26),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'En esta ronda los rivales eligen antes que vos.',
+                style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+              ),
+              const Spacer(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (final (j, f) in widget.robadas)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: SizedBox(
+                        width: 130,
+                        child: Column(
+                          children: [
+                            CartaVertical(jugador: j),
+                            const SizedBox(height: 10),
+                            Escudo(f, tamano: 36),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Se la llevaron los ${f.nombre}',
+                              textAlign: TextAlign.center,
+                              style: tema.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const Spacer(),
+              FilledButton(
+                onPressed: _seguir,
+                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                child: const Text('VER LO QUE QUEDA'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_viendoRobos) return _robos(context);
     final tema = Theme.of(context);
     final elegida = _elegida;
     final apellido = elegida?.nombre.split(' ').skip(1).join(' ');
 
     return ColoredBox(
-      color: Theme.of(context).colorScheme.surfaceContainerLowest.withValues(alpha: 0.95),
+      color: Theme.of(context).colorScheme.surfaceContainerLowest.withValues(alpha: 0.985),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -83,7 +181,13 @@ class _ReveladoCartasState extends State<ReveladoCartas> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _todasReveladas ? 'Tocá una carta. Mantenela apretada para ver su ficha.' : ' ',
+                    !_todasReveladas
+                        ? ' '
+                        : widget.ciega
+                        ? 'A ciegas: elegí sin ver. Se revela cuando la fichás.'
+                        : widget.robadas.isNotEmpty
+                        ? 'Los rivales ya eligieron ${widget.robadas.length}. Tocá una de las que quedan.'
+                        : 'Tocá una carta. La sorpresa se da vuelta al tocarla.',
                     style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant),
                   ),
                   const Spacer(),
@@ -102,6 +206,8 @@ class _ReveladoCartasState extends State<ReveladoCartas> {
                             orden: i,
                             elegida: elegida == j,
                             atenuada: elegida != null && elegida != j,
+                            oculta: widget.ciega || j.id == widget.sorpresaId,
+                            destapable: !widget.ciega,
                             onRevelada: () => setState(() => _reveladas.add(j.id)),
                             onTap: _todasReveladas
                                 ? () {
@@ -117,7 +223,13 @@ class _ReveladoCartasState extends State<ReveladoCartas> {
                   FilledButton(
                     onPressed: elegida == null ? null : _fichar,
                     style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-                    child: Text(elegida == null ? 'ELEGÍ UNA CARTA' : 'FICHAR A ${apellido!.toUpperCase()}'),
+                    child: Text(
+                      elegida == null
+                          ? 'ELEGÍ UNA CARTA'
+                          : widget.ciega
+                          ? 'FICHAR A CIEGAS'
+                          : 'FICHAR A ${apellido!.toUpperCase()}',
+                    ),
                   ),
                   const SizedBox(height: 8),
                   OutlinedButton(
@@ -145,6 +257,8 @@ class _CartaRevelable extends StatefulWidget {
     required this.atenuada,
     required this.onRevelada,
     this.onTap,
+    this.oculta = false,
+    this.destapable = true,
   });
 
   final Jugador jugador;
@@ -154,6 +268,12 @@ class _CartaRevelable extends StatefulWidget {
   final VoidCallback onRevelada;
   final VoidCallback? onTap;
 
+  /// Queda boca abajo después de entrar (sorpresa o a ciegas).
+  final bool oculta;
+
+  /// Si está oculta, ¿se puede dar vuelta tocándola? (la sorpresa sí; a ciegas no).
+  final bool destapable;
+
   @override
   State<_CartaRevelable> createState() => _CartaRevelableState();
 }
@@ -162,6 +282,10 @@ class _CartaRevelableState extends State<_CartaRevelable> with SingleTickerProvi
   late final AnimationController _c;
   late final Animation<double> _entrada, _carga, _giro, _destello;
   bool _avisada = false;
+
+  /// Avance (0–1) en el que una carta oculta se queda esperando, ya adentro y boca abajo.
+  late final double _espera;
+  bool _destapada = false;
 
   // Tiempos (ms) de la coreografía de esta carta.
   static const _entradaMs = 280, _pausaMs = 250, _giroMs = 420, _destelloMs = 450, _entreCartasMs = 260;
@@ -190,15 +314,32 @@ class _CartaRevelableState extends State<_CartaRevelable> with SingleTickerProvi
     _carga = CurvedAnimation(parent: _c, curve: tramo(inicioCarga, _cargaMs, Curves.easeInCubic));
     _giro = CurvedAnimation(parent: _c, curve: tramo(inicioGiro, _giroMs, Curves.easeInOutCubic));
     _destello = CurvedAnimation(parent: _c, curve: tramo(inicioGiro + _giroMs, _destelloMs, Curves.easeOutCubic));
+    _espera = (inicioEntrada + _entradaMs) / total;
     _c.addListener(_alGirar);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      MediaQuery.disableAnimationsOf(context) ? _c.value = 1 : _c.forward();
+      final sinAnimar = MediaQuery.disableAnimationsOf(context);
+      if (widget.oculta) {
+        // Entra y se queda boca abajo: cuenta como "lista" para poder elegir.
+        sinAnimar ? _c.value = _espera : _c.animateTo(_espera);
+        Future<void>.delayed(Duration(milliseconds: sinAnimar ? 0 : (_espera * total).round()), () {
+          if (mounted) widget.onRevelada();
+        });
+      } else {
+        sinAnimar ? _c.value = 1 : _c.forward();
+      }
     });
   }
 
+  void _destapar() {
+    if (_destapada) return;
+    setState(() => _destapada = true);
+    Haptica.ligera();
+    MediaQuery.disableAnimationsOf(context) ? _c.value = 1 : _c.forward();
+  }
+
   void _alGirar() {
-    if (_avisada || _giro.value < 0.5) return;
+    if (_avisada || _giro.value < 0.5 || (widget.oculta && !_destapada)) return;
     _avisada = true;
     switch (widget.jugador.tier) {
       case Tier.sPlus:
@@ -226,11 +367,13 @@ class _CartaRevelableState extends State<_CartaRevelable> with SingleTickerProvi
       selected: widget.elegida,
       label: _avisada
           ? '${widget.jugador.nombre}, media ${widget.jugador.media}, ${widget.jugador.tier.etiqueta}'
+          : widget.oculta && widget.destapable
+          ? 'Carta sorpresa boca abajo: tocala para darla vuelta'
           : 'Carta boca abajo',
       onLongPressHint: 'ver ficha completa',
       child: ExcludeSemantics(
         child: GestureDetector(
-          onTap: widget.onTap,
+          onTap: widget.oculta && widget.destapable && !_destapada ? _destapar : widget.onTap,
           onLongPress: _avisada ? () => mostrarFichaJugador(context, widget.jugador) : null,
           child: AnimatedScale(
             scale: widget.elegida ? 1.06 : 1,
@@ -269,6 +412,8 @@ class _CartaRevelableState extends State<_CartaRevelable> with SingleTickerProvi
                             ),
                           ],
                         )
+                      : widget.oculta && widget.destapable && !_destapada
+                      ? _DorsoSorpresa(tier: widget.jugador.tier)
                       : DorsoCarta(carga: _carga.value, color: led);
                   return Opacity(
                     opacity: _entrada.value,
@@ -289,6 +434,55 @@ class _CartaRevelableState extends State<_CartaRevelable> with SingleTickerProvi
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Dorso de la carta sorpresa: el marco insinúa la rareza (sin decir quién es).
+class _DorsoSorpresa extends StatelessWidget {
+  const _DorsoSorpresa({required this.tier});
+
+  final Tier tier;
+
+  static Color colorRareza(Tier t) => switch (t) {
+    Tier.sPlus => const Color(0xFFFFC94D),
+    Tier.s => const Color(0xFFC9D2DC),
+    Tier.a => const Color(0xFFC08457),
+    Tier.b => const Color(0xFF6E7681),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final color = colorRareza(tier);
+    return Stack(
+      children: [
+        DorsoCarta(carga: 0.55, color: color),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 10,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: color),
+                color: Theme.of(context).colorScheme.surfaceContainerLowest,
+              ),
+              child: Text(
+                'SORPRESA',
+                style: TextStyle(
+                  fontFamily: Fuentes.estadio,
+                  fontVariations: const [FontVariation.weight(800)],
+                  fontSize: 12,
+                  letterSpacing: 1,
+                  color: color,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

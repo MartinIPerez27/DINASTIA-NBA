@@ -4,18 +4,18 @@ Lo que el usuario aprobó para implementar después de la Fase 6. Se hace por ta
 final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
 
 ## 1. Draft y cartas
-- [ ] **Sobres a elegir** (modo cartas): por puesto se ofrecen 3 sobres cerrados temáticos
+- [x] ✅ **Sobres a elegir** (modo cartas): por puesto se ofrecen 3 sobres cerrados temáticos
       (época, franquicia, misterioso); se elige uno y se abren sus 5 cartas.
-- [ ] **Química** estilo Ultimate Team: misma franquicia o misma época se potencian (bonus chico
+- [x] ✅ **Química** estilo Ultimate Team: misma franquicia o misma época se potencian (bonus chico
       en el motor). Vale para ruleta y cartas.
-- [ ] **Carta sorpresa**: una de las 5 boca abajo ("walkout").
-- [ ] **Dúos legendarios**: bonus por parejas históricas (Jordan-Pippen, Shaq-Kobe, Stockton-Malone…).
-- [ ] **Carta de entrenador** como 7.º puesto (Phil Jackson, Popovich, Riley, Auerbach…) que
+- [x] ✅ **Carta sorpresa**: una de las 5 boca abajo ("walkout").
+- [x] ✅ **Dúos legendarios**: bonus por parejas históricas (Jordan-Pippen, Shaq-Kobe, Stockton-Malone…).
+- [x] ✅ **Carta de entrenador** como 7.º puesto (Phil Jackson, Popovich, Riley, Auerbach…) que
       potencia tácticas.
-- [ ] **Forma de las cartas** durante la temporada (▲▼ según rachas).
-- [ ] **Versiones** Novato / Prime / Veterano de una misma leyenda.
-- [ ] **Álbum de colección** con lo descubierto y lo que falta por franquicia.
-- [ ] **Draft en serpiente contra la IA** (los rivales también eligen).
+- [x] ✅ **Forma de las cartas** durante la temporada (▲▼ según rachas).
+- [x] ✅ **Versiones** Novato / Prime / Veterano de una misma leyenda.
+- [x] ✅ **Álbum de colección** con lo descubierto y lo que falta por franquicia.
+- [x] ✅ **Draft en serpiente contra la IA** (los rivales también eligen).
 
 ## 2. Partido en vivo
 - [ ] **Jugada clave en el clutch**: pausa y elegís aislamiento / pick & roll / triple.
@@ -43,7 +43,7 @@ final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
 - [ ] **Modo Dinastía**: temporadas encadenadas, envejecimiento, retiros, mini-draft.
 - [x] ✅ **Salón de la Fama y logros**.
 - [ ] **Desafío del día** (mismo draft para todos según la fecha, offline).
-- [ ] **Modos de draft con reglas**: una sola década, franquicia pura, underdog (solo A y B),
+- [x] ✅ **Modos de draft con reglas**: una sola década, franquicia pura, underdog (solo A y B),
       a ciegas.
 - [ ] **Escenarios históricos** ("Ganá las Finales del 98 con los Jazz").
 - [~] **Nivel de entrenador con XP** (✅ nivel y ventajas; faltan los desbloqueos estéticos) y desbloqueos (canchas retro, uniformes clásicos, carteles).
@@ -64,8 +64,8 @@ final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
 - [ ] **Duelo**: dos personas, serie al mejor de 7.
 
 ### Metajuego
-- [~] **Monedas del juego** (✅ se ganan jugando; los sobres llegan con la colección) para abrir sobres.
-- [ ] **Colección permanente** de cartas y un modo que solo usa tu colección.
+- [x] ✅ **Monedas del juego** (sin dinero real) para abrir sobres en la tienda.
+- [x] ✅ **Colección permanente** de cartas y un modo que solo usa tu colección.
 - [ ] **Misiones diarias y semanales**.
 - [ ] **Pase de temporada offline** con premios estéticos (canchas retro, pelota ABA, uniformes
       clásicos, temas de carteles LED).

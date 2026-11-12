@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/franquicias.dart';
 import '../../domain/entities/jugador.dart';
+import '../../domain/versiones.dart';
 import '../tema/tema_franquicia.dart';
 import 'carta_jugador.dart';
 import 'escudo.dart';
@@ -25,6 +26,9 @@ class CartaVertical extends StatelessWidget {
 
   final Jugador jugador;
   final bool seleccionada;
+
+  /// Versión de cada carta (Novato / Prime / Veterano), calculada una vez al cargar el catálogo.
+  static Map<String, VersionCarta> versiones = const {};
 
   @override
   Widget build(BuildContext context) {
@@ -112,7 +116,39 @@ class CartaVertical extends StatelessWidget {
                       Expanded(
                         child: Padding(
                           padding: EdgeInsets.symmetric(horizontal: w * 0.04),
-                          child: JugadorAvatar(jugador: jugador, franquicia: franquicia, recortar: true),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              JugadorAvatar(jugador: jugador, franquicia: franquicia, recortar: true),
+                              if (versiones[jugador.id] case final version?)
+                                Positioned(
+                                  right: 0,
+                                  bottom: w * 0.02,
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(horizontal: w * 0.035, vertical: w * 0.008),
+                                    decoration: BoxDecoration(
+                                      color: esquema.surfaceContainerLowest.withValues(alpha: 0.85),
+                                      borderRadius: BorderRadius.circular(w * 0.03),
+                                      border: Border.all(
+                                        color: version == VersionCarta.prime ? led : esquema.outlineVariant,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      version.etiqueta,
+                                      style: TextStyle(
+                                        fontFamily: Fuentes.estadio,
+                                        fontVariations: const [FontVariation.weight(800)],
+                                        fontSize: w * 0.065,
+                                        letterSpacing: 0.6,
+                                        height: 1.1,
+                                        color: version == VersionCarta.prime ? led : esquema.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                       // Apellido sobre una placa con el color de la franquicia de la carta.

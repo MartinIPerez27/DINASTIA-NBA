@@ -26,7 +26,11 @@ class Cancha extends StatelessWidget {
     this.onTocar,
     this.recienUbicada,
     this.clavesPuestos = const {},
+    this.vinculos = const [],
   });
+
+  /// Química: líneas entre puestos con cartas vinculadas (más gruesas para los dúos legendarios).
+  final List<(Posicion, Posicion, bool)> vinculos;
 
   final Franquicia franquicia;
   final Plantel plantel;
@@ -80,6 +84,18 @@ class Cancha extends StatelessWidget {
               Positioned.fill(
                 child: IgnorePointer(child: CustomPaint(painter: _LuzEstadio())),
               ),
+              if (vinculos.isNotEmpty)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _Vinculos(
+                        [for (final (a, b, duo) in vinculos) (px(_ubicacion[a]!), px(_ubicacion[b]!), duo)],
+                        Theme.of(context).colorScheme.primary,
+                        pie,
+                      ),
+                    ),
+                  ),
+                ),
               for (final p in Posicion.values)
                 Positioned(
                   left: px(_ubicacion[p]!).dx - puestoAncho / 2,
@@ -477,4 +493,30 @@ class _Parque extends CustomPainter {
 
   @override
   bool shouldRepaint(_Parque a) => a.franquicia != franquicia;
+}
+
+/// Líneas de química entre puestos: finas y tenues; los dúos legendarios, firmes.
+class _Vinculos extends CustomPainter {
+  _Vinculos(this.lineas, this.color, this.pie);
+
+  final List<(Offset, Offset, bool)> lineas;
+  final Color color;
+  final double pie;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final (a, b, duo) in lineas) {
+      canvas.drawLine(
+        a,
+        b,
+        Paint()
+          ..color = color.withValues(alpha: duo ? 0.95 : 0.45)
+          ..strokeWidth = duo ? max(2.5, pie * 0.6) : max(1.0, pie * 0.25)
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_Vinculos viejo) => viejo.lineas.length != lineas.length || viejo.color != color;
 }

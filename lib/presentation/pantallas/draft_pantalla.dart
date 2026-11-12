@@ -4,16 +4,23 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../../data/catalogo_jugadores.dart';
+import '../../data/estado_app.dart';
 import '../../data/franquicias.dart';
 import '../../domain/draft.dart';
+import '../../domain/entities/entrenador.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/entities/oferta.dart';
 import '../../domain/entities/plantel.dart';
 import '../../domain/entities/posicion.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/entities/tirada.dart';
+import '../../domain/quimica.dart';
+import '../../domain/versiones.dart';
 import '../draft/cancha.dart';
+import '../draft/entrenadores.dart';
+import '../draft/quimica_panel.dart';
 import '../draft/revelado_cartas.dart';
+import '../draft/sobres.dart';
 import '../draft/tragamonedas_panel.dart';
 import '../widgets/carta_jugador.dart';
 import '../widgets/carta_vertical.dart';
@@ -72,13 +79,40 @@ class _DraftPantallaState extends State<DraftPantalla> {
     super.initState();
     final catalogo = widget.catalogo;
     if (catalogo != null) {
-      _draft = Draft(catalogo, azar: widget.azar);
+      _draft = _crearDraft(catalogo);
     } else {
       cargarCatalogo().then(
-        (c) => mounted ? setState(() => _draft = Draft(c, azar: widget.azar)) : null,
+        (c) => mounted ? setState(() => _draft = _crearDraft(c)) : null,
         onError: (Object e) => mounted ? setState(() => _errorCatalogo = e) : null,
       );
     }
+  }
+
+  Draft _crearDraft(List<Jugador> catalogo) {
+    if (CartaVertical.versiones.isEmpty) CartaVertical.versiones = calcularVersiones(catalogo);
+    return Draft(catalogo, azar: widget.azar, coleccion: perfilApp.value.coleccion);
+  }
+
+  /// Química del plantel: líneas en la cancha entre los puestos vinculados.
+  List<(Posicion, Posicion, bool)> _lineasQuimica(Plantel plantel) {
+    final puestoDe = {for (final p in Posicion.values) ?plantel.en(p)?.id: p};
+    return [
+      for (final v in Quimica.de(plantel.jugadores).vinculos)
+        if (puestoDe[v.a] case final a?)
+          if (puestoDe[v.b] case final b?) (a, b, v.tipo == TipoVinculo.duo),
+    ];
+  }
+
+  Future<void> _elegirEntrenador() async {
+    final draft = _draft;
+    if (draft == null) return;
+    final e = await elegirEntrenador(context, draft.opcionesEntrenador(_t), actual: Entrenador.porId(_t.entrenadorId));
+    if (e != null && mounted) setState(() => _guardar(draft.elegirEntrenador(_t, e)));
+  }
+
+  void _abrirSobre(int i) {
+    Haptica.fuerte();
+    setState(() => _guardar(_draft!.abrirSobre(_t, i)));
   }
 
   @override
@@ -230,6 +264,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
                           onTocar: _tocarPuesto,
                           recienUbicada: _ubicada,
                           clavesPuestos: _clavesPuestos,
+                          vinculos: _lineasQuimica(_plantelAntes ?? _t.plantel),
                         ),
                       ),
                     ),
@@ -256,15 +291,34 @@ class _DraftPantallaState extends State<DraftPantalla> {
                   ],
                 ),
               ),
-              if (_modoCartas && _t.oferta != null)
+              if (_t.oferta case final oferta? when _modoCartas)
                 Positioned.fill(
-                  child: ReveladoCartas(
-                    posicion: _t.oferta!.posicion,
-                    cartas: draft.cartasDeOferta(_t),
-                    rerollsRestantes: _t.rerollsRestantes,
-                    onFichar: _fichar,
-                    onVolverARepartir: _volverARepartir,
-                  ),
+                  child: oferta.sinAbrir
+                      ? ElegirSobre(
+                          key: ValueKey('sobres-${oferta.sobres.map((s) => s.toJson()).join()}'),
+                          posicion: oferta.posicion,
+                          sobres: oferta.sobres,
+                          onAbrir: _abrirSobre,
+                          aviso: _t.regla == ReglaDraft.serpiente
+                              ? (_t.plantel.jugadores.length.isOdd
+                                    ? 'Draft en serpiente: en esta ronda los rivales eligen antes que vos.'
+                                    : 'Draft en serpiente: en esta ronda elegís primero.')
+                              : null,
+                        )
+                      : ReveladoCartas(
+                          key: ValueKey('cartas-${oferta.cartaIds.join()}'),
+                          posicion: oferta.posicion,
+                          cartas: draft.cartasDeOferta(_t),
+                          rerollsRestantes: _t.rerollsRestantes,
+                          onFichar: _fichar,
+                          onVolverARepartir: _volverARepartir,
+                          sorpresaId: oferta.sorpresaId,
+                          ciega: oferta.ciega,
+                          robadas: [
+                            for (final (id, f) in oferta.robadas)
+                              if (draft.jugador(id) case final j?) (j, franquiciaPorId(f)),
+                          ],
+                        ),
                 ),
             ],
           ),
@@ -277,31 +331,50 @@ class _DraftPantallaState extends State<DraftPantalla> {
     final tema = Theme.of(context);
     final ayuda = tema.textTheme.bodyMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant);
 
+    final entrenador = Entrenador.porId(_t.entrenadorId);
+    final quimica = _t.plantel.jugadores.length >= 2
+        ? PanelQuimica(jugadores: _t.plantel.jugadores.toList(), entrenador: entrenador)
+        : null;
+
     if (_t.plantel.completo) {
+      // 7.º puesto: la carta de entrenador, antes de pasar a las tácticas.
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            '¡Plantel completo! Mantené apretada una carta para ver su ficha.',
-            style: ayuda,
-            textAlign: TextAlign.center,
-          ),
+          ?quimica,
+          const SizedBox(height: 10),
+          ChipEntrenador(entrenador: entrenador, onTap: _elegirEntrenador),
           const SizedBox(height: 12),
-          FilledButton(onPressed: widget.onCompleto, child: const Text('ELEGIR TÁCTICAS')),
+          if (entrenador == null) ...[
+            FilledButton(onPressed: _elegirEntrenador, child: const Text('ELEGIR ENTRENADOR')),
+            TextButton(
+              onPressed: widget.onCompleto,
+              style: TextButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+              child: const Text('SEGUIR SIN ENTRENADOR'),
+            ),
+          ] else
+            FilledButton(onPressed: widget.onCompleto, child: const Text('ELEGIR TÁCTICAS')),
         ],
       );
     }
 
     if (_modoCartas) {
-      return SizedBox(
-        height: 72,
-        child: Center(
-          child: Text(
-            _t.oferta == null ? 'Tocá un puesto marcado en la cancha: se revelan 5 cartas y fichás una.' : '',
-            style: ayuda,
-            textAlign: TextAlign.center,
+      final regla = _t.regla == ReglaDraft.libre ? '' : '${_t.regla.nombre}. ';
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ?quimica,
+          SizedBox(
+            height: 64,
+            child: Center(
+              child: Text(
+                _t.oferta == null ? '${regla}Tocá un puesto marcado en la cancha y elegí un sobre.' : '',
+                style: ayuda,
+                textAlign: TextAlign.center,
+              ),
+            ),
           ),
-        ),
+        ],
       );
     }
 
@@ -352,6 +425,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (quimica != null && !_girando) ...[quimica, const SizedBox(height: 6)],
         SizedBox(
           height: 40,
           child: ListView(

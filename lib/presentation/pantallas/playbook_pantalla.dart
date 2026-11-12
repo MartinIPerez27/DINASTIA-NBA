@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../data/franquicias.dart';
+import '../../domain/draft.dart';
+import '../../domain/entities/entrenador.dart';
 import '../../domain/entities/tactica.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/playbook.dart';
+import '../draft/entrenadores.dart';
+import '../draft/quimica_panel.dart';
 import '../widgets/texto_led.dart';
 import '../widgets/haptica.dart';
 
@@ -27,6 +31,16 @@ class _PlaybookPantallaState extends State<PlaybookPantalla> {
   late final _recomendacion = recomendar(_perfil);
   late Tactica _tactica = widget.temporada.tacticaConfirmada ? widget.temporada.tactica : _recomendacion.tactica;
   _Lado _lado = _Lado.ofensiva;
+  late Entrenador? _entrenador = Entrenador.porId(widget.temporada.entrenadorId);
+
+  Future<void> _cambiarEntrenador() async {
+    final e = await elegirEntrenador(
+      context,
+      Draft(const []).opcionesEntrenador(widget.temporada),
+      actual: _entrenador,
+    );
+    if (e != null && mounted) setState(() => _entrenador = e);
+  }
 
   String _motivos(Map<Rasgo, int> rasgos) => [
     for (final (rasgo, figura) in _perfil.motivos(rasgos))
@@ -48,7 +62,9 @@ class _PlaybookPantallaState extends State<PlaybookPantalla> {
             for (final o in SistemaOfensivo.values)
               (
                 nombre: o.nombre,
-                descripcion: o.descripcion,
+                descripcion: _entrenador?.ofensiva == o
+                    ? '${o.descripcion} El sistema de ${_entrenador!.nombre}: rinde más.'
+                    : o.descripcion,
                 afinidad: _perfil.afinidad(o.rasgos),
                 motivos: _motivos(o.rasgos),
                 elegida: _tactica.ofensiva == o,
@@ -60,7 +76,9 @@ class _PlaybookPantallaState extends State<PlaybookPantalla> {
             for (final d in EsquemaDefensivo.values)
               (
                 nombre: d.nombre,
-                descripcion: d.descripcion,
+                descripcion: _entrenador?.defensiva == d
+                    ? '${d.descripcion} El esquema de ${_entrenador!.nombre}: rinde más.'
+                    : d.descripcion,
                 afinidad: _perfil.afinidad(d.rasgos),
                 motivos: _motivos(d.rasgos),
                 elegida: _tactica.defensiva == d,
@@ -78,7 +96,23 @@ class _PlaybookPantallaState extends State<PlaybookPantalla> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ChipEntrenador(entrenador: _entrenador, onTap: _cambiarEntrenador),
+                  ),
+                  const SizedBox(width: 8),
+                  PanelQuimica(
+                    jugadores: widget.temporada.plantel.jugadores.toList(),
+                    entrenador: _entrenador,
+                    compacto: true,
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: _PanelRecomendacion(
                 recomendacion: rec,
                 motivosOfensiva: _motivos(rec.tactica.ofensiva.rasgos),
@@ -122,8 +156,9 @@ class _PlaybookPantallaState extends State<PlaybookPantalla> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: FilledButton(
-                onPressed: () =>
-                    widget.onConfirmar(widget.temporada.copyWith(tactica: _tactica, tacticaConfirmada: true)),
+                onPressed: () => widget.onConfirmar(
+                  widget.temporada.copyWith(tactica: _tactica, tacticaConfirmada: true, entrenadorId: _entrenador?.id),
+                ),
                 child: const Text('CONFIRMAR TÁCTICAS'),
               ),
             ),
