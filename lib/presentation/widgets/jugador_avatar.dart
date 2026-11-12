@@ -32,7 +32,7 @@ class JugadorAvatar extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         fallback,
-        if (usarRed)
+        if (usarRed && jugador.nbaPlayerId > 0)
           CachedNetworkImage(
             imageUrl: jugador.headshotUrl,
             cacheManager: cacheHeadshots,

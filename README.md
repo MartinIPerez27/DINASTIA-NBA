@@ -55,31 +55,35 @@ La app arranca en el tablero: recorré las franquicias en la cinta LED, la app s
 > (requiere Visual Studio con "Desarrollo para el escritorio con C++"). La versión web no muestra las fotos porque el
 > CDN de la NBA no permite CORS.
 
-## Generar el catálogo real de cartas
+## Catálogo de cartas
 
-`assets/database/nba_players.json` trae 14 cartas **provisorias**. El catálogo real se genera con
-`tools/extraer_cartas.py`, que descarga los datos de stats.nba.com una sola vez.
+`assets/database/nba_players.json` trae **1885 cartas** (48 S+, 106 S, 1731 A), unas 13 por franquicia y
+época, generadas con `tools/catalogo_bbref.py` desde datos públicos de Basketball-Reference
+([sumitrodatta/bball-reference-datasets](https://github.com/sumitrodatta/bball-reference-datasets)).
+No necesita stats.nba.com, así que corre en cualquier lado.
 
 Cada carta es **jugador + franquicia + época**, y todo se calcula solo con las temporadas de ese tramo:
 
 | Campo | Cómo se calcula |
 | --- | --- |
 | Estadísticas | Totales de esas temporadas con esa franquicia ÷ partidos (PPP, RPP, %TC…). |
-| Posiciones | Posición de carrera + perfil de ese tramo (p. ej. LeBron suma BASE en Lakers por asistencias). |
-| Tier | Premios ganados en ese tramo: MVP, MVP de Finales, All-NBA, DPOY, 6.º Hombre, All-Star. |
+| Posiciones | Las que jugó en esas temporadas (por partidos) + la posición vecina que su perfil cubre. |
+| Tier | Premios en ese tramo (MVP, MVP de Finales, All-NBA, DPOY, 6.º Hombre, All-Star). Sin premios, entra como Tier A si fue titular productivo. Cada franquicia y época ofrece al menos 10 cartas. |
 | Rol | Perfil por 36 minutos: tasa de triples, tiros libres, asistencias, rebotes, tapones. |
 | IQ (60–99) | Asistencias por pérdida, eficiencia comparada con su época, premios y defensa. |
+| Foto | ID oficial de la NBA cruzado por nombre con la lista de `nba_api`. |
 
 ```bash
 python -m pip install nba_api
-python tools/extraer_cartas.py --solo 2544,893   # prueba rápida: LeBron y Jordan
-python tools/extraer_cartas.py                   # catálogo completo (~40 min la primera vez)
+python tools/catalogo_bbref.py
 ```
 
-- Si se corta, volvé a ejecutarlo: lo ya descargado queda en `tools/.cache/` y sigue donde quedó.
-- Si una carta queda mal (posición, rol, dorsal…), corregila en `tools/ajustes_cartas.json` por su id
-  (`{nbaPlayerId}-{franquicia}-{época}`, p. ej. `977-LAL-00`) y volvé a ejecutar el script.
-- Tests del script, sin internet: `python -m unittest discover tools`
+- Correcciones a mano (dorsal, posiciones, rol, excluir una carta) en `tools/ajustes_cartas.json`, por id
+  de carta (`{id_bbref}-{franquicia}-{época}`, p. ej. `bryanko01-LAL-00`). El dataset no trae dorsales:
+  sin dato, la app no muestra número.
+- `tools/extraer_cartas.py` es la alternativa con `nba_api` (necesita una PC personal) y aporta las reglas
+  que reutiliza `catalogo_bbref.py`.
+- Tests sin internet: `python -m unittest discover tools`
 
 ## Estructura
 
@@ -93,6 +97,6 @@ lib/
 assets/database/   Catálogo de cartas empaquetado en la app
 assets/logos/      30 escudos oficiales en SVG (regenerar: python tools/normalizar_escudos.py)
 assets/fonts/      Doto (LED) y Big Shoulders Display (estadio), licencia OFL
-tools/             Scripts de datos (Python): cartas con nba_api y escudos del CDN
+tools/             Scripts de datos (Python): catálogo de cartas y escudos del CDN
 capturas/          Capturas de pantalla con tipografías reales: flutter test capturas --update-goldens
 ```

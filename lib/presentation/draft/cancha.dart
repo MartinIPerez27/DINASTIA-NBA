@@ -208,7 +208,10 @@ class _Puesto extends StatelessWidget {
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
-                            '${jugador.dorsal} ${_apellido(jugador.nombre)}'.toUpperCase(),
+                            [
+                              if (jugador.dorsal > 0) '${jugador.dorsal}',
+                              _apellido(jugador.nombre),
+                            ].join(' ').toUpperCase(),
                             maxLines: 1,
                             style: TextStyle(
                               fontFamily: Fuentes.estadio,

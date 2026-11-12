@@ -1,4 +1,18 @@
 {
- "_ayuda": "Correcciones manuales por id de carta: posiciones, rol, tier, iq, dorsal, o {\"excluir\": true}. Se aplican después del cálculo automático.",
- "977-LAL-00": {"dorsal": 8}
+ "_ayuda": "Correcciones manuales por id de carta ({bbref_id}-{franquicia}-{época}): posiciones, rol, tier, iq, dorsal, o {\"excluir\": true}. Se aplican después del cálculo automático.",
+ "bryanko01-LAL-00": {"dorsal": 8},
+ "bryanko01-LAL-10": {"dorsal": 24},
+ "jordami01-CHI-80": {"dorsal": 23},
+ "jordami01-CHI-90": {"dorsal": 23},
+ "jamesle01-CLE-10": {"dorsal": 23},
+ "jamesle01-LAL-act": {"dorsal": 23},
+ "curryst01-GSW-10": {"dorsal": 30},
+ "curryst01-GSW-act": {"dorsal": 30},
+ "johnsma02-LAL-80": {"dorsal": 32},
+ "birdla01-BOS-80": {"dorsal": 33},
+ "duncati01-SAS-00": {"dorsal": 21},
+ "onealsh01-LAL-00": {"dorsal": 34},
+ "jokicni01-DEN-act": {"dorsal": 15},
+ "antetgi01-MIL-act": {"dorsal": 34},
+ "ginobma01-SAS-00": {"dorsal": 20}
 }

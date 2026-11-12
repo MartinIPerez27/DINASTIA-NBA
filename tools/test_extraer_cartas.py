@@ -106,15 +106,19 @@ class CatalogoTest(unittest.TestCase):
         except ImportError:
             self.skipTest("nba_api no instalado")
         import json
-        import unicodedata
 
-        def normalizar(s):
-            return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
+        import catalogo_bbref as cb
 
         for carta in json.loads(ec.SALIDA.read_text(encoding="utf-8")):
+            if carta["id"].split("-")[0] in cb.ID_FIJO:
+                continue
             oficial = players.find_player_by_id(carta["nbaPlayerId"])
             self.assertIsNotNone(oficial, carta["id"])
-            self.assertEqual(normalizar(oficial["full_name"]), normalizar(carta["nombre"]), carta["id"])
+            self.assertEqual(
+                cb.normalizar(oficial["full_name"]),
+                cb.normalizar(cb.ALIAS.get(carta["nombre"], carta["nombre"])),
+                carta["id"],
+            )
 
 
 if __name__ == "__main__":
