@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:math';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +30,10 @@ class JugadorAvatar extends StatelessWidget {
   // shortcut: interruptor global para pruebas y capturas (el caché de fotos usa plugins nativos
   // que no existen en `flutter test`); pasar a inyección de dependencias si aparece otro caso.
   static bool usarRed = true;
+
+  /// Solo para capturas: resuelve cada URL a una imagen local (las de la NBA, tal cual; las de
+  /// archivo, ya recortadas) para ver el encuadre real sin red ni ML Kit.
+  static Future<ImageProvider?> Function(String url)? imagenesDePrueba;
 
   @override
   Widget build(BuildContext context) {
@@ -100,43 +104,34 @@ class _FotoEnCadena extends StatelessWidget {
         },
       );
     }
+    final prueba = JugadorAvatar.imagenesDePrueba;
+    if (prueba != null && url.contains('cdn.nba.com')) {
+      return FutureBuilder<ImageProvider?>(
+        future: prueba(url),
+        builder: (context, snap) => snap.data == null
+            ? sinFoto
+            : Image(
+                image: snap.data!,
+                fit: recortar ? BoxFit.cover : BoxFit.contain,
+                alignment: recortar ? const Alignment(0, -0.6) : Alignment.bottomCenter,
+                width: double.infinity,
+                height: double.infinity,
+              ),
+      );
+    }
     if (!url.contains('cdn.nba.com')) {
-      return FutureBuilder<File?>(
-        future: recorteSinFondo(url),
+      return FutureBuilder<ImageProvider?>(
+        future: prueba != null ? prueba(url) : recorteSinFondo(url).then((f) => f == null ? null : FileImage(f)),
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) return sinFoto;
           final recorte = snap.data;
           if (recorte == null) return siguiente;
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.file(
-                recorte,
-                fit: BoxFit.cover,
-                alignment: const Alignment(0, -0.6),
-                width: double.infinity,
-                height: double.infinity,
-                errorBuilder: (_, _, _) => siguiente,
-                frameBuilder: (_, hijo, cuadro, sincronica) => sincronica || !animar
-                    ? hijo
-                    : AnimatedOpacity(
-                        opacity: cuadro == null ? 0 : 1,
-                        duration: const Duration(milliseconds: 180),
-                        curve: Curves.easeOut,
-                        child: hijo,
-                      ),
-              ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [panel.withValues(alpha: 0), panel.withValues(alpha: 0), panel],
-                    stops: const [0, 0.62, 1],
-                  ),
-                ),
-              ),
-            ],
+          return _RecorteArchivo(
+            imagen: recorte,
+            recortar: recortar,
+            animar: animar,
+            panel: panel,
+            siguiente: siguiente,
           );
         },
       );
@@ -185,5 +180,89 @@ class _AvatarIniciales extends StatelessWidget {
         ),
       ),
     ),
+  );
+}
+
+/// Recorte de una foto de archivo, encuadrado como los headshots de la NBA: cabeza arriba, del mismo
+/// tamaño, y el pecho que se funde en el panel (las fotos de archivo cortan a la altura del pecho;
+/// las de la NBA llegan hasta el borde de abajo). Se ve igual en la caja apaisada y en miniaturas.
+class _RecorteArchivo extends StatelessWidget {
+  const _RecorteArchivo({
+    required this.imagen,
+    required this.recortar,
+    required this.animar,
+    required this.panel,
+    required this.siguiente,
+  });
+
+  final ImageProvider imagen;
+  final bool recortar;
+  final bool animar;
+  final Color panel;
+  final Widget siguiente;
+
+  /// Alto del recorte respecto del cuadro de 1040×760 y dónde empieza: en los headshots de la NBA
+  /// la cabeza ocupa ~52 % del alto y arranca casi pegada arriba; en los primeros planos de
+  /// Basketball-Reference la cabeza es ~64 % de la foto, así que el recorte va al ~82 % del alto,
+  /// desde el 4 %.
+  static const _alto = 0.82, _arriba = 0.04;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, c) {
+      // Cuadro virtual de 1040×760 ubicado exactamente como quedaría un headshot de la NBA en esta
+      // caja (cover arriba en miniaturas, contain abajo en la caja apaisada): así la cabeza de la
+      // foto de archivo tiene el mismo tamaño y lugar que la de la NBA en cualquier carta.
+      final w = c.maxWidth, h = c.maxHeight;
+      final escala = recortar ? max(w / 1040, h / 760) : min(w / 1040, h / 760);
+      final cuadroAlto = 760 * escala;
+      final cuadroArriba = recortar ? (h - cuadroAlto) * 0.2 : h - cuadroAlto;
+      return Stack(
+        fit: StackFit.expand,
+        clipBehavior: Clip.hardEdge,
+        children: [
+          Positioned(
+            top: cuadroArriba + cuadroAlto * _arriba,
+            left: 0,
+            right: 0,
+            height: cuadroAlto * _alto,
+            child: ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (r) => const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.white, Colors.white, Colors.transparent],
+                stops: [0, 0.68, 1],
+              ).createShader(r),
+              child: Image(
+                image: imagen,
+                fit: BoxFit.contain,
+                alignment: Alignment.topCenter,
+                filterQuality: FilterQuality.high,
+                errorBuilder: (_, _, _) => siguiente,
+                frameBuilder: (_, hijo, cuadro, sincronica) => sincronica || !animar
+                    ? hijo
+                    : AnimatedOpacity(
+                        opacity: cuadro == null ? 0 : 1,
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOut,
+                        child: hijo,
+                      ),
+              ),
+            ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [panel.withValues(alpha: 0), panel.withValues(alpha: 0), panel],
+                stops: const [0, 0.62, 1],
+              ),
+            ),
+          ),
+        ],
+      );
+    },
   );
 }
