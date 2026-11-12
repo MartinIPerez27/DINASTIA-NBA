@@ -48,7 +48,33 @@ final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
 - [ ] **Escenarios históricos** ("Ganá las Finales del 98 con los Jazz").
 - [ ] **Nivel de entrenador con XP** y desbloqueos (canchas retro, uniformes clásicos, carteles).
 - [ ] **Varias partidas guardadas** + exportar/importar.
-- [ ] *(Más modos: propuestos al usuario, pendientes de elegir.)*
+- [ ] **Racha infinita**: rivales al azar hasta perder; el récord va al Salón.
+- [ ] **Camino al anillo** (roguelike): 10 rivales históricos crecientes; entre partidos, 1 de 3
+      ventajas; si perdés, se termina.
+- [ ] **Extremo**: sin fichas para volver a tirar, lesiones largas, una sola partida.
+- [ ] **Leyenda única**: elegís una figura y el resto sale al azar.
+- [ ] **Los mejores equipos de la historia**: tu equipo contra Bulls 96, Celtics 86, Lakers 87,
+      Warriors 2017…
+- [ ] **Mundial de franquicias**: cuadro de 32 con el plantel histórico de cada franquicia.
+- [ ] **Reescribí la historia**: una franquicia real en un año concreto, varias temporadas, con los
+      novatos reales de cada draft.
+- [ ] **Solo entrenador**: plantel al azar; vos manejás tácticas, rotación y jugada clave.
+- [ ] **Modo espejo**: jugás con el plantel que armó la IA en tu contra.
+- [ ] **Draft en grupo** (2 a 8 personas en el mismo dispositivo) y liga entre ustedes.
+- [ ] **Duelo**: dos personas, serie al mejor de 7.
+
+### Metajuego
+- [ ] **Monedas del juego** (sin dinero real) para abrir sobres.
+- [ ] **Colección permanente** de cartas y un modo que solo usa tu colección.
+- [ ] **Misiones diarias y semanales**.
+- [ ] **Pase de temporada offline** con premios estéticos (canchas retro, pelota ABA, uniformes
+      clásicos, temas de carteles LED).
+- [ ] **Ventajas del entrenador** que se ganan con el nivel.
+- [ ] **Vitrina de trofeos**.
+- [ ] **Historia de tu dinastía** (línea de tiempo narrada).
+- [ ] **Rivalidades que se arrastran** ("Revancha").
+- [ ] **Carrera de cada carta** (usos y promedios con vos).
+- [ ] **Puntaje personal de entrenador** según resultados y dificultad.
 
 ## 5. Compartir
 - [ ] **Imagen para compartir** (plantel, récord, anillo).
