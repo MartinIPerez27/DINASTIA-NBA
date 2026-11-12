@@ -49,6 +49,21 @@ class Plantel {
     return Plantel._(Map.unmodifiable({..._puestos, p: j}));
   }
 
+  /// El plantel sin el jugador de ese puesto (para pases y reemplazos).
+  Plantel quitar(Posicion p) => Plantel._(Map.unmodifiable({..._puestos}..remove(p)));
+
+  /// Puesto que ocupa una carta (null si no está).
+  Posicion? puestoDe(String cartaId) {
+    for (final e in _puestos.entries) {
+      if (e.value.id == cartaId) return e.key;
+    }
+    return null;
+  }
+
+  /// Plantel armado sin las reglas del draft (solo para el motor: reemplazos de emergencia por
+  /// lesión pueden jugar fuera de su puesto).
+  const Plantel.deEmergencia(Map<Posicion, Jugador> puestos) : _puestos = puestos;
+
   factory Plantel.fromJson(Map<String, dynamic> j) {
     var plantel = const Plantel();
     j.forEach((pos, jugador) {

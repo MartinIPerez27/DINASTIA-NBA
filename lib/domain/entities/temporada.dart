@@ -26,13 +26,19 @@ enum RondaPlayoff {
   primeraRonda('1ª Ronda de Conferencia'),
   semifinalConferencia('Semifinales de Conferencia'),
   finalConferencia('Finales de Conferencia'),
-  finalesNba('Las Finales de la NBA');
+  finalesNba('Las Finales de la NBA'),
+  // Copa NBA (torneo de mitad de temporada, a partido único; no cuenta para el récord).
+  copaCuartos('Copa NBA: cuartos de final'),
+  copaSemis('Copa NBA: semifinales'),
+  copaFinal('Copa NBA: la final');
 
   const RondaPlayoff(this.etiqueta);
   final String etiqueta;
 
   /// Partido único (los dos turnos del Play-In).
   bool get esPlayIn => this == playIn || this == playInFinal;
+
+  bool get esCopa => this == copaCuartos || this == copaSemis || this == copaFinal;
 }
 
 /// Serie al mejor de 7 (GDD §7). [altoId] es la mejor siembra y tiene la ventaja de localía.
@@ -46,7 +52,7 @@ class SeriePlayoff {
   });
 
   /// Al mejor de 7 (4 victorias); el Play-In es a partido único.
-  int get victoriasParaGanar => ronda.esPlayIn ? 1 : 4;
+  int get victoriasParaGanar => ronda.esPlayIn || ronda.esCopa ? 1 : 4;
 
   final RondaPlayoff ronda;
   final String altoId;
@@ -127,6 +133,25 @@ enum ReglaDraft {
   final bool soloCartas;
 }
 
+/// Un pase del mercado: tu jugador por uno de un rival, en una jornada.
+class Pase {
+  const Pase({required this.jornada, required this.franquiciaId, required this.dioId, required this.recibioId});
+
+  final int jornada;
+  final String franquiciaId;
+  final String dioId; // carta que diste
+  final String recibioId; // carta que recibiste
+
+  factory Pase.fromJson(Map<String, dynamic> j) => Pase(
+    jornada: j['jornada'] as int,
+    franquiciaId: j['franquicia'] as String,
+    dioId: j['dio'] as String,
+    recibioId: j['recibio'] as String,
+  );
+
+  Map<String, dynamic> toJson() => {'jornada': jornada, 'franquicia': franquiciaId, 'dio': dioId, 'recibio': recibioId};
+}
+
 enum FaseTemporada { draft, tacticas, temporadaRegular, playoffs, finalizada }
 
 /// Partida guardada: todo lo que el usuario construyó y jugó en una temporada.
@@ -152,6 +177,10 @@ class Temporada {
     this.robos = const {},
     this.entrenadorId,
     this.forma = const {},
+    this.suplentes = const [],
+    this.lesiones = const {},
+    this.pases = const [],
+    this.copa = const [],
   });
 
   static const rerollsPorTemporada = 3;
@@ -201,6 +230,19 @@ class Temporada {
 
   /// Forma de cada carta en la temporada (−3 a +3): suma a su media mientras dure la racha.
   final Map<String, int> forma;
+
+  /// Banco largo: hasta 2 suplentes además del Sexto Hombre (entran por lesión o cansancio).
+  final List<Jugador> suplentes;
+  static const maxSuplentes = 2;
+
+  /// Lesionados de toda la liga: id de carta → partidos que se pierde todavía.
+  final Map<String, int> lesiones;
+
+  /// Pases que hiciste en el mercado.
+  final List<Pase> pases;
+
+  /// Copa NBA de mitad de temporada (cuartos, semis y final a partido único).
+  final List<SeriePlayoff> copa;
 
   /// Ganador de Las Finales (null mientras se juegan).
   String? get campeonId {
@@ -328,6 +370,10 @@ class Temporada {
     Map<String, List<String>>? robos,
     String? entrenadorId,
     Map<String, int>? forma,
+    List<Jugador>? suplentes,
+    Map<String, int>? lesiones,
+    List<Pase>? pases,
+    List<SeriePlayoff>? copa,
   }) => Temporada(
     id: id,
     franquiciaUsuarioId: franquiciaUsuarioId,
@@ -349,6 +395,10 @@ class Temporada {
     robos: robos ?? this.robos,
     entrenadorId: entrenadorId ?? this.entrenadorId,
     forma: forma ?? this.forma,
+    suplentes: suplentes ?? this.suplentes,
+    lesiones: lesiones ?? this.lesiones,
+    pases: pases ?? this.pases,
+    copa: copa ?? this.copa,
   );
 
   Temporada conTirada(Tirada? nueva) => _con(tirada: nueva, oferta: oferta);
@@ -376,6 +426,10 @@ class Temporada {
     robos: robos,
     entrenadorId: entrenadorId,
     forma: forma,
+    suplentes: suplentes,
+    lesiones: lesiones,
+    pases: pases,
+    copa: copa,
   );
 
   factory Temporada.fromJson(Map<String, dynamic> j) => Temporada(
@@ -413,6 +467,10 @@ class Temporada {
     },
     entrenadorId: j['entrenador'] as String?,
     forma: (j['forma'] as Map<String, dynamic>? ?? {}).map((k, v) => MapEntry(k, v as int)),
+    suplentes: [for (final x in j['suplentes'] as List? ?? const []) Jugador.fromJson(x as Map<String, dynamic>)],
+    lesiones: (j['lesiones'] as Map<String, dynamic>? ?? {}).map((k, v) => MapEntry(k, v as int)),
+    pases: [for (final x in j['pases'] as List? ?? const []) Pase.fromJson(x as Map<String, dynamic>)],
+    copa: [for (final x in j['copa'] as List? ?? const []) SeriePlayoff.fromJson(x as Map<String, dynamic>)],
   );
 
   Map<String, dynamic> toJson() => {
@@ -432,6 +490,10 @@ class Temporada {
     if (robos.isNotEmpty) 'robos': robos,
     if (entrenadorId != null) 'entrenador': entrenadorId,
     if (forma.isNotEmpty) 'forma': forma,
+    if (suplentes.isNotEmpty) 'suplentes': [for (final j in suplentes) j.toJson()],
+    if (lesiones.isNotEmpty) 'lesiones': lesiones,
+    if (pases.isNotEmpty) 'pases': [for (final p in pases) p.toJson()],
+    if (copa.isNotEmpty) 'copa': [for (final c in copa) c.toJson()],
     if (oferta != null) 'oferta': oferta!.toJson(),
     if (rivales.isNotEmpty) 'rivales': {for (final e in rivales.entries) e.key: e.value.toJson()},
     if (lineas.isNotEmpty) 'lineas': {for (final e in lineas.entries) e.key: e.value.toJson()},

@@ -178,6 +178,7 @@ class Progreso {
             RondaPlayoff.semifinalConferencia => 'Semifinal de conferencia',
             RondaPlayoff.finalConferencia => 'Final de conferencia',
             RondaPlayoff.finalesNba => 'Las Finales',
+            RondaPlayoff.copaCuartos || RondaPlayoff.copaSemis || RondaPlayoff.copaFinal => 'Sin playoffs',
           };
     final (xp, monedas) = switch (resultado) {
       'Campeón' => (600, 250),
