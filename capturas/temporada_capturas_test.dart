@@ -9,6 +9,8 @@ import 'package:dinastia_nba/domain/entities/posicion.dart';
 import 'package:dinastia_nba/domain/entities/temporada.dart';
 import 'package:dinastia_nba/domain/liga.dart';
 import 'package:dinastia_nba/presentation/pantallas/partido_pantalla.dart';
+import 'package:dinastia_nba/presentation/pantallas/playoffs_pantalla.dart';
+import 'package:dinastia_nba/presentation/pantallas/stats82_pantalla.dart';
 import 'package:dinastia_nba/presentation/pantallas/temporada_pantalla.dart';
 import 'package:dinastia_nba/presentation/tema/tema_franquicia.dart';
 import 'package:dinastia_nba/presentation/widgets/jugador_avatar.dart';
@@ -95,9 +97,39 @@ void main() {
     for (var i = 0; i < 40; i++) {
       await t.pump(const Duration(milliseconds: 300));
     }
-    for (final (i, ms) in [(1, 300), (2, 300), (3, 300), (4, 300), (5, 300), (6, 300)]) {
+    for (final (i, ms) in [for (var k = 1; k <= 8; k++) (k, 400)]) {
       await t.pump(Duration(milliseconds: ms));
       await expectLater(find.byType(MaterialApp), matchesGoldenFile('salida/vivo-$i.png'));
     }
+  });
+
+  testWidgets('playoffs y stats 82', (t) async {
+    tel(t);
+    var fin = temporada;
+    while (liga.proximoDelUsuario(fin) != null) {
+      fin = liga.simularProximo(fin);
+    }
+    fin = liga.iniciarPlayoffs(liga.simularOtrosHasta(fin, 1 << 30));
+    final enCurso = liga.simularPartidoPlayoff(liga.simularPartidoPlayoff(fin));
+    Widget app(Widget home) => MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: temaFranquicia(franquiciaPorId('CHI')),
+      home: home,
+    );
+    await t.pumpWidget(app(PlayoffsPantalla(temporada: enCurso, liga: liga, onCambio: (_) {})));
+    await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await t.pumpAndSettle();
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('salida/playoffs-serie.png'));
+
+    final campeon = liga.simularRestoPlayoffs(enCurso);
+    await t.pumpWidget(app(PlayoffsPantalla(key: UniqueKey(), temporada: campeon, liga: liga, onCambio: (_) {})));
+    await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await t.pumpAndSettle();
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('salida/playoffs-campeon.png'));
+
+    await t.pumpWidget(app(Stats82Pantalla(temporada: campeon, liga: liga)));
+    await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await t.pumpAndSettle();
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('salida/stats82.png'));
   });
 }

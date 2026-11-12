@@ -11,6 +11,7 @@ import 'domain/liga.dart';
 import 'presentation/pantallas/draft_pantalla.dart';
 import 'presentation/pantallas/inicio_pantalla.dart';
 import 'presentation/pantallas/playbook_pantalla.dart';
+import 'presentation/pantallas/playoffs_pantalla.dart';
 import 'presentation/pantallas/temporada_pantalla.dart';
 import 'presentation/tema/tema_franquicia.dart';
 import 'presentation/widgets/elegir_modo.dart';
@@ -64,9 +65,17 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
         );
       case FaseTemporada.tacticas:
         pantalla = PlaybookPantalla(temporada: t, onConfirmar: _confirmarTacticas);
-      case _:
+      case FaseTemporada.temporadaRegular:
         final liga = Liga(await cargarCatalogo(), franquicias);
-        pantalla = TemporadaPantalla(temporada: t, liga: liga, onCambio: _guardarCambios);
+        pantalla = TemporadaPantalla(
+          temporada: t,
+          liga: liga,
+          onCambio: _guardarCambios,
+          onPlayoffs: () => _abrirTemporada(_guardada!, reemplazar: true),
+        );
+      case FaseTemporada.playoffs || FaseTemporada.finalizada:
+        final liga = Liga(await cargarCatalogo(), franquicias);
+        pantalla = PlayoffsPantalla(temporada: t, liga: liga, onCambio: _guardarCambios);
     }
     final ruta = MaterialPageRoute<void>(builder: (_) => pantalla);
     final navegador = _navegador.currentState!;

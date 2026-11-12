@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/cache_imagenes.dart';
 import '../../core/foto_wikipedia.dart';
+import '../../core/recorte_fotos.dart';
 import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/jugador.dart';
 import '../tema/tema_franquicia.dart';
@@ -10,8 +13,9 @@ import '../tema/tema_franquicia.dart';
 /// Foto del jugador (cacheada en disco). Prueba sus fuentes en orden (NBA, Basketball-Reference,
 /// Wikipedia). Las iniciales aparecen solo mientras carga o si no hay ninguna foto: nunca debajo de
 /// una foto (las de la NBA tienen fondo transparente y se verían superpuestas).
-/// Las fotos de archivo (con fondos de cualquier tipo) se muestran a dos tonos: el fondo pasa a ser
-/// el color del equipo, como un retrato de estudio, y se funde con el panel abajo.
+/// Las fotos de archivo (con fondos de cualquier tipo) se recortan en el celular para quitarles el
+/// fondo y quedan sobre el panel negro como las de la NBA; si no se pueden recortar, se pasa a la
+/// fuente siguiente (nunca se muestra una foto con su fondo).
 /// Con [recortar], llena su caja mostrando cabeza y hombros (para miniaturas cuadradas).
 class JugadorAvatar extends StatelessWidget {
   const JugadorAvatar({super.key, required this.jugador, required this.franquicia, this.recortar = false});
@@ -39,7 +43,6 @@ class JugadorAvatar extends StatelessWidget {
               recortar: recortar,
               animar: !MediaQuery.disableAnimationsOf(context),
               sinFoto: iniciales,
-              duotono: _duotono(panel, Color.lerp(colorLed(franquicia), Colors.white, 0.2)!),
               panel: panel,
             )
           : iniciales,
@@ -50,21 +53,6 @@ class JugadorAvatar extends StatelessWidget {
       child: recortar ? foto : AspectRatio(aspectRatio: proporcion, child: foto),
     );
   }
-
-  /// Mapea la luminancia de la foto entre el panel (sombras) y un tono claro del equipo (luces).
-  static ColorFilter _duotono(Color oscuro, Color claro) {
-    List<double> fila(double o, double c) => [(c - o) * 0.2126, (c - o) * 0.7152, (c - o) * 0.0722, 0, o * 255];
-    return ColorFilter.matrix([
-      ...fila(oscuro.r, claro.r),
-      ...fila(oscuro.g, claro.g),
-      ...fila(oscuro.b, claro.b),
-      0,
-      0,
-      0,
-      1,
-      0,
-    ]);
-  }
 }
 
 /// Prueba la primera URL; si falla, la siguiente; sin ninguna, muestra [sinFoto].
@@ -74,7 +62,6 @@ class _FotoEnCadena extends StatelessWidget {
     required this.recortar,
     required this.animar,
     required this.sinFoto,
-    required this.duotono,
     required this.panel,
   });
 
@@ -82,7 +69,6 @@ class _FotoEnCadena extends StatelessWidget {
   final bool recortar;
   final bool animar;
   final Widget sinFoto;
-  final ColorFilter duotono;
   final Color panel;
 
   @override
@@ -93,7 +79,6 @@ class _FotoEnCadena extends StatelessWidget {
       recortar: recortar,
       animar: animar,
       sinFoto: sinFoto,
-      duotono: duotono,
       panel: panel,
     );
     final url = urls.first;
@@ -110,13 +95,52 @@ class _FotoEnCadena extends StatelessWidget {
                   recortar: recortar,
                   animar: animar,
                   sinFoto: sinFoto,
-                  duotono: duotono,
                   panel: panel,
                 );
         },
       );
     }
-    final archivo = !url.contains('cdn.nba.com');
+    if (!url.contains('cdn.nba.com')) {
+      return FutureBuilder<File?>(
+        future: recorteSinFondo(url),
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) return sinFoto;
+          final recorte = snap.data;
+          if (recorte == null) return siguiente;
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.file(
+                recorte,
+                fit: BoxFit.cover,
+                alignment: const Alignment(0, -0.6),
+                width: double.infinity,
+                height: double.infinity,
+                errorBuilder: (_, _, _) => siguiente,
+                frameBuilder: (_, hijo, cuadro, sincronica) => sincronica || !animar
+                    ? hijo
+                    : AnimatedOpacity(
+                        opacity: cuadro == null ? 0 : 1,
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOut,
+                        child: hijo,
+                      ),
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [panel.withValues(alpha: 0), panel.withValues(alpha: 0), panel],
+                    stops: const [0, 0.62, 1],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
     return CachedNetworkImage(
       imageUrl: url,
       cacheManager: cacheHeadshots,
@@ -124,32 +148,13 @@ class _FotoEnCadena extends StatelessWidget {
       fadeInCurve: Curves.easeOut,
       placeholder: (_, _) => sinFoto,
       errorWidget: (_, _, _) => siguiente,
-      imageBuilder: (_, imagen) {
-        final dibujo = Image(
-          image: imagen,
-          fit: recortar || archivo ? BoxFit.cover : BoxFit.contain,
-          alignment: recortar || archivo ? const Alignment(0, -0.6) : Alignment.bottomCenter,
-          width: double.infinity,
-          height: double.infinity,
-        );
-        if (!archivo) return dibujo;
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            ColorFiltered(colorFilter: duotono, child: dibujo),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [panel.withValues(alpha: 0), panel.withValues(alpha: 0), panel],
-                  stops: const [0, 0.62, 1],
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+      imageBuilder: (_, imagen) => Image(
+        image: imagen,
+        fit: recortar ? BoxFit.cover : BoxFit.contain,
+        alignment: recortar ? const Alignment(0, -0.6) : Alignment.bottomCenter,
+        width: double.infinity,
+        height: double.infinity,
+      ),
     );
   }
 }

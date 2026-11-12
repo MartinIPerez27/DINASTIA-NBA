@@ -108,6 +108,7 @@ class Temporada {
     this.oferta,
     this.rivales = const {},
     this.lineas = const {},
+    this.lineasPlayoffs = const {},
   });
 
   static const rerollsPorTemporada = 3;
@@ -136,8 +137,37 @@ class Temporada {
   /// Planteles de las otras 29 franquicias esta temporada.
   final Map<String, Rival> rivales;
 
-  /// Estadísticas acumuladas de tus jugadores en la temporada (por id de carta).
+  /// Estadísticas de la temporada regular de todos los jugadores de la liga (por id de carta).
   final Map<String, LineaEstadistica> lineas;
+
+  /// Estadísticas de los playoffs (por id de carta).
+  final Map<String, LineaEstadistica> lineasPlayoffs;
+
+  /// Ganador de Las Finales (null mientras se juegan).
+  String? get campeonId {
+    for (final s in series) {
+      if (s.ronda == RondaPlayoff.finalesNba) return s.ganadorId;
+    }
+    return null;
+  }
+
+  /// La serie del usuario que todavía se está jugando (null si quedó afuera o ya terminó todo).
+  SeriePlayoff? get serieDelUsuario {
+    for (final s in series) {
+      if (!s.terminada && (s.altoId == franquiciaUsuarioId || s.bajoId == franquiciaUsuarioId)) return s;
+    }
+    return null;
+  }
+
+  /// La serie en la que el usuario quedó eliminado (null si sigue vivo o no clasificó).
+  SeriePlayoff? get eliminacion {
+    for (final s in series) {
+      if (s.terminada && (s.altoId == franquiciaUsuarioId || s.bajoId == franquiciaUsuarioId)) {
+        if (s.ganadorId != franquiciaUsuarioId) return s;
+      }
+    }
+    return null;
+  }
 
   FaseTemporada get fase {
     if (!plantel.completo) return FaseTemporada.draft;
@@ -191,6 +221,7 @@ class Temporada {
     bool? tacticaConfirmada,
     Map<String, Rival>? rivales,
     Map<String, LineaEstadistica>? lineas,
+    Map<String, LineaEstadistica>? lineasPlayoffs,
   }) => Temporada(
     id: id,
     franquiciaUsuarioId: franquiciaUsuarioId,
@@ -205,6 +236,7 @@ class Temporada {
     oferta: oferta,
     rivales: rivales ?? this.rivales,
     lineas: lineas ?? this.lineas,
+    lineasPlayoffs: lineasPlayoffs ?? this.lineasPlayoffs,
   );
 
   Temporada conTirada(Tirada? nueva) => _con(tirada: nueva, oferta: oferta);
@@ -225,6 +257,7 @@ class Temporada {
     oferta: oferta,
     rivales: rivales,
     lineas: lineas,
+    lineasPlayoffs: lineasPlayoffs,
   );
 
   factory Temporada.fromJson(Map<String, dynamic> j) => Temporada(
@@ -249,6 +282,10 @@ class Temporada {
       for (final e in (j['lineas'] as Map<String, dynamic>? ?? {}).entries)
         e.key: LineaEstadistica.fromJson(e.value as Map<String, dynamic>),
     },
+    lineasPlayoffs: {
+      for (final e in (j['lineasPlayoffs'] as Map<String, dynamic>? ?? {}).entries)
+        e.key: LineaEstadistica.fromJson(e.value as Map<String, dynamic>),
+    },
   );
 
   Map<String, dynamic> toJson() => {
@@ -265,5 +302,6 @@ class Temporada {
     if (oferta != null) 'oferta': oferta!.toJson(),
     if (rivales.isNotEmpty) 'rivales': {for (final e in rivales.entries) e.key: e.value.toJson()},
     if (lineas.isNotEmpty) 'lineas': {for (final e in lineas.entries) e.key: e.value.toJson()},
+    if (lineasPlayoffs.isNotEmpty) 'lineasPlayoffs': {for (final e in lineasPlayoffs.entries) e.key: e.value.toJson()},
   };
 }

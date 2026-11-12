@@ -12,17 +12,27 @@ import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
 import 'partido_pantalla.dart';
 import 'playbook_pantalla.dart';
+import 'stats82_pantalla.dart';
 
 enum _Vista { resultados, posiciones, plantel }
 
 /// Temporada regular de 82 partidos (GDD §7): récord, próximo partido (en vivo o simulado),
 /// resultados, tabla Este/Oeste y estadísticas de tu plantel.
 class TemporadaPantalla extends StatefulWidget {
-  const TemporadaPantalla({super.key, required this.temporada, required this.liga, required this.onCambio});
+  const TemporadaPantalla({
+    super.key,
+    required this.temporada,
+    required this.liga,
+    required this.onCambio,
+    this.onPlayoffs,
+  });
 
   final Temporada temporada;
   final Liga liga;
   final ValueChanged<Temporada> onCambio;
+
+  /// Con la temporada regular terminada, pasa al cuadro de playoffs.
+  final VoidCallback? onPlayoffs;
 
   @override
   State<TemporadaPantalla> createState() => _TemporadaPantallaState();
@@ -54,9 +64,14 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
   Franquicia _identidad(String franquiciaId) =>
       franquiciaPorId(franquiciaId == _t.franquiciaUsuarioId ? franquiciaId : _t.rivales[franquiciaId]!.identidadId);
 
-  String _detalleRival(String franquiciaId) {
-    final r = _t.rivales[franquiciaId]!;
-    return r.tipo == TipoRival.epoca ? '${r.epoca!.etiqueta} (Época)' : 'Históricos';
+  String _detalleRival(String franquiciaId) => _t.rivales[franquiciaId]!.tipo.descripcion;
+
+  /// "Detroit Pistons (90’)" para un plantel de época, "Boston Celtics (Histórico)" para el all-time.
+  String _nombre(String franquiciaId) {
+    final nombre = _identidad(franquiciaId).nombreCompleto;
+    final r = _t.rivales[franquiciaId];
+    if (r == null) return nombre;
+    return '$nombre (${r.tipo == TipoRival.epoca ? r.epoca!.corta : 'Histórico'})';
   }
 
   void _abrirPlaybook() => Navigator.of(context).push(
@@ -104,8 +119,9 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
       final gano = jugado.ganadorId == t.franquiciaUsuarioId;
       jugados++;
       if (gano) ganados++;
-      final rival = _identidad(p.localId == t.franquiciaUsuarioId ? p.visitanteId : p.localId);
-      ultimo = '${gano ? 'Ganaste' : 'Perdiste'} ${jugado.puntosLocal}-${jugado.puntosVisitante} vs ${rival.nombre}.';
+      final rivalId = p.localId == t.franquiciaUsuarioId ? p.visitanteId : p.localId;
+      ultimo =
+          '${gano ? 'Ganaste' : 'Perdiste'} ${jugado.puntosLocal}-${jugado.puntosVisitante} vs ${_nombre(rivalId)}.';
     }
     if (_liga.proximoDelUsuario(t) == null) t = _liga.simularOtrosHasta(t, 1 << 30);
     _guardar(t);
@@ -126,7 +142,18 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Temporada de los ${franquicia.nombre}'),
-        actions: [IconButton(onPressed: _abrirPlaybook, icon: const Icon(Icons.tune), tooltip: 'Tácticas')],
+        actions: [
+          IconButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => Stats82Pantalla(temporada: _t, liga: _liga),
+              ),
+            ),
+            icon: const Icon(Icons.leaderboard_outlined),
+            tooltip: 'STATS 82',
+          ),
+          IconButton(onPressed: _abrirPlaybook, icon: const Icon(Icons.tune), tooltip: 'Tácticas'),
+        ],
       ),
       body: SafeArea(
         top: false,
@@ -149,6 +176,9 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
                       rival: _identidad(
                         proximo.localId == _t.franquiciaUsuarioId ? proximo.visitanteId : proximo.localId,
                       ),
+                      nombre: _nombre(
+                        proximo.localId == _t.franquiciaUsuarioId ? proximo.visitanteId : proximo.localId,
+                      ),
                       detalle: _detalleRival(
                         proximo.localId == _t.franquiciaUsuarioId ? proximo.visitanteId : proximo.localId,
                       ),
@@ -166,7 +196,7 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
                       onSimular10: () => _simular(10),
                     )
                   else
-                    _FinTemporada(temporada: _t),
+                    _FinTemporada(temporada: _t, onPlayoffs: widget.onPlayoffs),
                   const SizedBox(height: 16),
                   SegmentedButton<_Vista>(
                     segments: const [
@@ -215,8 +245,8 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
         return ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Escudo(rival, tamano: 32),
-          title: Text('${local ? 'vs' : '@'} ${rival.nombreCompleto}'),
-          subtitle: Text('Jornada ${p.jornada} · ${_detalleRival(rivalId)}'),
+          title: Text('${local ? 'vs' : '@'} ${_nombre(rivalId)}'),
+          subtitle: Text('Jornada ${p.jornada}'),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -250,6 +280,7 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
           _FilaTabla(
             posicion: i + 1,
             franquicia: _identidad(r.franquiciaId),
+            nombre: _nombre(r.franquiciaId),
             victorias: r.victorias,
             derrotas: r.derrotas,
             diferencia: ((lider.victorias - r.victorias) + (r.derrotas - lider.derrotas)) / 2,
@@ -357,6 +388,7 @@ class _ProximoPartido extends StatelessWidget {
     required this.partido,
     required this.local,
     required this.rival,
+    required this.nombre,
     required this.detalle,
     required this.figuras,
     required this.ocupado,
@@ -368,7 +400,7 @@ class _ProximoPartido extends StatelessWidget {
   final Partido partido;
   final bool local;
   final Franquicia rival;
-  final String detalle;
+  final String nombre, detalle;
   final String figuras;
   final bool ocupado;
   final VoidCallback onVivo, onSimular, onSimular10;
@@ -396,7 +428,7 @@ class _ProximoPartido extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${local ? 'vs' : '@'} ${rival.nombreCompleto}'.toUpperCase(),
+                      '${local ? 'vs' : '@'} $nombre'.toUpperCase(),
                       style: tema.textTheme.headlineSmall?.copyWith(fontSize: 22),
                     ),
                     Text(
@@ -443,9 +475,10 @@ class _ProximoPartido extends StatelessWidget {
 }
 
 class _FinTemporada extends StatelessWidget {
-  const _FinTemporada({required this.temporada});
+  const _FinTemporada({required this.temporada, required this.onPlayoffs});
 
   final Temporada temporada;
+  final VoidCallback? onPlayoffs;
 
   @override
   Widget build(BuildContext context) {
@@ -469,11 +502,11 @@ class _FinTemporada extends StatelessWidget {
             style: tema.textTheme.headlineSmall,
           ),
           if (perfecta) Text('Trofeo Presidente para tu franquicia.', style: tema.textTheme.bodyMedium),
-          const SizedBox(height: 8),
-          Text(
-            'Los playoffs al mejor de 7 y el STATS 82 llegan en la Fase 6.',
-            textAlign: TextAlign.center,
-            style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: onPlayoffs,
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+            child: const Text('IR A LOS PLAYOFFS'),
           ),
         ],
       ),
@@ -485,6 +518,7 @@ class _FilaTabla extends StatelessWidget {
   const _FilaTabla({
     required this.posicion,
     required this.franquicia,
+    required this.nombre,
     required this.victorias,
     required this.derrotas,
     required this.diferencia,
@@ -493,6 +527,7 @@ class _FilaTabla extends StatelessWidget {
 
   final int posicion;
   final Franquicia franquicia;
+  final String nombre;
   final int victorias, derrotas;
   final double diferencia;
   final bool propia;
@@ -513,7 +548,7 @@ class _FilaTabla extends StatelessWidget {
           SizedBox(width: 24, child: Text('$posicion', style: tema.textTheme.bodyMedium)),
           Escudo(franquicia, tamano: 24),
           const SizedBox(width: 8),
-          Expanded(child: Text(franquicia.nombreCompleto, maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Expanded(child: Text(nombre, maxLines: 1, overflow: TextOverflow.ellipsis)),
           TextoLed('$victorias-$derrotas', tamano: 16, color: propia ? esquema.primary : esquema.onSurface),
           SizedBox(
             width: 44,

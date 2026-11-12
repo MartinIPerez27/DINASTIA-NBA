@@ -57,6 +57,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   final _posiciones = <String, Offset>{};
   var _balonFin = const Offset(25, 47);
   String? _poseedorFin;
+  var _atacaLocal = true;
   var _segundaOportunidad = false;
   var _camara = 47.0;
   Duration? _ultimoCuadro;
@@ -103,10 +104,11 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     _cuarto = e.tipo == TipoEvento.finCuarto ? e.cuarto - 1 : e.cuarto;
     _relojHasta = e.tipo == TipoEvento.finCuarto ? 0 : e.reloj;
     final saliente = e.tipo == TipoEvento.cambio ? widget.motor.enBanco(e.local) : null;
+    _atacaLocal = ataca;
     _coreo = Coreografia(
       evento: e,
-      atacantes: _m.enCancha(ataca),
-      defensores: _m.enCancha(!ataca),
+      atacantes: List.of(_m.enCancha(ataca)),
+      defensores: List.of(_m.enCancha(!ataca)),
       haciaArriba: _haciaArriba(ataca),
       desde: Map.of(_posiciones),
       balonDesde: _balonFin,
@@ -148,9 +150,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     }
     final (balon, _, poseedor) = coreo.balon(1);
     _balonFin = balon;
-    _poseedorFin = e.convertido || e.tipo == TipoEvento.libres || e.tipo == TipoEvento.perdida
-        ? e.defensorId
-        : poseedor;
+    _poseedorFin = poseedor;
     _segundaOportunidad = e.tipo == TipoEvento.tiro && e.reboteOfensivo;
     setState(() {
       _marcador = (e.marcadorLocal, e.marcadorVisitante);
@@ -225,23 +225,11 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   }
 
   /// Las 10 fichas (y el que sale en un cambio) en el instante t: (id, posición, local, opacidad).
-  List<(String, Offset, bool, double)> _fichas(Coreografia coreo, double t) {
-    final atacaLocal = coreo.atacantes.isNotEmpty && _m.enCancha(true).contains(coreo.atacantes.first);
-    final resultado = <(String, Offset, bool, double)>[];
-    final marcas = <Offset>[];
-    for (final (i, j) in coreo.atacantes.indexed) {
-      final p = coreo.atacante(j, i, t);
-      marcas.add(p);
-      resultado.add((j.id, p, atacaLocal, 1));
-    }
-    for (final (i, j) in coreo.defensores.indexed) {
-      resultado.add((j.id, coreo.defensor(j, i, marcas[min(i, marcas.length - 1)], t), !atacaLocal, 1));
-    }
-    if (coreo.salienteEn(t) case (final p, final opacidad)) {
-      resultado.add((coreo.saliente!.id, p, coreo.evento.local, opacidad));
-    }
-    return resultado;
-  }
+  List<(String, Offset, bool, double)> _fichas(Coreografia coreo, double t) => [
+    for (final j in coreo.atacantes) (j.id, coreo.posicion(j.id, t), _atacaLocal, 1.0),
+    for (final j in coreo.defensores) (j.id, coreo.posicion(j.id, t), !_atacaLocal, 1.0),
+    if (coreo.salienteEn(t) case (final p, final opacidad)) (coreo.saliente!.id, p, coreo.evento.local, opacidad),
+  ];
 
   Color _contraste(Color c) => c.computeLuminance() > 0.4 ? Colors.black : Colors.white;
 

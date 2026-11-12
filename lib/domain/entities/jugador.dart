@@ -19,6 +19,9 @@ enum Epoca {
 
   /// Código corto para los LED: '40s'…'10s', 'HOY'.
   String get codigo => this == actualidad ? 'HOY' : '${etiqueta.substring(etiqueta.length - 2)}s';
+
+  /// Para nombrar un plantel de época: "Detroit Pistons (90’)".
+  String get corta => this == actualidad ? 'Hoy' : '${etiqueta.substring(etiqueta.length - 2)}’';
 }
 
 /// Carrete 3 del tragamonedas (GDD §4.2), de menor a mayor rareza.

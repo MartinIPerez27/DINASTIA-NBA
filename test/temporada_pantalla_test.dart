@@ -97,7 +97,7 @@ void main() {
     expect(find.text('PAUSA'), findsOneWidget);
     await t.tap(find.byTooltip('Seguir'));
     await t.pump();
-    for (var i = 0; i < 10; i++) {
+    for (var i = 0; i < 25; i++) {
       await t.pump(const Duration(milliseconds: 400));
     }
     expect(motor.reloj, isNot(reloj));
