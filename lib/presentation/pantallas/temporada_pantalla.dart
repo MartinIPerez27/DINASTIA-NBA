@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../../data/franquicias.dart';
@@ -43,6 +45,9 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
   var _vista = _Vista.resultados;
   var _conferencia = Conferencia.este;
   var _ocupado = false;
+
+  /// Simulación en curso: (hechos, total), para la barra de progreso.
+  (int, int)? _progreso;
 
   /// Resumen de lo último que simulaste, dentro de la pantalla (no como aviso flotante: esos se
   /// encolaban y aparecían después, en medio de otro partido).
@@ -106,13 +111,40 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
     );
   }
 
+  /// Simula el resto de la temporada regular (pide confirmación: no se puede volver atrás).
+  Future<void> _simularTodo() async {
+    final faltan = _t.calendario.where((p) => !p.jugado && p.participa(_t.franquiciaUsuarioId)).length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('¿Simular el resto de la temporada?'),
+        content: Text('Se juegan los $faltan partidos que faltan sin mirarlos. No se puede deshacer.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text('SIMULAR $faltan')),
+        ],
+      ),
+    );
+    if (ok == true && mounted) await _simular(faltan);
+  }
+
   Future<void> _simular(int partidos) async {
-    setState(() => _ocupado = true);
+    final total = min(partidos, _t.calendario.where((p) => !p.jugado && p.participa(_t.franquiciaUsuarioId)).length);
+    setState(() {
+      _ocupado = true;
+      _progreso = total > 1 ? (0, total) : null;
+    });
     await Future<void>.delayed(Duration.zero);
     var t = _t;
     String? ultimo;
     var ganados = 0, jugados = 0;
     for (var i = 0; i < partidos && _liga.proximoDelUsuario(t) != null; i++) {
+      // Le da aire a la pantalla entre partido y partido (barra de progreso, sin trabarse).
+      if (i > 0) {
+        await Future<void>.delayed(Duration.zero);
+        if (!mounted) return;
+        if (total > 1) setState(() => _progreso = (i, total));
+      }
       final p = _liga.proximoDelUsuario(t)!;
       t = _liga.simularProximo(t);
       final jugado = t.calendario.firstWhere((x) => x.id == p.id);
@@ -127,6 +159,7 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
     _guardar(t);
     setState(() {
       _ocupado = false;
+      _progreso = null;
       if (ultimo != null) {
         _resumen = jugados == 1 ? ultimo : 'Simulaste $jugados: $ganados-${jugados - ganados}. Último: $ultimo';
       }
@@ -194,6 +227,8 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
                       onVivo: () => _jugarEnVivo(proximo),
                       onSimular: () => _simular(1),
                       onSimular10: () => _simular(10),
+                      onSimularTodo: _simularTodo,
+                      progreso: _progreso,
                     )
                   else
                     _FinTemporada(temporada: _t, onPlayoffs: widget.onPlayoffs),
@@ -407,6 +442,8 @@ class _ProximoPartido extends StatelessWidget {
     required this.onVivo,
     required this.onSimular,
     required this.onSimular10,
+    required this.onSimularTodo,
+    required this.progreso,
   });
 
   final Partido partido;
@@ -415,7 +452,8 @@ class _ProximoPartido extends StatelessWidget {
   final String nombre, detalle;
   final String figuras;
   final bool ocupado;
-  final VoidCallback onVivo, onSimular, onSimular10;
+  final VoidCallback onVivo, onSimular, onSimular10, onSimularTodo;
+  final (int, int)? progreso;
 
   @override
   Widget build(BuildContext context) {
@@ -480,6 +518,28 @@ class _ProximoPartido extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 4),
+          if (progreso case (final hechos, final total))
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Column(
+                children: [
+                  LinearProgressIndicator(value: hechos / total, minHeight: 4, borderRadius: BorderRadius.circular(2)),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Simulando $hechos de $total…',
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            )
+          else
+            TextButton(
+              onPressed: ocupado ? null : onSimularTodo,
+              style: TextButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+              child: const Text('SIMULAR TODA LA TEMPORADA'),
+            ),
         ],
       ),
     );

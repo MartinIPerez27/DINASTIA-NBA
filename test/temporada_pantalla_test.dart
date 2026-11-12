@@ -57,6 +57,32 @@ void main() {
     expect(find.textContaining('1 PJ'), findsWidgets);
   });
 
+  testWidgets('simular toda la temporada: confirma, muestra progreso y termina en playoffs', (t) async {
+    telefono(t);
+    final guardadas = <Temporada>[];
+    await t.pumpWidget(
+      MaterialApp(
+        theme: temaFranquicia(franquiciaPorId('CHI')),
+        home: TemporadaPantalla(temporada: iniciada(), liga: liga, onCambio: guardadas.add, onPlayoffs: () {}),
+      ),
+    );
+    await t.ensureVisible(find.text('SIMULAR TODA LA TEMPORADA'));
+    await t.tap(find.text('SIMULAR TODA LA TEMPORADA'));
+    await t.pumpAndSettle();
+    expect(find.text('¿Simular el resto de la temporada?'), findsOneWidget);
+    await t.tap(find.text('SIMULAR 82'));
+    await t.pump();
+    await t.pump();
+    expect(find.textContaining('Simulando'), findsOneWidget);
+    for (var i = 0; i < 400 && guardadas.isEmpty; i++) {
+      await t.pump(const Duration(milliseconds: 1));
+    }
+    await t.pump();
+    expect(guardadas.last.registroUsuario.jugados, 82);
+    expect(guardadas.last.fase, FaseTemporada.playoffs);
+    expect(find.text('IR A LOS PLAYOFFS'), findsOneWidget);
+  });
+
   testWidgets('partido en vivo: arranca 0-0, avanza y al salir se simula lo que falta', (t) async {
     telefono(t);
     final temporada = iniciada();
