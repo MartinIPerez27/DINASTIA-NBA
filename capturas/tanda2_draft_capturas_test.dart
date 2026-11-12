@@ -101,6 +101,8 @@ void main() {
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('salida/t2-completo.png'));
     await t.tap(find.text('ELEGIR ENTRENADOR'));
     await cuadros(t, 4);
+    await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 600)));
+    await cuadros(t, 2);
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('salida/t2-entrenadores.png'));
     await t.tapAt(const Offset(200, 40));
     await cuadros(t, 4);
@@ -118,6 +120,8 @@ void main() {
       ),
     );
     await cuadros(t, 3);
+    await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 600)));
+    await cuadros(t, 2);
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('salida/t2-playbook.png'));
   });
 }

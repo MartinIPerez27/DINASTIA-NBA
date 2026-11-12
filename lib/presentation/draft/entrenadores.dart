@@ -81,7 +81,7 @@ class CartaEntrenador extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Monograma(entrenador: e, tamano: 64),
+                  Monograma(entrenador: e, tamano: 76),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
@@ -155,8 +155,19 @@ class Monograma extends StatelessWidget {
             borderRadius: BorderRadius.circular(tamano * 0.18),
             child: CustomPaint(painter: _Puntos(esquema.onSurface.withValues(alpha: 0.06))),
           ),
-          Center(
-            child: TextoLed(entrenador.iniciales, tamano: tamano * 0.42, color: color),
+          // Foto sin fondo (Wikimedia Commons, recortada); si falta, las iniciales en LED.
+          ClipRRect(
+            borderRadius: BorderRadius.circular(tamano * 0.18),
+            child: Image.asset(
+              'assets/entrenadores/${entrenador.id}.webp',
+              fit: BoxFit.cover,
+              alignment: const Alignment(0, -0.7),
+              filterQuality: FilterQuality.high,
+              semanticLabel: entrenador.nombre,
+              errorBuilder: (_, _, _) => Center(
+                child: TextoLed(entrenador.iniciales, tamano: tamano * 0.42, color: color),
+              ),
+            ),
           ),
         ],
       ),
