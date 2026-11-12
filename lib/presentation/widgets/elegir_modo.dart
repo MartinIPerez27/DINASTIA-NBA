@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/oferta.dart';
+import '../../domain/entities/temporada.dart';
 import 'carta_vertical.dart';
 import 'texto_led.dart';
 
@@ -22,6 +23,94 @@ Future<ModoDraft?> elegirModoDraft(BuildContext context) => showModalBottomSheet
           const SizedBox(height: 16),
           for (final modo in ModoDraft.values) ...[
             _OpcionModo(modo: modo, onTap: () => Navigator.of(context).pop(modo)),
+            const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+  },
+);
+
+/// Hoja para elegir la dificultad (qué tan fuertes son los 29 rivales). Null si se cierra.
+Future<Dificultad?> elegirDificultad(BuildContext context) => showModalBottomSheet<Dificultad>(
+  context: context,
+  showDragHandle: true,
+  useSafeArea: true,
+  isScrollControlled: true,
+  builder: (context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('¿QUÉ TAN DURA LA LIGA?', style: tema.textTheme.headlineSmall),
+          const SizedBox(height: 16),
+          for (final (i, d) in Dificultad.values.indexed) ...[
+            Semantics(
+              button: true,
+              label: '${d.nombre}. ${d.descripcion}',
+              child: ExcludeSemantics(
+                child: Material(
+                  color: esquema.surfaceContainerLowest,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: esquema.outlineVariant.withValues(alpha: 0.5)),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => Navigator.of(context).pop(d),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          // Barras de intensidad, como un vúmetro del tablero.
+                          SizedBox(
+                            width: 44,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                for (var k = 0; k < 3; k++) ...[
+                                  if (k > 0) const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Container(
+                                      height: 12.0 + k * 10,
+                                      decoration: BoxDecoration(
+                                        color: k <= i ? esquema.primary : esquema.outlineVariant.withValues(alpha: 0.4),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  d.nombre.toUpperCase(),
+                                  style: tema.textTheme.headlineSmall?.copyWith(fontSize: 22),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  d.descripcion,
+                                  style: tema.textTheme.bodyMedium?.copyWith(color: esquema.onSurfaceVariant),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: 10),
           ],
         ],

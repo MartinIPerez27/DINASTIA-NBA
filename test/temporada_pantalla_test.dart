@@ -9,12 +9,14 @@ import 'package:dinastia_nba/domain/entities/temporada.dart';
 import 'package:dinastia_nba/domain/liga.dart';
 import 'package:dinastia_nba/domain/motor.dart';
 import 'package:dinastia_nba/presentation/pantallas/partido_pantalla.dart';
+import 'package:dinastia_nba/presentation/partido/sonido_partido.dart';
 import 'package:dinastia_nba/presentation/pantallas/temporada_pantalla.dart';
 import 'package:dinastia_nba/presentation/tema/tema_franquicia.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  setUpAll(() => SonidoPartido.habilitado = false);
   final catalogo = parsearCatalogo(File(rutaCatalogo).readAsStringSync());
   final liga = Liga(catalogo, franquicias, azar: Random(5));
 

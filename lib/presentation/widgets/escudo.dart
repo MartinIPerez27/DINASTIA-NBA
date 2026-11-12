@@ -1,4 +1,8 @@
+import 'dart:math';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../domain/entities/franquicia.dart';
@@ -70,5 +74,32 @@ class _EscudoTipografico extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// El escudo como imagen (para pintarlo en la cancha). Null si la identidad no tiene escudo real.
+Future<ui.Image?> imagenEscudo(Franquicia f, {int lado = 512}) async {
+  final ruta = f.rutaEscudo;
+  if (ruta == null) return null;
+  try {
+    if (ruta.endsWith('.svg')) {
+      final info = await vg.loadPicture(SvgAssetLoader(ruta), null);
+      final escala = lado / max(info.size.width, info.size.height);
+      final grabador = ui.PictureRecorder();
+      Canvas(grabador)
+        ..scale(escala)
+        ..drawPicture(info.picture);
+      final imagen = await grabador.endRecording().toImage(
+        (info.size.width * escala).round(),
+        (info.size.height * escala).round(),
+      );
+      info.picture.dispose();
+      return imagen;
+    }
+    final datos = await rootBundle.load(ruta);
+    final codec = await ui.instantiateImageCodec(datos.buffer.asUint8List(), targetWidth: lado);
+    return (await codec.getNextFrame()).image;
+  } catch (_) {
+    return null;
   }
 }

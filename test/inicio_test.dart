@@ -49,6 +49,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('¿CÓMO ARMÁS TU PLANTEL?'), findsOneWidget);
     await tester.tap(find.text('CARTAS'));
+    await tester.pumpAndSettle();
+    expect(find.text('¿QUÉ TAN DURA LA LIGA?'), findsOneWidget);
+    await tester.tap(find.text('NORMAL'));
     // El catálogo grande se decodifica en otro isolate: no se espera a que termine de cargar.
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));

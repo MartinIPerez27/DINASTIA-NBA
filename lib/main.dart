@@ -105,7 +105,14 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   Future<void> _dirigir(Franquicia f) async {
     final modo = await elegirModoDraft(_navegador.currentContext!);
     if (modo == null) return;
-    final t = Temporada(id: DateTime.now().millisecondsSinceEpoch.toString(), franquiciaUsuarioId: f.id, modo: modo);
+    final dificultad = await elegirDificultad(_navegador.currentContext!);
+    if (dificultad == null) return;
+    final t = Temporada(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      franquiciaUsuarioId: f.id,
+      modo: modo,
+      dificultad: dificultad,
+    );
     try {
       await widget.db?.guardarTemporada(t);
       setState(() => _guardada = t);

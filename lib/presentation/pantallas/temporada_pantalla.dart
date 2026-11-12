@@ -344,7 +344,9 @@ class _Encabezado extends StatelessWidget {
     final invicto = r.derrotas == 0;
     final restantes = Temporada.partidosTemporadaRegular - r.jugados;
     return Semantics(
-      label: 'Récord ${r.victorias} victorias y ${r.derrotas} derrotas. Quedan $restantes partidos.',
+      label:
+          'Récord ${r.victorias} victorias y ${r.derrotas} derrotas. Quedan $restantes partidos. '
+          'Dificultad ${temporada.dificultad.nombre}.',
       child: ExcludeSemantics(
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -370,10 +372,20 @@ class _Encabezado extends StatelessWidget {
                   ],
                 ),
               ),
-              TextoLed(
-                '82-0',
-                tamano: 22,
-                color: invicto ? esquema.primary : esquema.onSurfaceVariant.withValues(alpha: 0.4),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  TextoLed(
+                    '82-0',
+                    tamano: 22,
+                    color: invicto ? esquema.primary : esquema.onSurfaceVariant.withValues(alpha: 0.4),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    temporada.dificultad.nombre.toUpperCase(),
+                    style: tema.textTheme.labelSmall?.copyWith(color: esquema.onSurfaceVariant, letterSpacing: 1),
+                  ),
+                ],
               ),
             ],
           ),

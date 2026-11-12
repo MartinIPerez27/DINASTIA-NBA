@@ -119,7 +119,16 @@ class Coreografia {
   final _velocidades = <Offset>[];
   final _relevos = <String, (double, _Ruta)>{}; // defensores que dejan la marca (robo, rebote, tapón)
   final _tramos = <_Tramo>[];
-  double _inicioTiro = -1, _finTiro = -1, _canasta = -1;
+  double _inicioTiro = -1, _finTiro = -1, _canasta = -1, _golpeAro = -1;
+
+  /// Desde dónde se tiró (para el mapa de tiros); null si no hubo tiro de campo.
+  Offset? puntoTiro;
+
+  /// Momento (en segundos a x1) en que suena el silbato (falta o infracción); null si no suena.
+  double? _silbato;
+
+  /// Momento (0–1) del silbato, o null.
+  double? get momentoSilbato => _silbato == null ? null : _silbato! / duracion;
 
   Offset get aro => Cancha94.aro(haciaArriba);
 
@@ -240,6 +249,7 @@ class Coreografia {
           _armarTiro(s, conductor);
         }
       case TipoEvento.libres:
+        _silbato = 0;
         _libres(balonDesde, poseedorDesde);
       case TipoEvento.perdida:
         _perdida(balonDesde, poseedorDesde);
@@ -315,7 +325,7 @@ class Coreografia {
     final e = evento;
     final tirador = e.jugadorId!;
     final i = max(0, atacantes.indexWhere((j) => j.id == tirador));
-    final punto = _p((e.triple ? _puntoTriple : _puntoDoble)[i]);
+    final punto = _lugarDeTiro(i, e.triple);
     final cadena = <String>[];
     final libres = [
       for (final j in atacantes)
@@ -349,6 +359,25 @@ class Coreografia {
     }
   }
 
+  /// Lugar del tiro: la zona habitual del jugador, con variedad (el triple sobre el arco, el doble
+  /// cerca de su lugar pero dentro de la línea de tres).
+  Offset _lugarDeTiro(int i, bool triple) {
+    final base = (triple ? _puntoTriple : _puntoDoble)[i];
+    const aroFondo = Offset(25, 5.25);
+    if (triple) {
+      final ang = atan2(base.dy - aroFondo.dy, base.dx - aroFondo.dx) + (_azar.nextDouble() - 0.5) * 0.6;
+      final radio = 23.9 + _azar.nextDouble() * 2.2;
+      var punto = aroFondo + Offset(cos(ang), sin(ang)) * radio;
+      // En las esquinas la línea es recta, a 22 pies.
+      if (punto.dy < 14) punto = Offset(punto.dx < 25 ? 2.2 + _azar.nextDouble() : 47.8 - _azar.nextDouble(), punto.dy);
+      return _p(Offset(punto.dx.clamp(1.5, 48.5), max(1.5, punto.dy)));
+    }
+    var punto = base + Offset((_azar.nextDouble() - 0.5) * 7, (_azar.nextDouble() - 0.5) * 6);
+    final desdeAro = punto - aroFondo;
+    if (desdeAro.distance > 21) punto = aroFondo + desdeAro / desdeAro.distance * 21;
+    return _p(Offset(punto.dx.clamp(4, 46), max(2, punto.dy)));
+  }
+
   /// Contraataque: el que corre sale disparado al aro; si no conduce él, recibe un pase largo.
   void _contraataque(double s, String conductor) {
     final tirador = evento.jugadorId!;
@@ -376,6 +405,7 @@ class Coreografia {
     final e = evento;
     final distancia = (punto - aro).distance;
     _inicioTiro = s;
+    puntoTiro = punto;
     if (e.taponado && e.defensorId != null) {
       _relevar(e.defensorId!, s - 0.45).mover(s - 0.45, s + 0.1, punto + _unidad(aro - punto) * 2.2);
       final desvio = punto + _unidad(aro - punto) * 2.5;
@@ -391,6 +421,7 @@ class Coreografia {
       _tramos.add(_Tramo.vuelo(_finTiro, _finTiro + 0.35, aro, aro + Offset(0, haciaArriba ? -1.5 : 1.5), 0));
       _tramos.add(_Tramo.quieta(_finTiro + 0.35, _finTiro + 0.7, aro + Offset(0, haciaArriba ? -1.5 : 1.5)));
     } else {
+      _golpeAro = _finTiro;
       _rebote(_finTiro, aro);
     }
   }
@@ -464,6 +495,7 @@ class Coreografia {
       _tramos.add(_Tramo.quieta(s + 1.1, s + 1.6, afuera));
     } else {
       // Infracción: silbato, la pelota queda muerta donde estaba.
+      _silbato = s + 0.7;
       _tramos.add(_Tramo.lleva(s, s + 0.7, conductor));
       _tramos.add(_Tramo.quieta(s + 0.7, s + 1.5, _en(conductor, s + 0.7)));
     }
@@ -515,6 +547,22 @@ class Coreografia {
 
   /// Momento (0–1) en que entra la pelota, para el "+2"/"+3" y el marcador.
   double get momentoCanasta => _canasta < 0 ? 1 : _canasta / duracion;
+
+  /// Momento (0–1) en que la pelota pega en el aro y sale (tiro errado), o null.
+  double? get momentoAro => _golpeAro < 0 ? null : _golpeAro / duracion;
+
+  /// Cuenta de piques del dribbling hasta t (cambia en cada pique; -1 si nadie la tiene).
+  int pique(double t) {
+    if (balon(t).$3 == null) return -1;
+    return (t * duracion * 3.6).floor();
+  }
+
+  /// La toma se acerca cuando la jugada está cerca del aro y se abre en las transiciones.
+  double zoom(double t) {
+    if (_pausa) return 1;
+    final distancia = (balon(t).$1 - aro).distance;
+    return 1 + 0.22 * (1 - ((distancia - 18) / 22).clamp(0.0, 1.0));
+  }
 
   /// Hacia dónde mira la cámara: la pelota, tirada hacia el aro atacado (así el aro queda en cuadro).
   double foco(double t) {

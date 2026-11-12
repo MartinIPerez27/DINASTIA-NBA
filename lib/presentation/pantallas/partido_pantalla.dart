@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,11 +9,15 @@ import '../../domain/entities/jugador.dart';
 import '../../domain/motor.dart';
 import '../partido/cancha_partido.dart';
 import '../partido/coreografia.dart';
+import '../partido/sonido_partido.dart';
 import '../tema/tema_franquicia.dart';
 import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
 
-enum _Panel { jugadores, relato }
+enum _Panel { jugadores, tiros, partido, relato }
+
+/// Tiro de campo de tu equipo para el mapa: (x, distancia a la línea de fondo) en pies, y si entró.
+typedef _Tiro = (Offset, bool);
 
 /// Partido en vivo 2D estilo transmisión (GDD §6): cámara que sigue la jugada, posesiones continuas
 /// (subida, pases, tiro con estela, rebote), marcador de TV con reloj corriendo desde 0-0, pausa,
@@ -64,6 +69,25 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   Map<String, LineaEstadistica> _box = {};
   bool _final = false, _registrado = false;
 
+  // Transmisión: zoom y paneo, sonido, carteles.
+  final _sonido = SonidoPartido();
+  var _silencio = false;
+  var _zoom = 1.0, _camaraX = Cancha94.ancho / 2, _tiempo = 0.0;
+  var _ultimoPique = -1;
+  var _sonoAro = false, _sonoSilbato = false;
+  ui.Image? _escudo;
+
+  // Marcador ampliado (foto al final de cada jugada, sin adelantar nada).
+  var _faltas = (0, 0), _tiemposMuertos = (5, 5);
+  var _clutch = false;
+  var _inicio24 = 24.0, _ultimo24 = 24.0;
+
+  // Paneles: mapa de tiros, probabilidad de ganar y parciales.
+  final _tiros = <_Tiro>[];
+  late final double _ventaja; // puntos de ventaja esperada antes del salto (calidad + localía)
+  final _probabilidad = <(double, double)>[];
+  var _parciales = (<int>[0], <int>[0]);
+
   MotorPartido get _m => widget.motor;
 
   @override
@@ -71,6 +95,17 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _box = _copiaBox();
+    double media(bool local) {
+      final js = [..._m.enCancha(local), ?_m.enBanco(local)];
+      return js.fold(0.0, (a, j) => a + j.media) / js.length;
+    }
+
+    _ventaja = (media(widget.usuarioLocal) - media(!widget.usuarioLocal)) * 1.3 + (widget.usuarioLocal ? 2 : -2);
+    _probabilidad.add((0, _probabilidadGanar(0, 0)));
+    _sonido.iniciar();
+    imagenEscudo(widget.franquiciaUsuario).then((imagen) {
+      if (mounted) setState(() => _escudo = imagen);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _proxima());
   }
 
@@ -78,7 +113,31 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _c.dispose();
+    _sonido.liberar();
     super.dispose();
+  }
+
+  /// Segundos de juego transcurridos (incluidas las prórrogas).
+  double _transcurrido(int cuarto, double reloj) =>
+      cuarto <= 4 ? (cuarto - 1) * 720 + (720 - reloj) : 2880 + (cuarto - 5) * 300 + (300 - reloj);
+
+  /// Probabilidad de que gane tu equipo: diferencia actual + ventaja esperada en lo que queda,
+  /// con la incertidumbre de un partido de NBA (~12,5 puntos en 48 minutos).
+  double _probabilidadGanar(int diferencia, double transcurrido) {
+    final queda = transcurrido < 2880 ? (2880 - transcurrido) : max(0.0, 300 - (transcurrido - 2880) % 300);
+    final fraccion = queda / 2880;
+    final sigma = max(0.6, 12.5 * sqrt(fraccion));
+    final z = (diferencia + _ventaja * fraccion) / sigma;
+    return 0.5 * (1 + _erf(z / sqrt2));
+  }
+
+  static double _erf(double x) {
+    // Abramowitz-Stegun 7.1.26.
+    final t = 1 / (1 + 0.3275911 * x.abs());
+    final y =
+        1 -
+        (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * exp(-x * x);
+    return x >= 0 ? y : -y;
   }
 
   @override
@@ -105,6 +164,18 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     _relojHasta = e.tipo == TipoEvento.finCuarto ? 0 : e.reloj;
     final saliente = e.tipo == TipoEvento.cambio ? widget.motor.enBanco(e.local) : null;
     _atacaLocal = ataca;
+    final posesion = e.tipo == TipoEvento.tiro || e.tipo == TipoEvento.perdida || e.tipo == TipoEvento.libres;
+    if (posesion) _inicio24 = _segundaOportunidad ? 14 : 24;
+    switch (e.tipo) {
+      case TipoEvento.finCuarto || TipoEvento.finPartido:
+        _sonido.chicharra();
+      case TipoEvento.tiempoMuerto || TipoEvento.cambio:
+        _sonido.silbato();
+      case _:
+    }
+    _ultimoPique = -1;
+    _sonoAro = false;
+    _sonoSilbato = false;
     _coreo = Coreografia(
       evento: e,
       atacantes: List.of(_m.enCancha(ataca)),
@@ -127,17 +198,40 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     if (coreo == null) return;
     // Marcador y "+N" en el momento en que entra la pelota.
     final e = coreo.evento;
-    if (!_anotado && e.puntos > 0 && _c.value >= coreo.momentoCanasta) {
+    final t = _c.value;
+    if (!_anotado && e.puntos > 0 && t >= coreo.momentoCanasta) {
       _anotado = true;
       setState(() => _marcador = (e.marcadorLocal, e.marcadorVisitante));
       if (e.local == widget.usuarioLocal) HapticFeedback.lightImpact();
+      _sonido.red();
+      // El público de local estalla con las jugadas grandes de su equipo.
+      if (e.local && (e.triple || e.texto.contains('Sangre fría') || e.contraataque)) _sonido.ovacion();
     }
+    final golpe = coreo.momentoAro, silbato = coreo.momentoSilbato;
+    if (!_sonoAro && golpe != null && t >= golpe) {
+      _sonoAro = true;
+      _sonido.aro();
+    }
+    if (!_sonoSilbato && silbato != null && t >= silbato) {
+      _sonoSilbato = true;
+      _sonido.silbato();
+    }
+    final pique = coreo.pique(t);
+    if (pique >= 0 && pique != _ultimoPique) _sonido.pique();
+    _ultimoPique = pique;
     // Cámara: sigue al balón con suavidad (resorte crítico).
     final ahora = _c.lastElapsedDuration ?? Duration.zero;
     final dt = _ultimoCuadro == null ? 0.016 : max(0, (ahora - _ultimoCuadro!).inMicroseconds) / 1e6;
     _ultimoCuadro = ahora;
-    final objetivo = coreo.foco(_c.value);
+    _tiempo += dt;
+    final objetivo = coreo.foco(t);
     _camara += (objetivo - _camara) * (1 - exp(-dt * 3.5));
+    // Zoom de transmisión: se acerca en el ataque armado y se abre en las transiciones.
+    final reducido = MediaQuery.disableAnimationsOf(context);
+    final zoom = reducido ? 1.0 : coreo.zoom(t);
+    _zoom += (zoom - _zoom) * (1 - exp(-dt * 1.8));
+    _camaraX +=
+        (Cancha94.ancho / 2 + (coreo.balon(t).$1.dx - Cancha94.ancho / 2) * 0.7 - _camaraX) * (1 - exp(-dt * 3));
   }
 
   void _alTerminarJugada(AnimationStatus s) {
@@ -152,8 +246,29 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     _balonFin = balon;
     _poseedorFin = poseedor;
     _segundaOportunidad = e.tipo == TipoEvento.tiro && e.reboteOfensivo;
+    if (coreo.puntoTiro case final punto? when e.local == widget.usuarioLocal) {
+      final arriba = coreo.haciaArriba;
+      _tiros.add((
+        Offset(arriba ? punto.dx : Cancha94.ancho - punto.dx, arriba ? punto.dy : Cancha94.largo - punto.dy),
+        e.convertido,
+      ));
+    }
+    final propio = widget.usuarioLocal;
+    final diferencia = propio ? e.marcadorLocal - e.marcadorVisitante : e.marcadorVisitante - e.marcadorLocal;
+    final transcurrido = _transcurrido(_cuarto, _relojHasta);
+    _probabilidad.add((
+      transcurrido,
+      e.tipo == TipoEvento.finPartido ? (diferencia > 0 ? 1.0 : 0.0) : _probabilidadGanar(diferencia, transcurrido),
+    ));
+    if (e.tipo == TipoEvento.tiro || e.tipo == TipoEvento.perdida || e.tipo == TipoEvento.libres) {
+      _ultimo24 = max(0, _inicio24 - (_relojDesde - _relojHasta));
+    }
     setState(() {
       _marcador = (e.marcadorLocal, e.marcadorVisitante);
+      _faltas = (_m.faltas(true), _m.faltas(false));
+      _tiemposMuertos = (_m.tiemposMuertos(true), _m.tiemposMuertos(false));
+      _clutch = _m.momentoClutch && !_m.terminado;
+      _parciales = (List.of(_m.parcialesLocal), List.of(_m.parcialesVisitante));
       _relojDesde = _relojHasta;
       _relato.insert(0, e.texto);
       if (_relato.length > 40) _relato.removeLast();
@@ -168,6 +283,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
 
   void _alternarPausa() {
     setState(() => _pausado = !_pausado);
+    _pausado ? _sonido.pausar() : _sonido.reanudar();
     if (_pausado) {
       _c.stop();
     } else if (_c.isCompleted || _coreo == null) {
@@ -192,6 +308,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     _registrado = true;
     widget.onTerminado(_m);
     setState(() => _final = true);
+    _sonido.chicharra();
     HapticFeedback.heavyImpact();
   }
 
@@ -233,13 +350,34 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
 
   Color _contraste(Color c) => c.computeLuminance() > 0.4 ? Colors.black : Colors.white;
 
-  (Color, Color) _coloresRival(Franquicia rival) {
+  /// Camiseta del rival: (color, número, ribete), que no se confunda con la tuya.
+  (Color, Color, Color) _coloresRival(Franquicia rival) {
     final propio = Color(widget.franquiciaUsuario.colorPrimario);
     double distancia(Color a, Color b) => (a.r - b.r).abs() + (a.g - b.g).abs() + (a.b - b.b).abs();
     var color = Color(rival.colorPrimario);
-    if (distancia(color, propio) < 0.35) color = Color(rival.colorSecundario);
+    var ribete = Color(rival.colorSecundario);
+    if (distancia(color, propio) < 0.35) (color, ribete) = (Color(rival.colorSecundario), Color(rival.colorPrimario));
     if (distancia(color, propio) < 0.35) color = propio.computeLuminance() > 0.4 ? Colors.black : Colors.white;
-    return (color, _contraste(color));
+    return (color, _contraste(color), ribete);
+  }
+
+  /// Ribete que se vea sobre la camiseta (si es casi igual al color de fondo, va blanco o negro).
+  Color _ribete(Color fondo, Color ribete) {
+    final diferencia = (fondo.computeLuminance() - ribete.computeLuminance()).abs();
+    return diferencia < 0.08 ? _contraste(fondo) : ribete;
+  }
+
+  /// Texto de los carteles LED de los costados según el momento.
+  String _cartel(Coreografia? coreo, double t) {
+    final nombre = widget.franquiciaUsuario.nombre.toUpperCase();
+    if (coreo == null) return '$nombre · DINASTÍA 82-0';
+    final e = coreo.evento;
+    if (e.puntos > 0 && e.triple && t >= coreo.momentoCanasta) return '¡TRIPLE!';
+    if (_clutch) return 'CLUTCH';
+    if (e.tipo == TipoEvento.tiro || e.tipo == TipoEvento.perdida || e.tipo == TipoEvento.libres) {
+      if (e.local != widget.usuarioLocal) return 'DE-FEN-SA';
+    }
+    return '$nombre · DINASTÍA 82-0';
   }
 
   String _apellido(Jugador j) => j.nombre.split(' ').last.toUpperCase();
@@ -248,8 +386,13 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   Widget build(BuildContext context) {
     final esquema = Theme.of(context).colorScheme;
     final usuarioLocal = widget.usuarioLocal;
-    final (colorRival, textoRival) = _coloresRival(usuarioLocal ? widget.identidadVisitante : widget.identidadLocal);
+    final (colorRival, textoRival, ribeteRival) = _coloresRival(
+      usuarioLocal ? widget.identidadVisitante : widget.identidadLocal,
+    );
     final colorPropio = Color(widget.franquiciaUsuario.colorPrimario);
+    final ribetePropio = _ribete(colorPropio, Color(widget.franquiciaUsuario.colorSecundario));
+    final ribeteDelRival = _ribete(colorRival, ribeteRival);
+    final energias = {..._m.energias(true), ..._m.energias(false)};
     final todos = {
       for (final local in [true, false]) ...{
         for (final j in [..._m.enCancha(local), ?_m.enBanco(local)]) j.id: j,
@@ -292,12 +435,28 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                                     balon: const Offset(25, 47),
                                     camaraY: _camara,
                                     colorLed: esquema.primary,
+                                    escudo: _escudo,
+                                    cartel: _cartel(null, 0),
                                   ),
                                 );
                               }
                               final t = _c.value;
                               final (balon, altura, poseedor) = coreo.balon(t);
                               final e = coreo.evento;
+                              EfectoAro? efectoAro;
+                              if (e.puntos > 0 && e.tipo == TipoEvento.tiro && t >= coreo.momentoCanasta) {
+                                efectoAro = EfectoAro(
+                                  arriba: coreo.haciaArriba,
+                                  progreso: ((t - coreo.momentoCanasta) * coreo.duracion / 0.9).clamp(0, 1),
+                                  adentro: true,
+                                );
+                              } else if (coreo.momentoAro case final m? when t >= m) {
+                                efectoAro = EfectoAro(
+                                  arriba: coreo.haciaArriba,
+                                  progreso: ((t - m) * coreo.duracion / 0.7).clamp(0, 1),
+                                  adentro: false,
+                                );
+                              }
                               final estela = [
                                 if (coreo.enTiro(t))
                                   for (var k = 1; k <= 7; k++) coreo.balon(max(0, t - k * 0.012)).$1,
@@ -307,7 +466,13 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                                   franquicia: widget.franquiciaUsuario,
                                   colorLed: esquema.primary,
                                   camaraY: _camara,
-                                  margenArriba: 60,
+                                  camaraX: _camaraX,
+                                  zoom: _zoom,
+                                  escudo: _escudo,
+                                  cartel: _cartel(coreo, t),
+                                  tiempo: _tiempo,
+                                  efectoAro: efectoAro,
+                                  margenArriba: 78,
                                   margenAbajo: 50,
                                   balon: balon,
                                   alturaBalon: altura,
@@ -328,6 +493,8 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                                         posicion: p,
                                         relleno: local == usuarioLocal ? colorPropio : colorRival,
                                         texto: local == usuarioLocal ? _contraste(colorPropio) : textoRival,
+                                        ribete: local == usuarioLocal ? ribetePropio : ribeteDelRival,
+                                        energia: (energias[id] ?? 100) / 100,
                                         etiqueta: todos[id]!.dorsal > 0 ? '${todos[id]!.dorsal}' : todos[id]!.iniciales,
                                         conBalon: poseedor == id,
                                         nombre: poseedor == id ? _apellido(todos[id]!) : null,
@@ -345,14 +512,24 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                           right: 8,
                           child: AnimatedBuilder(
                             animation: _c,
-                            builder: (context, _) => _MarcadorTV(
-                              local: widget.identidadLocal,
-                              visitante: widget.identidadVisitante,
-                              puntos: _marcador,
-                              cuarto: _cuarto,
-                              reloj: _relojDesde + (_relojHasta - _relojDesde) * _c.value,
-                              onSalir: _salir,
-                            ),
+                            builder: (context, _) {
+                              final reloj = _relojDesde + (_relojHasta - _relojDesde) * _c.value;
+                              final tipo = _coreo?.evento.tipo;
+                              final posesion =
+                                  tipo == TipoEvento.tiro || tipo == TipoEvento.perdida || tipo == TipoEvento.libres;
+                              return _MarcadorTV(
+                                local: widget.identidadLocal,
+                                visitante: widget.identidadVisitante,
+                                puntos: _marcador,
+                                cuarto: _cuarto,
+                                reloj: reloj,
+                                posesion: posesion ? max(0, _inicio24 - (_relojDesde - reloj)) : _ultimo24,
+                                faltas: _faltas,
+                                tiemposMuertos: _tiemposMuertos,
+                                clutch: _clutch,
+                                onSalir: _salir,
+                              );
+                            },
                           ),
                         ),
                         if (banner != null) Center(child: _Banner(texto: banner)),
@@ -383,6 +560,11 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                   _Controles(
                     pausado: _pausado,
                     onPausa: _final ? null : _alternarPausa,
+                    silencio: _silencio,
+                    onSilencio: () {
+                      setState(() => _silencio = !_silencio);
+                      _sonido.silencio = _silencio;
+                    },
                     velocidad: _velocidad,
                     onVelocidad: _cambiarVelocidad,
                     tiemposMuertos: _m.tiemposMuertos(usuarioLocal),
@@ -411,7 +593,9 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: SegmentedButton<_Panel>(
                             segments: const [
-                              ButtonSegment(value: _Panel.jugadores, label: Text('Mis jugadores')),
+                              ButtonSegment(value: _Panel.jugadores, label: Text('Equipo')),
+                              ButtonSegment(value: _Panel.tiros, label: Text('Tiros')),
+                              ButtonSegment(value: _Panel.partido, label: Text('Partido')),
                               ButtonSegment(value: _Panel.relato, label: Text('Relato')),
                             ],
                             selected: {_panel},
@@ -421,14 +605,23 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                           ),
                         ),
                         Expanded(
-                          child: _panel == _Panel.jugadores
-                              ? _EstadisticasVivo(
-                                  jugadores: [..._m.enCancha(usuarioLocal), ?_m.enBanco(usuarioLocal)],
-                                  enCancha: {for (final j in _m.enCancha(usuarioLocal)) j.id},
-                                  box: _box,
-                                  energia: _m.energias(usuarioLocal),
-                                )
-                              : _RelatoCompleto(lineas: _relato),
+                          child: switch (_panel) {
+                            _Panel.jugadores => _EstadisticasVivo(
+                              jugadores: [..._m.enCancha(usuarioLocal), ?_m.enBanco(usuarioLocal)],
+                              enCancha: {for (final j in _m.enCancha(usuarioLocal)) j.id},
+                              box: _box,
+                              energia: _m.energias(usuarioLocal),
+                            ),
+                            _Panel.tiros => _MapaTiros(tiros: _tiros, box: _box),
+                            _Panel.partido => _PanelPartido(
+                              probabilidad: _probabilidad,
+                              parciales: _parciales,
+                              local: widget.identidadLocal,
+                              visitante: widget.identidadVisitante,
+                              usuarioLocal: usuarioLocal,
+                            ),
+                            _Panel.relato => _RelatoCompleto(lineas: _relato),
+                          },
                         ),
                       ],
                     ),
@@ -461,6 +654,10 @@ class _MarcadorTV extends StatelessWidget {
     required this.puntos,
     required this.cuarto,
     required this.reloj,
+    required this.posesion,
+    required this.faltas,
+    required this.tiemposMuertos,
+    required this.clutch,
     required this.onSalir,
   });
 
@@ -468,6 +665,11 @@ class _MarcadorTV extends StatelessWidget {
   final (int, int) puntos;
   final int cuarto;
   final double reloj;
+
+  /// Reloj de posesión (24 segundos).
+  final double posesion;
+  final (int, int) faltas, tiemposMuertos;
+  final bool clutch;
   final VoidCallback onSalir;
 
   @override
@@ -516,34 +718,121 @@ class _MarcadorTV extends StatelessWidget {
       );
     }
 
-    return Semantics(
-      label:
-          '${local.nombre} ${puntos.$1}, ${visitante.nombre} ${puntos.$2}, $periodo, $minutos minutos $segundos segundos',
-      child: ExcludeSemantics(
+    // Debajo de cada equipo: tiempos muertos que le quedan (puntitos) y faltas del cuarto.
+    Widget detalle(int tm, int f, bool derecha) => Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
         child: Row(
+          textDirection: derecha ? TextDirection.rtl : TextDirection.ltr,
           children: [
-            Material(
-              color: esquema.surfaceContainerLowest.withValues(alpha: 0.9),
-              shape: const CircleBorder(),
-              child: IconButton(onPressed: onSalir, icon: const Icon(Icons.close), tooltip: 'Salir del partido'),
-            ),
+            for (var k = 0; k < 5; k++)
+              Container(
+                width: 5,
+                height: 5,
+                margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: k < tm ? Colors.white : Colors.white.withValues(alpha: 0.18),
+                ),
+              ),
             const SizedBox(width: 6),
-            equipo(local, puntos.$1, false),
-            Container(
-              height: 44,
-              width: 74,
-              color: esquema.surfaceContainerLowest,
-              padding: const EdgeInsets.symmetric(vertical: 3),
+            Expanded(
               child: FittedBox(
-                child: Column(
-                  children: [
-                    TextoLed(periodo, tamano: 12, color: esquema.onSurfaceVariant),
-                    TextoLed('$minutos:${'$segundos'.padLeft(2, '0')}', tamano: 19),
-                  ],
+                fit: BoxFit.scaleDown,
+                alignment: derecha ? Alignment.centerLeft : Alignment.centerRight,
+                child: Text(
+                  f >= 5 ? 'BONUS' : 'FALTAS $f',
+                  style: TextStyle(
+                    fontFamily: Fuentes.estadio,
+                    fontVariations: const [FontVariation.weight(700)],
+                    fontSize: 11,
+                    letterSpacing: 0.8,
+                    color: f >= 5 ? const Color(0xFFFFB020) : Colors.white.withValues(alpha: 0.75),
+                  ),
                 ),
               ),
             ),
-            equipo(visitante, puntos.$2, true),
+          ],
+        ),
+      ),
+    );
+
+    final p24 = posesion.ceil().clamp(0, 24);
+    return Semantics(
+      label:
+          '${local.nombre} ${puntos.$1}, ${visitante.nombre} ${puntos.$2}, $periodo, $minutos minutos $segundos segundos'
+          '${clutch ? ', momento clutch' : ''}',
+      child: ExcludeSemantics(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Material(
+                  color: esquema.surfaceContainerLowest.withValues(alpha: 0.9),
+                  shape: const CircleBorder(),
+                  child: IconButton(onPressed: onSalir, icon: const Icon(Icons.close), tooltip: 'Salir del partido'),
+                ),
+                const SizedBox(width: 6),
+                equipo(local, puntos.$1, false),
+                Container(
+                  height: 44,
+                  width: 74,
+                  color: esquema.surfaceContainerLowest,
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: FittedBox(
+                    child: Column(
+                      children: [
+                        TextoLed(periodo, tamano: 12, color: esquema.onSurfaceVariant),
+                        TextoLed('$minutos:${'$segundos'.padLeft(2, '0')}', tamano: 19),
+                      ],
+                    ),
+                  ),
+                ),
+                equipo(visitante, puntos.$2, true),
+              ],
+            ),
+            Row(
+              children: [
+                const SizedBox(width: 54),
+                Expanded(
+                  child: Container(
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: esquema.surfaceContainerLowest.withValues(alpha: 0.9),
+                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+                    ),
+                    child: Row(
+                      children: [
+                        detalle(tiemposMuertos.$1, faltas.$1, false),
+                        SizedBox(
+                          width: 74,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              TextoLed('$p24', tamano: 14, color: p24 <= 5 ? esquema.error : const Color(0xFFFFB020)),
+                              if (clutch) ...[
+                                const SizedBox(width: 4),
+                                Text(
+                                  'CLUTCH',
+                                  style: TextStyle(
+                                    fontFamily: Fuentes.estadio,
+                                    fontVariations: const [FontVariation.weight(800)],
+                                    fontSize: 11,
+                                    color: esquema.primary,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        detalle(tiemposMuertos.$2, faltas.$2, true),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -615,6 +904,8 @@ class _Controles extends StatelessWidget {
   const _Controles({
     required this.pausado,
     required this.onPausa,
+    required this.silencio,
+    required this.onSilencio,
     required this.velocidad,
     required this.onVelocidad,
     required this.tiemposMuertos,
@@ -627,6 +918,8 @@ class _Controles extends StatelessWidget {
 
   final bool pausado;
   final VoidCallback? onPausa;
+  final bool silencio;
+  final VoidCallback onSilencio;
   final int velocidad;
   final ValueChanged<int> onVelocidad;
   final int tiemposMuertos;
@@ -667,11 +960,22 @@ class _Controles extends StatelessWidget {
             ),
           ],
         ),
-        Wrap(
-          spacing: 8,
+        Row(
           children: [
-            FilterChip(label: const Text('Acelerar ritmo'), selected: acelerar, onSelected: onAcelerar),
-            FilterChip(label: const Text('Presión alta'), selected: presion, onSelected: onPresion),
+            Expanded(
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  FilterChip(label: const Text('Acelerar ritmo'), selected: acelerar, onSelected: onAcelerar),
+                  FilterChip(label: const Text('Presión alta'), selected: presion, onSelected: onPresion),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: onSilencio,
+              icon: Icon(silencio ? Icons.volume_off : Icons.volume_up),
+              tooltip: silencio ? 'Activar sonido' : 'Silenciar',
+            ),
           ],
         ),
       ],
@@ -778,6 +1082,228 @@ class _EstadisticasVivo extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Mapa de tiros de tu equipo: media cancha con el aro arriba; lleno = adentro, cruz = errado.
+class _MapaTiros extends StatelessWidget {
+  const _MapaTiros({required this.tiros, required this.box});
+
+  final List<_Tiro> tiros;
+  final Map<String, LineaEstadistica> box;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final total = box.values.fold(LineaEstadistica(), (a, l) => a..sumar(l));
+    String pct(int i, int a) => a == 0 ? '–' : '${(100 * i / a).round()}%';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Semantics(
+              label: 'Mapa de tiros: ${tiros.where((t) => t.$2).length} adentro de ${tiros.length}',
+              child: AspectRatio(
+                aspectRatio: 50 / 32,
+                child: CustomPaint(
+                  painter: _MapaTirosPainter(
+                    tiros: tiros,
+                    adentro: esquema.primary,
+                    errado: esquema.onSurfaceVariant,
+                    lineas: esquema.outlineVariant,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (final (sigla, i, a) in [
+                ('TC', total.tcI, total.tcA),
+                ('T3', total.t3I, total.t3A),
+                ('TL', total.tlI, total.tlA),
+              ]) ...[
+                TextoLed('$i/$a', tamano: 18, color: esquema.onSurface),
+                Text(
+                  '$sigla · ${pct(i, a)}',
+                  style: tema.textTheme.labelSmall?.copyWith(color: esquema.onSurfaceVariant),
+                ),
+                const SizedBox(height: 6),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapaTirosPainter extends CustomPainter {
+  _MapaTirosPainter({required this.tiros, required this.adentro, required this.errado, required this.lineas});
+
+  final List<_Tiro> tiros;
+  final Color adentro, errado, lineas;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final pie = size.width / 50;
+    Offset p(double x, double y) => Offset(x * pie, y * pie);
+    final linea = Paint()
+      ..color = lineas
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    canvas.drawRect(Offset.zero & size, linea);
+    canvas.drawRect(Rect.fromPoints(p(17, 0), p(33, 19)), linea);
+    canvas.drawCircle(p(25, 19), 6 * pie, linea);
+    canvas.drawCircle(p(25, 5.25), 0.75 * pie, linea..color = const Color(0xFFF26A1B));
+    linea.color = lineas;
+    final ang = asin(8.95 / 23.75);
+    canvas.drawLine(p(3, 0), p(3, 14.2), linea);
+    canvas.drawLine(p(47, 0), p(47, 14.2), linea);
+    canvas.drawArc(Rect.fromCircle(center: p(25, 5.25), radius: 23.75 * pie), ang, pi - 2 * ang, false, linea);
+    final r = max(2.5, pie * 0.9);
+    for (final (punto, entro) in tiros) {
+      final c = p(punto.dx, min(punto.dy, 31));
+      if (entro) {
+        canvas.drawCircle(c, r, Paint()..color = adentro);
+      } else {
+        final cruz = Paint()
+          ..color = errado
+          ..strokeWidth = 1.4;
+        canvas.drawLine(c - Offset(r, r), c + Offset(r, r), cruz);
+        canvas.drawLine(c + Offset(-r, r), c + Offset(r, -r), cruz);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MapaTirosPainter viejo) => viejo.tiros.length != tiros.length;
+}
+
+/// Probabilidad de ganar a lo largo del partido y los parciales por cuarto.
+class _PanelPartido extends StatelessWidget {
+  const _PanelPartido({
+    required this.probabilidad,
+    required this.parciales,
+    required this.local,
+    required this.visitante,
+    required this.usuarioLocal,
+  });
+
+  final List<(double, double)> probabilidad;
+  final (List<int>, List<int>) parciales;
+  final Franquicia local, visitante;
+  final bool usuarioLocal;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final actual = probabilidad.last.$2;
+    final numeros = TextStyle(
+      fontFamily: Fuentes.led,
+      fontVariations: const [FontVariation.weight(800)],
+      fontFeatures: const [FontFeature.tabularFigures()],
+      fontSize: 14,
+      color: esquema.onSurface,
+    );
+    final periodos = max(4, parciales.$1.length);
+    String et(int i) => i < 4 ? '${i + 1}' : 'OT${i > 4 ? i - 3 : ''}';
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      children: [
+        Row(
+          children: [
+            Text('Probabilidad de ganar', style: tema.textTheme.labelMedium?.copyWith(color: esquema.onSurfaceVariant)),
+            const Spacer(),
+            TextoLed('${(100 * actual).round()}%', tamano: 18),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Semantics(
+          label: 'Probabilidad de ganar: ${(100 * actual).round()} por ciento',
+          child: SizedBox(
+            height: 70,
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: _ProbabilidadPainter(puntos: probabilidad, linea: esquema.primary, guia: esquema.outlineVariant),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Table(
+          columnWidths: const {0: FlexColumnWidth(2)},
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          children: [
+            TableRow(
+              children: [
+                const SizedBox(),
+                for (var i = 0; i < periodos; i++)
+                  Text(et(i), textAlign: TextAlign.end, style: tema.textTheme.labelSmall),
+                Text('T', textAlign: TextAlign.end, style: tema.textTheme.labelSmall),
+              ],
+            ),
+            for (final (f, ps) in [(local, parciales.$1), (visitante, parciales.$2)])
+              TableRow(
+                children: [
+                  Row(
+                    children: [
+                      Escudo(f, tamano: 18),
+                      const SizedBox(width: 6),
+                      Text(f.id, style: tema.textTheme.bodySmall),
+                    ],
+                  ),
+                  for (var i = 0; i < periodos; i++)
+                    Text(i < ps.length ? '${ps[i]}' : '–', textAlign: TextAlign.end, style: numeros),
+                  Text('${ps.fold(0, (a, b) => a + b)}', textAlign: TextAlign.end, style: numeros),
+                ],
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ProbabilidadPainter extends CustomPainter {
+  _ProbabilidadPainter({required this.puntos, required this.linea, required this.guia});
+
+  final List<(double, double)> puntos;
+  final Color linea, guia;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fin = max(2880.0, puntos.last.$1);
+    Offset p(double x, double y) => Offset(x / fin * size.width, (1 - y) * size.height);
+    final g = Paint()
+      ..color = guia
+      ..strokeWidth = 1;
+    canvas.drawLine(p(0, 0.5), p(fin, 0.5), g);
+    for (var q = 1; q < 4; q++) {
+      canvas.drawLine(p(q * 720, 0), p(q * 720, 1), g..color = guia.withValues(alpha: 0.4));
+    }
+    final camino = Path()..moveTo(p(puntos.first.$1, puntos.first.$2).dx, p(0, puntos.first.$2).dy);
+    for (final (x, y) in puntos.skip(1)) {
+      final punto = p(x, y);
+      camino.lineTo(punto.dx, punto.dy);
+    }
+    canvas.drawPath(
+      camino,
+      Paint()
+        ..color = linea
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawCircle(p(puntos.last.$1, puntos.last.$2), 3, Paint()..color = linea);
+  }
+
+  @override
+  bool shouldRepaint(_ProbabilidadPainter viejo) => viejo.puntos.length != puntos.length;
 }
 
 class _RelatoCompleto extends StatelessWidget {

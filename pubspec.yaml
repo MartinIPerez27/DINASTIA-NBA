@@ -37,6 +37,7 @@ flutter:
     - assets/database/
     - assets/logos/
     - assets/logos/historicos/
+    - assets/sonidos/
     - assets/fonts/OFL-Doto.txt
     - assets/fonts/OFL-BigShoulders.txt
   fonts:

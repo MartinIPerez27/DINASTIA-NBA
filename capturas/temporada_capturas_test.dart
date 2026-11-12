@@ -9,6 +9,7 @@ import 'package:dinastia_nba/domain/entities/posicion.dart';
 import 'package:dinastia_nba/domain/entities/temporada.dart';
 import 'package:dinastia_nba/domain/liga.dart';
 import 'package:dinastia_nba/presentation/pantallas/partido_pantalla.dart';
+import 'package:dinastia_nba/presentation/partido/sonido_partido.dart';
 import 'package:dinastia_nba/presentation/pantallas/playoffs_pantalla.dart';
 import 'package:dinastia_nba/presentation/pantallas/stats82_pantalla.dart';
 import 'package:dinastia_nba/presentation/pantallas/temporada_pantalla.dart';
@@ -31,6 +32,7 @@ void main() {
   final liga = Liga(catalogo, franquicias, azar: Random(7));
   late Temporada temporada;
   setUpAll(() async {
+    SonidoPartido.habilitado = false;
     JugadorAvatar.usarRed = false;
     const mf = '/opt/flutter/bin/cache/artifacts/material_fonts';
     await _fuente('Roboto', ['$mf/Roboto-Regular.ttf', '$mf/Roboto-Medium.ttf', '$mf/Roboto-Bold.ttf']);
@@ -101,6 +103,16 @@ void main() {
       await t.pump(Duration(milliseconds: ms));
       await expectLater(find.byType(MaterialApp), matchesGoldenFile('salida/vivo-$i.png'));
     }
+    // Un rato más de partido para que los paneles tengan datos.
+    await t.tap(find.text('x4'));
+    for (var i = 0; i < 400; i++) {
+      await t.pump(const Duration(milliseconds: 300));
+    }
+    for (final panel in ['Tiros', 'Partido']) {
+      await t.tap(find.text(panel));
+      await t.pump();
+      await expectLater(find.byType(MaterialApp), matchesGoldenFile('salida/vivo-$panel.png'));
+    }
   });
 
   testWidgets('playoffs y stats 82', (t) async {
@@ -111,11 +123,8 @@ void main() {
     }
     fin = liga.iniciarPlayoffs(liga.simularOtrosHasta(fin, 1 << 30));
     final enCurso = liga.simularPartidoPlayoff(liga.simularPartidoPlayoff(fin));
-    Widget app(Widget home) => MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: temaFranquicia(franquiciaPorId('CHI')),
-      home: home,
-    );
+    Widget app(Widget home) =>
+        MaterialApp(debugShowCheckedModeBanner: false, theme: temaFranquicia(franquiciaPorId('CHI')), home: home);
     await t.pumpWidget(app(PlayoffsPantalla(temporada: enCurso, liga: liga, onCambio: (_) {})));
     await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
     await t.pumpAndSettle();

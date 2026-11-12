@@ -29,12 +29,12 @@ class Liga {
       calendario: generarCalendario(franquicias, _azar),
       rivales: {
         for (final f in franquicias)
-          if (f.id != t.franquiciaUsuarioId) f.id: _armarRival(f.id, propios),
+          if (f.id != t.franquiciaUsuarioId) f.id: _armarRival(f.id, propios, t.dificultad),
       },
     );
   }
 
-  Rival _armarRival(String franquiciaId, Set<int> excluidos) {
+  Rival _armarRival(String franquiciaId, Set<int> excluidos, Dificultad dificultad) {
     final propias = [
       for (final j in catalogo)
         if (j.franquiciaId == franquiciaId && !excluidos.contains(j.nbaPlayerId)) j,
@@ -44,7 +44,11 @@ class Liga {
     if (tipo == TipoRival.epoca && epocas.isNotEmpty) {
       final epoca = epocas[_azar.nextInt(epocas.length)];
       final deEsaEpoca = propias.where((j) => j.epoca == epoca).toList();
-      final plantel = _armarPlantel(deEsaEpoca, variedad: 1);
+      final plantel = _armarPlantel(
+        deEsaEpoca,
+        variedad: dificultad.mediaRivales == null ? 1 : 2,
+        objetivo: dificultad.mediaRivales,
+      );
       if (plantel != null) {
         final identidades = <String, int>{};
         for (final j in deEsaEpoca) {
@@ -54,12 +58,19 @@ class Liga {
         return _rival(franquiciaId, TipoRival.epoca, plantel, identidad, epoca: epoca);
       }
     }
-    return _rival(franquiciaId, TipoRival.historico, _armarPlantel(propias, variedad: 4)!, franquiciaId);
+    final plantel = _armarPlantel(propias, variedad: 3, objetivo: dificultad.mediaRivales)!;
+    return _rival(franquiciaId, TipoRival.historico, plantel, franquiciaId);
   }
 
-  /// Arma 5 titulares + Sexto Hombre: por puesto, al azar entre los [variedad] de más media.
-  Plantel? _armarPlantel(List<Jugador> pool, {required int variedad}) {
-    final ordenadas = [...pool]..sort((a, b) => b.media.compareTo(a.media));
+  /// Arma 5 titulares + Sexto Hombre: por puesto, al azar entre los [variedad] de más media
+  /// (o, con [objetivo], entre los de media más cercana a esa: así se regula la dificultad).
+  Plantel? _armarPlantel(List<Jugador> pool, {required int variedad, int? objetivo}) {
+    final ordenadas = [...pool]
+      ..sort(
+        (a, b) => objetivo == null
+            ? b.media.compareTo(a.media)
+            : (a.media - objetivo).abs().compareTo((b.media - objetivo).abs()),
+      );
     var plantel = const Plantel();
     // Primero los puestos con menos candidatos, para no quedarse sin pívot o base.
     final puestos = [...Posicion.titulares]

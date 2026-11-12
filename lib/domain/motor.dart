@@ -183,6 +183,7 @@ class _Lado {
   final box = <String, LineaEstadistica>{};
   final parciales = <int>[0];
   int tiemposMuertos = 5;
+  int faltas = 0; // faltas del equipo en el cuarto
   int racha = 0; // puntos seguidos sin respuesta del rival
   bool acelerar = false, presion = false;
 
@@ -227,6 +228,27 @@ class MotorPartido {
   List<Jugador> enCancha(bool local) => List.unmodifiable((local ? _l : _v).enCancha);
   Jugador? enBanco(bool local) => (local ? _l : _v).banco;
   int tiemposMuertos(bool local) => (local ? _l : _v).tiemposMuertos;
+
+  /// Faltas del equipo en el cuarto que se está jugando.
+  int faltas(bool local) => (local ? _l : _v).faltas;
+
+  /// Momento clutch: últimos 5 minutos del 4.º cuarto (o prórroga) con 6 puntos o menos de diferencia.
+  bool get momentoClutch => cuarto >= 4 && reloj <= 300 && (_l.puntos - _v.puntos).abs() <= 6;
+
+  /// Sangre fría en los finales (no hay estadística de clutch en los datos): se deduce del nivel de la
+  /// carta (premios), su IQ y su %TL. Va de -0.5 (se achica) a ~1.6 (vive para ese momento).
+  static double clutch(Jugador j) {
+    final nivel = switch (j.tier) {
+      Tier.sPlus => 1.0,
+      Tier.s => 0.6,
+      Tier.a => 0.2,
+      Tier.b => -0.2,
+    };
+    return (nivel + (j.stats.iq - 75) / 50 + (j.stats.pctTl - 0.75) * 2).clamp(-0.5, 1.6);
+  }
+
+  /// Cuánto pesa en el tiro la diferencia de media entre el tirador y la defensa en cancha.
+  static const pesoDiferencia = 1 / 250;
 
   /// Intervenciones del entrenador (GDD §6).
   void acelerarRitmo(bool local, bool activo) => (local ? _l : _v).acelerar = activo;
@@ -279,6 +301,8 @@ class MotorPartido {
     reloj = cuarto > 4 ? _duracionProrroga : _duracionCuarto;
     _l.parciales.add(0);
     _v.parciales.add(0);
+    _l.faltas = 0;
+    _v.faltas = 0;
     for (final lado in [_l, _v]) {
       for (final id in lado.energia.keys) {
         lado.energia[id] = min(100, lado.energia[id]! + 12); // descanso entre cuartos
@@ -356,11 +380,16 @@ class MotorPartido {
     }
 
     // Tiro: quién y de dónde.
-    final efectoEstrella = ataque.ofensivo.estrella * defensa.defensivo.estrella;
+    final clutch = momentoClutch;
+    // En el final apretado, la pelota busca al que más se agranda.
+    final efectoEstrella = ataque.ofensivo.estrella * defensa.defensivo.estrella * (clutch ? 1.6 : 1);
     final estrella = ataque.enCancha.reduce((a, b) => a.stats.ppp > b.stats.ppp ? a : b);
     final tirador = _elegir(
       ataque.enCancha,
-      (j) => pow(j.stats.ppp * 36 / max(j.stats.minP, 12), 1.3) * (j == estrella ? efectoEstrella : 1).toDouble(),
+      (j) =>
+          pow(j.stats.ppp * 36 / max(j.stats.minP, 12), 1.3) *
+          (j == estrella ? efectoEstrella : 1).toDouble() *
+          (clutch ? 1 + 0.4 * max(0, MotorPartido.clutch(j)) : 1),
     );
     final s = tirador.stats;
     final tasaTriple = _tasaTriples(tirador) * ataque.ofensivo.triples;
@@ -374,7 +403,10 @@ class MotorPartido {
 
     var p = triple ? s.pctT3.clamp(0.22, 0.46) : _pctDos(tirador);
     p *= triple ? defensa.defensivo.tripleRival : defensa.defensivo.interiorRival;
-    p += (tirador.media - 80) / 400; // las cartas de más media rinden más que sus porcentajes
+    // La calidad manda: las cartas de más media rinden más y una defensa de cracks cierra más.
+    p += (tirador.media - _media(defensa.enCancha, (j) => j.media.toDouble())) * pesoDiferencia;
+    p += 0.035 + (tirador.media - 82) / 400;
+    if (clutch) p += MotorPartido.clutch(tirador) * 0.03;
     p += (ataque.afinidadOfensiva - defensa.afinidadDefensiva) / 1500;
     p -= _media(defensa.enCancha, (j) => j.stats.robP + j.stats.tapP) / 60;
     if (contraataque) p += 0.14;
@@ -386,6 +418,7 @@ class MotorPartido {
     p = p.clamp(0.15, 0.8);
 
     final falta = _azar.nextDouble() < 0.07 + s.pctTl * 0.04 + (triple ? 0 : 0.03);
+    if (falta) defensa.faltas++;
     final convertido = _azar.nextDouble() < p;
     final caja = ataque.box[tirador.id]!;
     caja.tcA++;
@@ -403,6 +436,7 @@ class MotorPartido {
       final texto = StringBuffer(triple ? '¡Triple de ${tirador.nombre}!' : 'Doble de ${tirador.nombre}.');
       if (asistente != null) texto.write(' Asistencia de ${asistente.nombre}.');
       if (falta) texto.write(extra > 0 ? ' ¡Y la falta!' : ' Falla el adicional.');
+      if (clutch && MotorPartido.clutch(tirador) >= 1) texto.write(' ¡Sangre fría!');
       return _evento(
         TipoEvento.tiro,
         ataque == _l,
@@ -496,7 +530,8 @@ class MotorPartido {
     final caja = lado.box[tirador.id]!;
     for (var i = 0; i < cantidad; i++) {
       caja.tlA++;
-      if (_azar.nextDouble() < tirador.stats.pctTl.clamp(0.4, 0.95)) {
+      final presion = momentoClutch ? MotorPartido.clutch(tirador) * 0.03 - 0.02 : 0;
+      if (_azar.nextDouble() < (tirador.stats.pctTl + presion).clamp(0.4, 0.95)) {
         caja.tlI++;
         anotados++;
       }

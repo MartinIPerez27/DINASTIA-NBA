@@ -90,6 +90,20 @@ class SeriePlayoff {
   };
 }
 
+/// Qué tan fuertes son los rivales (se elige al empezar la partida).
+enum Dificultad {
+  normal('Normal', 'Rivales a la altura de un buen draft: con un gran plantel, el 82-0 está a tiro.', 79),
+  dificil('Difícil', 'Rivales con muchas figuras. Cada victoria cuesta.', 82),
+  leyenda('Leyenda', 'Cada rival es lo mejor de su historia o de su época. El 82-0 es una hazaña.', null);
+
+  const Dificultad(this.nombre, this.descripcion, this.mediaRivales);
+  final String nombre;
+  final String descripcion;
+
+  /// Media a la que apuntan los planteles rivales (null: lo mejor que tenga cada franquicia).
+  final int? mediaRivales;
+}
+
 enum FaseTemporada { draft, tacticas, temporadaRegular, playoffs, finalizada }
 
 /// Partida guardada: todo lo que el usuario construyó y jugó en una temporada.
@@ -109,6 +123,7 @@ class Temporada {
     this.rivales = const {},
     this.lineas = const {},
     this.lineasPlayoffs = const {},
+    this.dificultad = Dificultad.normal,
   });
 
   static const rerollsPorTemporada = 3;
@@ -142,6 +157,8 @@ class Temporada {
 
   /// Estadísticas de los playoffs (por id de carta).
   final Map<String, LineaEstadistica> lineasPlayoffs;
+
+  final Dificultad dificultad;
 
   /// Ganador de Las Finales (null mientras se juegan).
   String? get campeonId {
@@ -237,6 +254,7 @@ class Temporada {
     rivales: rivales ?? this.rivales,
     lineas: lineas ?? this.lineas,
     lineasPlayoffs: lineasPlayoffs ?? this.lineasPlayoffs,
+    dificultad: dificultad,
   );
 
   Temporada conTirada(Tirada? nueva) => _con(tirada: nueva, oferta: oferta);
@@ -258,6 +276,7 @@ class Temporada {
     rivales: rivales,
     lineas: lineas,
     lineasPlayoffs: lineasPlayoffs,
+    dificultad: dificultad,
   );
 
   factory Temporada.fromJson(Map<String, dynamic> j) => Temporada(
@@ -286,6 +305,8 @@ class Temporada {
       for (final e in (j['lineasPlayoffs'] as Map<String, dynamic>? ?? {}).entries)
         e.key: LineaEstadistica.fromJson(e.value as Map<String, dynamic>),
     },
+    // Las partidas de antes del selector se armaron con rivales casi all-time.
+    dificultad: Dificultad.values.byName(j['dificultad'] as String? ?? 'leyenda'),
   );
 
   Map<String, dynamic> toJson() => {
@@ -299,6 +320,7 @@ class Temporada {
     if (tirada != null) 'tirada': tirada!.toJson(),
     'tacticaConfirmada': tacticaConfirmada,
     'modo': modo.name,
+    'dificultad': dificultad.name,
     if (oferta != null) 'oferta': oferta!.toJson(),
     if (rivales.isNotEmpty) 'rivales': {for (final e in rivales.entries) e.key: e.value.toJson()},
     if (lineas.isNotEmpty) 'lineas': {for (final e in lineas.entries) e.key: e.value.toJson()},
