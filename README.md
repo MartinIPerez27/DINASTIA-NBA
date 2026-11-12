@@ -1,7 +1,7 @@
 # Dinastía NBA (82-0)
 
 Draft roguelike y simulación de temporada NBA para celulares y tablets. 100% gratuito y offline.
-El diseño completo está en el GDD; este repo avanza por fases (ahora: **Fase 3 — draft con cancha y tragamonedas**).
+El diseño completo está en el GDD; este repo avanza por fases (ahora: **Fase 4 — playbook con asistente de recomendación**).
 Dirección visual: *El Marcador* (el tablero central del estadio), ver `PRODUCT.md` y `DESIGN.md`.
 
 ## Probarlo en el celular Android (sin instalar nada en la PC)

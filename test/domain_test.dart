@@ -182,6 +182,7 @@ void main() {
         id: 't1',
         franquiciaUsuarioId: 'CHI',
         plantel: plantel,
+        tacticaConfirmada: true,
         calendario: [
           const Partido(
             id: 'p1',

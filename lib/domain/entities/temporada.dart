@@ -87,7 +87,7 @@ class SeriePlayoff {
   };
 }
 
-enum FaseTemporada { draft, temporadaRegular, playoffs, finalizada }
+enum FaseTemporada { draft, tacticas, temporadaRegular, playoffs, finalizada }
 
 /// Partida guardada: todo lo que el usuario construyó y jugó en una temporada.
 class Temporada {
@@ -100,6 +100,7 @@ class Temporada {
     this.calendario = const [],
     this.series = const [],
     this.tirada,
+    this.tacticaConfirmada = false,
   });
 
   static const rerollsPorTemporada = 3;
@@ -117,8 +118,12 @@ class Temporada {
   /// Tirada del tragamonedas pendiente de elegir carta (null si no hay).
   final Tirada? tirada;
 
+  /// El usuario ya eligió su playbook (Fase 4); se puede seguir cambiando durante la temporada.
+  final bool tacticaConfirmada;
+
   FaseTemporada get fase {
     if (!plantel.completo) return FaseTemporada.draft;
+    if (!tacticaConfirmada) return FaseTemporada.tacticas;
     if (calendario.isEmpty || calendario.any((p) => !p.jugado)) {
       return FaseTemporada.temporadaRegular;
     }
@@ -165,6 +170,7 @@ class Temporada {
     int? rerollsRestantes,
     List<Partido>? calendario,
     List<SeriePlayoff>? series,
+    bool? tacticaConfirmada,
   }) => Temporada(
     id: id,
     franquiciaUsuarioId: franquiciaUsuarioId,
@@ -174,6 +180,7 @@ class Temporada {
     calendario: calendario == null ? this.calendario : List.unmodifiable(calendario),
     series: series == null ? this.series : List.unmodifiable(series),
     tirada: tirada,
+    tacticaConfirmada: tacticaConfirmada ?? this.tacticaConfirmada,
   );
 
   Temporada conTirada(Tirada? nueva) => Temporada(
@@ -185,6 +192,7 @@ class Temporada {
     calendario: calendario,
     series: series,
     tirada: nueva,
+    tacticaConfirmada: tacticaConfirmada,
   );
 
   factory Temporada.fromJson(Map<String, dynamic> j) => Temporada(
@@ -198,6 +206,7 @@ class Temporada {
     ]),
     series: List.unmodifiable([for (final s in j['series'] as List) SeriePlayoff.fromJson(s as Map<String, dynamic>)]),
     tirada: j['tirada'] == null ? null : Tirada.fromJson(j['tirada'] as Map<String, dynamic>),
+    tacticaConfirmada: j['tacticaConfirmada'] as bool? ?? false,
   );
 
   Map<String, dynamic> toJson() => {
@@ -209,5 +218,6 @@ class Temporada {
     'calendario': [for (final p in calendario) p.toJson()],
     'series': [for (final s in series) s.toJson()],
     if (tirada != null) 'tirada': tirada!.toJson(),
+    'tacticaConfirmada': tacticaConfirmada,
   };
 }

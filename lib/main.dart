@@ -8,6 +8,7 @@ import 'domain/entities/franquicia.dart';
 import 'domain/entities/temporada.dart';
 import 'presentation/pantallas/draft_pantalla.dart';
 import 'presentation/pantallas/inicio_pantalla.dart';
+import 'presentation/pantallas/playbook_pantalla.dart';
 import 'presentation/tema/tema_franquicia.dart';
 
 Future<void> main() async {
@@ -46,12 +47,27 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   late Franquicia _enfocada = franquiciaPorId(widget.guardada?.franquiciaUsuarioId ?? 'CHI');
   late Temporada? _guardada = widget.guardada;
 
-  void _abrirDraft(Temporada t) {
+  /// Abre la pantalla que corresponde a la fase de la temporada.
+  void _abrirTemporada(Temporada t, {bool reemplazar = false}) {
     setState(() => _enfocada = franquiciaPorId(t.franquiciaUsuarioId));
-    _navegador.currentState!.push(
-      MaterialPageRoute(
-        builder: (_) => DraftPantalla(temporada: t, onCambio: _guardarCambios),
-      ),
+    final pantalla = t.fase == FaseTemporada.draft
+        ? DraftPantalla(
+            temporada: t,
+            onCambio: _guardarCambios,
+            onCompleto: () => _abrirTemporada(_guardada!, reemplazar: true),
+          )
+        : PlaybookPantalla(temporada: t, onConfirmar: _confirmarTacticas);
+    final ruta = MaterialPageRoute<void>(builder: (_) => pantalla);
+    final navegador = _navegador.currentState!;
+    reemplazar ? navegador.pushReplacement(ruta) : navegador.push(ruta);
+  }
+
+  // shortcut: hasta la Fase 5 no hay pantalla de temporada; al confirmar se vuelve al inicio.
+  Future<void> _confirmarTacticas(Temporada t) async {
+    await _guardarCambios(t);
+    _navegador.currentState!.pop();
+    ScaffoldMessenger.of(_navegador.currentContext!).showSnackBar(
+      SnackBar(content: Text('Tácticas listas: ${t.tactica.ofensiva.nombre} + ${t.tactica.defensiva.nombre}.')),
     );
   }
 
@@ -62,7 +78,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       await widget.db?.guardarTemporada(t);
     } catch (e) {
       ScaffoldMessenger.of(_navegador.currentContext!)
-          .showSnackBar(const SnackBar(content: Text('No se pudo guardar el progreso del draft.')));
+          .showSnackBar(const SnackBar(content: Text('No se pudo guardar el progreso.')));
     }
   }
 
@@ -75,7 +91,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       ScaffoldMessenger.of(_navegador.currentContext!)
           .showSnackBar(const SnackBar(content: Text('No se pudo guardar la temporada. Podés jugar igual.')));
     }
-    _abrirDraft(t);
+    _abrirTemporada(t);
   }
 
   @override
@@ -92,7 +108,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       onEnfocar: (f) => setState(() => _enfocada = f),
       onDirigir: _dirigir,
       guardada: _guardada,
-      onSeguir: _guardada == null ? null : () => _abrirDraft(_guardada!),
+      onSeguir: _guardada == null ? null : () => _abrirTemporada(_guardada!),
     ),
   );
 }

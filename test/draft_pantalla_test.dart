@@ -50,7 +50,7 @@ void main() {
 
     expect(guardadas.last.plantel.completo, isTrue);
     expect(guardadas.last.rerollsRestantes, 3, reason: 'no se usó ninguna ficha');
-    expect(find.text('VOLVER AL INICIO'), findsOneWidget);
+    expect(find.text('ELEGIR TÁCTICAS'), findsOneWidget);
   });
 
   testWidgets('volver a tirar gasta una ficha y respeta el carrete retenido', (tester) async {

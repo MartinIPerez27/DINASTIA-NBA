@@ -18,10 +18,20 @@ import '../widgets/carta_jugador.dart';
 /// Draft 82-0 (GDD §4): tirar los carretes, elegir una de las cartas que salieron y tocar su
 /// puesto en la cancha. Cada cambio se informa con [onCambio] para guardarlo al instante.
 class DraftPantalla extends StatefulWidget {
-  const DraftPantalla({super.key, required this.temporada, required this.onCambio, this.catalogo, this.azar});
+  const DraftPantalla({
+    super.key,
+    required this.temporada,
+    required this.onCambio,
+    this.onCompleto,
+    this.catalogo,
+    this.azar,
+  });
 
   final Temporada temporada;
   final ValueChanged<Temporada> onCambio;
+
+  /// Con el plantel completo, el botón principal pasa a las tácticas.
+  final VoidCallback? onCompleto;
 
   /// Solo para tests; en la app se carga el catálogo empaquetado.
   final List<Jugador>? catalogo;
@@ -176,9 +186,13 @@ class _DraftPantallaState extends State<DraftPantalla> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('¡Plantel completo! Las tácticas llegan en la Fase 4.', style: ayuda, textAlign: TextAlign.center),
+          Text(
+            '¡Plantel completo! Mantené apretada una carta para ver su ficha.',
+            style: ayuda,
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 12),
-          FilledButton(onPressed: () => Navigator.of(context).pop(), child: const Text('VOLVER AL INICIO')),
+          FilledButton(onPressed: widget.onCompleto, child: const Text('ELEGIR TÁCTICAS')),
         ],
       );
     }

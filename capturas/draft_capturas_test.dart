@@ -7,6 +7,10 @@ import 'package:dinastia_nba/data/catalogo_jugadores.dart';
 import 'package:dinastia_nba/data/franquicias.dart';
 import 'package:dinastia_nba/domain/entities/temporada.dart';
 import 'package:dinastia_nba/presentation/pantallas/draft_pantalla.dart';
+import 'package:dinastia_nba/presentation/pantallas/playbook_pantalla.dart';
+
+import '../test/playbook_pantalla_test.dart' show temporadaConPlantel;
+
 import 'package:dinastia_nba/presentation/tema/tema_franquicia.dart';
 import 'package:dinastia_nba/presentation/widgets/carta_jugador.dart';
 import 'package:dinastia_nba/presentation/widgets/jugador_avatar.dart';
@@ -101,6 +105,23 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
     await tester.pumpAndSettle();
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('salida/ficha.png'));
+  });
+  testWidgets('playbook', (tester) async {
+    tester.view.physicalSize = const Size(412, 915) * 2.5;
+    tester.view.devicePixelRatio = 2.5;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: temaFranquicia(franquiciaPorId('CHI')),
+        home: PlaybookPantalla(temporada: temporadaConPlantel(), onConfirmar: (_) {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await expectLater(find.byType(PlaybookPantalla), matchesGoldenFile('salida/playbook.png'));
+    await tester.tap(find.text('Defensiva'));
+    await tester.pumpAndSettle();
+    await expectLater(find.byType(PlaybookPantalla), matchesGoldenFile('salida/playbook-defensa.png'));
   });
   testWidgets('draft chico', (t) => capturar(t, 'draft-chico', 'GSW', 2, tamano: const Size(360, 640)));
 }
