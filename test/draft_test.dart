@@ -147,42 +147,115 @@ void main() {
     final catalogo = parsearCatalogo(File(rutaCatalogo).readAsStringSync());
     const cartas = Temporada(id: 't', franquiciaUsuarioId: 'CHI', modo: ModoDraft.cartas);
 
-    test('reparte 5 cartas distintas que juegan en ese puesto, y obliga a fichar una', () {
+    test('3 sobres (época, franquicia, misterioso); al abrir uno salen 5 cartas con una sorpresa', () {
       final draft = Draft(catalogo, azar: Random(1));
       final t = draft.repartir(cartas, Posicion.pivot);
-      final repartidas = draft.cartasDeOferta(t);
-      expect(repartidas, hasLength(5));
-      expect(repartidas.map((j) => j.nbaPlayerId).toSet(), hasLength(5), reason: 'sin repetir persona');
-      expect(repartidas.every((j) => j.posiciones.contains(Posicion.pivot)), isTrue);
+      expect(t.oferta!.sinAbrir, isTrue);
+      expect(t.oferta!.sobres.map((s) => s.tipo), [TipoSobre.epoca, TipoSobre.franquicia, TipoSobre.misterioso]);
       expect(() => draft.repartir(t, Posicion.base), throwsStateError, reason: 'primero se ficha');
       expect(draft.puedeRepartir(t, Posicion.base), isFalse);
 
-      final fichado = draft.fichar(t, repartidas[2]);
+      final abierto = draft.abrirSobre(t, 0);
+      final repartidas = draft.cartasDeOferta(abierto);
+      expect(repartidas, hasLength(5));
+      expect(repartidas.map((j) => j.nbaPlayerId).toSet(), hasLength(5), reason: 'sin repetir persona');
+      expect(repartidas.every((j) => j.posiciones.contains(Posicion.pivot)), isTrue);
+      final epoca = t.oferta!.sobres[0].epoca;
+      expect(repartidas.every((j) => j.epoca == epoca), isTrue, reason: 'el sobre de época cumple');
+      expect(abierto.oferta!.sorpresaId, isIn(abierto.oferta!.cartaIds));
+
+      final fichado = draft.fichar(abierto, repartidas[2]);
       expect(fichado.plantel.en(Posicion.pivot), repartidas[2]);
       expect(fichado.oferta, isNull);
       expect(() => draft.fichar(fichado, repartidas[0]), throwsA(isA<ReglaPlantelException>()));
     });
 
-    test('volver a repartir gasta una ficha y trae cartas nuevas', () {
+    test('volver a repartir gasta una ficha y pone sobres nuevos; todo se guarda en JSON', () {
       final draft = Draft(catalogo, azar: Random(2));
-      final t = draft.repartir(cartas, Posicion.alero);
+      final t = draft.abrirSobre(draft.repartir(cartas, Posicion.alero), 1);
       final otra = draft.volverARepartir(t);
       expect(otra.rerollsRestantes, 2);
-      expect(otra.oferta!.cartaIds.toSet().intersection(t.oferta!.cartaIds.toSet()), isEmpty);
-      final guardada = Temporada.fromJson(jsonDecode(jsonEncode(otra.toJson())) as Map<String, dynamic>);
-      expect(guardada.oferta!.cartaIds, otra.oferta!.cartaIds);
+      expect(otra.oferta!.sinAbrir, isTrue);
+      final abierta = draft.abrirSobre(otra, 2);
+      final guardada = Temporada.fromJson(jsonDecode(jsonEncode(abierta.toJson())) as Map<String, dynamic>);
+      expect(guardada.oferta!.cartaIds, abierta.oferta!.cartaIds);
+      expect(guardada.oferta!.sorpresaId, abierta.oferta!.sorpresaId);
       expect(guardada.modo, ModoDraft.cartas);
     });
 
-    test('rareza por carta 10/6/3/1 (B/A/S/S+): 1 de cada 20 cartas es S+', () {
+    test('el sobre misterioso trae más S+ que el 1 de cada 20 normal', () {
       final draft = Draft(catalogo, azar: Random(3));
       var sPlus = 0, total = 0;
       for (var i = 0; i < 400; i++) {
-        final repartidas = draft.cartasDeOferta(draft.repartir(cartas, Posicion.sextoHombre));
-        total += repartidas.length;
-        sPlus += repartidas.where((j) => j.tier == Tier.sPlus).length;
+        final t = draft.abrirSobre(draft.repartir(cartas, Posicion.sextoHombre), 2);
+        final normales = draft.cartasDeOferta(t).where((j) => j.id != t.oferta!.sorpresaId);
+        total += normales.length;
+        sPlus += normales.where((j) => j.tier == Tier.sPlus).length;
       }
-      expect(sPlus / total, closeTo(0.05, 0.02));
+      expect(sPlus / total, closeTo(0.1, 0.03));
+    });
+  });
+
+  group('reglas del draft', () {
+    final catalogo = parsearCatalogo(File(rutaCatalogo).readAsStringSync());
+
+    Temporada con(ReglaDraft r, {Epoca? epoca}) =>
+        Temporada(id: 'r', franquiciaUsuarioId: 'BOS', modo: ModoDraft.cartas, regla: r, epocaRegla: epoca);
+
+    test('una década, franquicia pura y underdog filtran sobres y ruleta', () {
+      final draft = Draft(catalogo, azar: Random(4));
+      for (final (t, cumple) in [
+        (con(ReglaDraft.unaDecada, epoca: Epoca.anios80), (Jugador j) => j.epoca == Epoca.anios80),
+        (con(ReglaDraft.franquiciaPura), (Jugador j) => j.franquiciaId == 'BOS'),
+        (con(ReglaDraft.underdog), (Jugador j) => j.tier == Tier.a || j.tier == Tier.b),
+      ]) {
+        for (var s = 0; s < 3; s++) {
+          final abierto = draft.abrirSobre(draft.repartir(t, Posicion.escolta), s);
+          expect(draft.cartasDeOferta(abierto).every(cumple), isTrue, reason: '${t.regla} sobre $s');
+        }
+        final tirada = draft.tirar(t);
+        expect(draft.candidatos(tirada).every(cumple), isTrue, reason: '${t.regla} ruleta');
+      }
+    });
+
+    test('a ciegas: las cartas vienen boca abajo', () {
+      final draft = Draft(catalogo, azar: Random(5));
+      final t = draft.abrirSobre(draft.repartir(con(ReglaDraft.aCiegas), Posicion.base), 0);
+      expect(t.oferta!.ciega, isTrue);
+    });
+
+    test('serpiente: en las rondas impares dos rivales se llevan las mejores cartas', () {
+      final draft = Draft(catalogo, azar: Random(6));
+      var t = draft.abrirSobre(draft.repartir(con(ReglaDraft.serpiente), Posicion.base), 0);
+      expect(t.oferta!.robadas, isEmpty, reason: 'en la primera ronda elegís primero');
+      t = draft.fichar(t, draft.cartasDeOferta(t).first);
+      final abierto = draft.abrirSobre(draft.repartir(t, Posicion.pivot), 2);
+      expect(abierto.oferta!.robadas, hasLength(2));
+      expect(draft.cartasDeOferta(abierto), hasLength(5));
+      final robadas = {for (final (id, _) in abierto.oferta!.robadas) id};
+      expect(abierto.robos.values.expand((l) => l).toSet(), containsAll(robadas));
+      final quedan = draft.cartasDeOferta(abierto).map((j) => j.media);
+      final mejorRobada = robadas.map((id) => catalogo.firstWhere((j) => j.id == id).media).reduce(min);
+      expect(quedan.every((m) => m <= mejorRobada), isTrue, reason: 'se llevan las de más media');
+    });
+
+    test('mi colección: solo cartas del álbum, y avisa si no alcanzan', () {
+      final propias = catalogo.where((j) => j.franquiciaId == 'LAL').map((j) => j.id).toSet();
+      expect(Draft.coleccionAlcanza(catalogo, propias), isTrue);
+      expect(Draft.coleccionAlcanza(catalogo, propias.take(3).toSet()), isFalse);
+      final draft = Draft(catalogo, azar: Random(7), coleccion: propias);
+      final abierto = draft.abrirSobre(draft.repartir(con(ReglaDraft.coleccion), Posicion.alero), 2);
+      expect(draft.cartasDeOferta(abierto).every((j) => propias.contains(j.id)), isTrue);
+    });
+
+    test('entrenador: 3 opciones estables, con uno de tu franquicia si existe', () {
+      final draft = Draft(catalogo);
+      final t = con(ReglaDraft.libre);
+      final opciones = draft.opcionesEntrenador(t);
+      expect(opciones, hasLength(3));
+      expect(opciones.first.franquicias, contains('BOS'));
+      expect(draft.opcionesEntrenador(t).map((e) => e.id), opciones.map((e) => e.id));
+      expect(draft.elegirEntrenador(t, opciones[1]).entrenadorId, opciones[1].id);
     });
   });
 }

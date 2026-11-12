@@ -13,6 +13,7 @@ import '../partido/coreografia.dart';
 import '../partido/sonido_partido.dart';
 import '../tema/tema_franquicia.dart';
 import '../widgets/escudo.dart';
+import '../widgets/indicador_forma.dart';
 import '../widgets/texto_led.dart';
 import '../widgets/haptica.dart';
 
@@ -619,6 +620,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                               enCancha: {for (final j in _m.enCancha(usuarioLocal)) j.id},
                               box: _box,
                               energia: _m.energias(usuarioLocal),
+                              forma: _m.forma,
                             ),
                             _Panel.tiros => _MapaTiros(tiros: _tiros, box: _box),
                             _Panel.partido => _PanelPartido(
@@ -993,12 +995,19 @@ class _Controles extends StatelessWidget {
 
 /// Box score en vivo de tu equipo (se actualiza al terminar cada jugada, sin adelantar resultados).
 class _EstadisticasVivo extends StatelessWidget {
-  const _EstadisticasVivo({required this.jugadores, required this.enCancha, required this.box, required this.energia});
+  const _EstadisticasVivo({
+    required this.jugadores,
+    required this.enCancha,
+    required this.box,
+    required this.energia,
+    this.forma = const {},
+  });
 
   final List<Jugador> jugadores;
   final Set<String> enCancha;
   final Map<String, LineaEstadistica> box;
   final Map<String, double> energia;
+  final Map<String, int> forma;
 
   @override
   Widget build(BuildContext context) {
@@ -1051,13 +1060,20 @@ class _EstadisticasVivo extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              j.nombre,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: tema.textTheme.bodySmall?.copyWith(
-                                color: juega ? esquema.onSurface : esquema.onSurfaceVariant,
-                              ),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    j.nombre,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: tema.textTheme.bodySmall?.copyWith(
+                                      color: juega ? esquema.onSurface : esquema.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                                IndicadorForma(forma[j.id] ?? 0),
+                              ],
                             ),
                             const SizedBox(height: 2),
                             FractionallySizedBox(

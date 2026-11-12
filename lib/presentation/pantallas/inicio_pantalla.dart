@@ -22,6 +22,7 @@ class InicioPantalla extends StatelessWidget {
     this.onPerfil,
     this.onPartidas,
     this.onAjustes,
+    this.onAlbum,
   });
 
   final List<Franquicia> franquicias;
@@ -33,6 +34,9 @@ class InicioPantalla extends StatelessWidget {
 
   /// Tu carrera (nivel, vitrina, logros), las partidas guardadas y los ajustes.
   final VoidCallback? onPerfil, onPartidas, onAjustes;
+
+  /// Álbum de cartas y tienda de sobres.
+  final VoidCallback? onAlbum;
 
   void _enfocar(Franquicia f) {
     if (f == enfocada) return;
@@ -57,7 +61,7 @@ class InicioPantalla extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _BarraCarrera(onPerfil: onPerfil, onPartidas: onPartidas, onAjustes: onAjustes),
+                    _BarraCarrera(onPerfil: onPerfil, onPartidas: onPartidas, onAjustes: onAjustes, onAlbum: onAlbum),
                     const SizedBox(height: 8),
                     const _Encabezado(),
                     const SizedBox(height: 16),
@@ -107,9 +111,14 @@ class InicioPantalla extends StatelessWidget {
 
 /// Nivel y monedas del entrenador (abre tu carrera), partidas guardadas y ajustes.
 class _BarraCarrera extends StatelessWidget {
-  const _BarraCarrera({required this.onPerfil, required this.onPartidas, required this.onAjustes});
+  const _BarraCarrera({
+    required this.onPerfil,
+    required this.onPartidas,
+    required this.onAjustes,
+    required this.onAlbum,
+  });
 
-  final VoidCallback? onPerfil, onPartidas, onAjustes;
+  final VoidCallback? onPerfil, onPartidas, onAjustes, onAlbum;
 
   @override
   Widget build(BuildContext context) {

@@ -6,6 +6,7 @@ import 'data/catalogo_jugadores.dart';
 import 'data/db_local.dart';
 import 'data/estado_app.dart';
 import 'data/franquicias.dart';
+import 'domain/draft.dart';
 import 'domain/entities/ajustes.dart';
 import 'domain/entities/franquicia.dart';
 import 'domain/entities/perfil.dart';
@@ -13,6 +14,7 @@ import 'domain/entities/temporada.dart';
 import 'domain/liga.dart';
 import 'domain/progreso.dart';
 import 'presentation/pantallas/ajustes_pantalla.dart';
+import 'presentation/pantallas/album_pantalla.dart';
 import 'presentation/pantallas/draft_pantalla.dart';
 import 'presentation/pantallas/inicio_pantalla.dart';
 import 'presentation/pantallas/partidas_pantalla.dart';
@@ -119,6 +121,21 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
     }
   }
 
+  Future<void> _abrirAlbum() async {
+    final liga = await _ligaLista();
+    _navegador.currentState?.push(
+      MaterialPageRoute<void>(
+        builder: (_) => AlbumPantalla(
+          catalogo: liga.catalogo,
+          onPerfil: (p) {
+            perfilApp.value = p;
+            widget.db?.escribir('perfil', p.toJson()).ignore();
+          },
+        ),
+      ),
+    );
+  }
+
   void _abrirAjustes() => _navegador.currentState?.push(
     MaterialPageRoute<void>(
       builder: (_) => AjustesPantalla(onCambio: _guardarAjustes, onTutorial: _abrirTutorial),
@@ -191,6 +208,12 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   Future<void> _dirigir(Franquicia f) async {
     final modo = await elegirModoDraft(_navegador.currentContext!);
     if (modo == null) return;
+    final regla = await elegirRegla(
+      _navegador.currentContext!,
+      modo: modo,
+      coleccionAlcanza: _ligaLista().then((l) => Draft.coleccionAlcanza(l.catalogo, perfilApp.value.coleccion)),
+    );
+    if (regla == null) return;
     final dificultad = await elegirDificultad(_navegador.currentContext!);
     if (dificultad == null) return;
     final t = Temporada(
@@ -198,6 +221,8 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       franquiciaUsuarioId: f.id,
       modo: modo,
       dificultad: dificultad,
+      regla: regla.$1,
+      epocaRegla: regla.$2,
       rerollsRestantes: Temporada.rerollsPorTemporada + perfilApp.value.fichasExtra,
     );
     try {
@@ -228,6 +253,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       onSeguir: _guardada == null ? null : () => _abrirTemporada(_guardada!),
       onPerfil: _abrirPerfil,
       onPartidas: _abrirPartidas,
+      onAlbum: _abrirAlbum,
       onAjustes: _abrirAjustes,
     ),
   );

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'calendario.dart';
+import 'entities/entrenador.dart';
 import 'entities/franquicia.dart';
 import 'entities/jugador.dart';
 import 'entities/partido.dart';
@@ -29,12 +30,37 @@ class Liga {
       calendario: generarCalendario(franquicias, _azar),
       rivales: {
         for (final f in franquicias)
-          if (f.id != t.franquiciaUsuarioId) f.id: _armarRival(f.id, propios, t.dificultad),
+          if (f.id != t.franquiciaUsuarioId)
+            f.id: _armarRival(
+              f.id,
+              propios,
+              t.dificultad,
+              robadas: [for (final id in t.robos[f.id] ?? const <String>[]) ?_porId[id]],
+            ),
       },
     );
   }
 
-  Rival _armarRival(String franquiciaId, Set<int> excluidos, Dificultad dificultad) {
+  /// [robadas]: cartas que ese rival se llevó en el draft en serpiente (entran sí o sí).
+  Rival _armarRival(
+    String franquiciaId,
+    Set<int> excluidos,
+    Dificultad dificultad, {
+    List<Jugador> robadas = const [],
+  }) {
+    if (robadas.isNotEmpty) {
+      var plantel = const Plantel();
+      for (final j in robadas) {
+        final puestos = plantel.posicionesDisponiblesPara(j);
+        if (puestos.isNotEmpty) plantel = plantel.asignar(j, puestos.first);
+      }
+      final pool = [
+        for (final j in catalogo)
+          if (j.franquiciaId == franquiciaId && !excluidos.contains(j.nbaPlayerId)) j,
+      ];
+      final completo = _completarPlantel(plantel, pool, variedad: 3, objetivo: dificultad.mediaRivales);
+      if (completo != null) return _rival(franquiciaId, TipoRival.historico, completo, franquiciaId);
+    }
     final propias = [
       for (final j in catalogo)
         if (j.franquiciaId == franquiciaId && !excluidos.contains(j.nbaPlayerId)) j,
@@ -64,14 +90,17 @@ class Liga {
 
   /// Arma 5 titulares + Sexto Hombre: por puesto, al azar entre los [variedad] de más media
   /// (o, con [objetivo], entre los de media más cercana a esa: así se regula la dificultad).
-  Plantel? _armarPlantel(List<Jugador> pool, {required int variedad, int? objetivo}) {
+  Plantel? _armarPlantel(List<Jugador> pool, {required int variedad, int? objetivo}) =>
+      _completarPlantel(const Plantel(), pool, variedad: variedad, objetivo: objetivo);
+
+  Plantel? _completarPlantel(Plantel inicial, List<Jugador> pool, {required int variedad, int? objetivo}) {
     final ordenadas = [...pool]
       ..sort(
         (a, b) => objetivo == null
             ? b.media.compareTo(a.media)
             : (a.media - objetivo).abs().compareTo((b.media - objetivo).abs()),
       );
-    var plantel = const Plantel();
+    var plantel = inicial;
     // Primero los puestos con menos candidatos, para no quedarse sin pívot o base.
     final puestos = [...Posicion.titulares]
       ..sort(
@@ -81,6 +110,7 @@ class Liga {
             .compareTo(ordenadas.where((j) => j.posiciones.contains(b)).length),
       );
     for (final p in [...puestos, Posicion.sextoHombre]) {
+      if (plantel.estaOcupada(p)) continue;
       final candidatos = ordenadas
           .where((j) => plantel.posicionesDisponiblesPara(j).contains(p))
           .take(variedad)
@@ -110,10 +140,16 @@ class Liga {
 
   EquipoPartido equipo(Temporada t, String franquiciaId) {
     if (franquiciaId == t.franquiciaUsuarioId) {
-      return EquipoPartido(identidadId: franquiciaId, plantel: t.plantel, tactica: t.tactica);
+      return EquipoPartido(
+        identidadId: franquiciaId,
+        plantel: t.plantel,
+        tactica: t.tactica,
+        entrenador: Entrenador.porId(t.entrenadorId),
+        forma: t.forma,
+      );
     }
     final r = t.rivales[franquiciaId]!;
-    return EquipoPartido(identidadId: r.identidadId, plantel: plantelDe(r), tactica: r.tactica);
+    return EquipoPartido(identidadId: r.identidadId, plantel: plantelDe(r), tactica: r.tactica, forma: t.forma);
   }
 
   Partido? proximoDelUsuario(Temporada t) {
@@ -145,6 +181,7 @@ class Liga {
   Temporada simularOtrosHasta(Temporada t, int jornada) {
     var cambios = false;
     final lineas = _copia(t.lineas);
+    final forma = Map.of(t.forma);
     final calendario = [
       for (final p in t.calendario)
         if (!p.jugado && p.jornada <= jornada && !p.participa(t.franquiciaUsuarioId))
@@ -152,22 +189,61 @@ class Liga {
             cambios = true;
             final m = motor(t, p)..simularTodo();
             _sumarBox(lineas, m);
+            _actualizarForma(forma, m);
             return p.conResultado(m.parcialesLocal, m.parcialesVisitante);
           }()
         else
           p,
     ];
-    return cambios ? t.copyWith(calendario: calendario, lineas: lineas) : t;
+    return cambios ? t.copyWith(calendario: calendario, lineas: lineas, forma: forma) : t;
   }
 
   /// Registra el partido del usuario ya jugado (en vivo o simulado) y suma las estadísticas.
   Temporada registrar(Temporada t, Partido partido, MotorPartido m) {
     final lineas = _copia(t.lineas);
     _sumarBox(lineas, m);
+    final forma = Map.of(t.forma);
+    _actualizarForma(forma, m);
     final calendario = [
       for (final p in t.calendario) p.id == partido.id ? p.conResultado(m.parcialesLocal, m.parcialesVisitante) : p,
     ];
-    return t.copyWith(calendario: calendario, lineas: lineas);
+    return t.copyWith(calendario: calendario, lineas: lineas, forma: forma);
+  }
+
+  /// Forma de las cartas: rendir por encima de lo esperado sube la racha (hasta +3), rendir por
+  /// debajo la baja (hasta −3), y con el tiempo todo vuelve a 0.
+  void _actualizarForma(Map<String, int> forma, MotorPartido m) {
+    for (final e in [...m.boxLocal.entries, ...m.boxVisitante.entries]) {
+      final j = _porId[e.key];
+      final l = e.value;
+      if (j == null || l.seg < 300) continue;
+      final s = j.stats;
+      double valor(double pts, double reb, double ast, double rob, double tap, double per) =>
+          pts + 0.7 * reb + 0.7 * ast + rob + tap - per;
+      final minutos = l.seg / 60;
+      final hizo =
+          valor(
+            l.pts.toDouble(),
+            l.reb.toDouble(),
+            l.ast.toDouble(),
+            l.rob.toDouble(),
+            l.tap.toDouble(),
+            l.per.toDouble(),
+          ) -
+          0.5 * (l.tcA - l.tcI);
+      final esperado =
+          (valor(s.ppp, s.rpp, s.app, s.robP, s.tapP, s.perP) - 0.5 * s.ppp * (1 - s.pctTc) / 2) *
+          minutos /
+          max(s.minP, 12);
+      final delta = esperado <= 0 ? 0 : (hizo / esperado > 1.3 ? 1 : (hizo / esperado < 0.7 ? -1 : 0));
+      final antes = forma[j.id] ?? 0;
+      final nueva = (antes * 0.8 + delta * 1.2).round().clamp(-3, 3);
+      if (nueva == 0) {
+        forma.remove(j.id);
+      } else {
+        forma[j.id] = nueva;
+      }
+    }
   }
 
   /// Simula el próximo partido del usuario sin mirarlo (y los de los demás de esas jornadas).

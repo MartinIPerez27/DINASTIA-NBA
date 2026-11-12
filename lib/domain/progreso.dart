@@ -37,6 +37,9 @@ class Progreso {
     final novedades = <Novedad>[];
     final nivelAntes = perfil.nivel;
     var p = perfil;
+    // Álbum: lo que fichás en el draft queda en tu colección.
+    final nuevas = {for (final j in despues.plantel.jugadores) j.id}.difference(p.coleccion);
+    if (nuevas.isNotEmpty) p = p.copyWith(coleccion: {...p.coleccion, ...nuevas});
     final mult = _multiplicador(despues.dificultad);
     final usuario = despues.franquiciaUsuarioId;
 

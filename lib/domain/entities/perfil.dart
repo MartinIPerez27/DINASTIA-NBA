@@ -147,6 +147,7 @@ class PerfilEntrenador {
     this.historial = const [],
     this.carrera = const {},
     this.temporadasCerradas = const {},
+    this.coleccion = const {},
   });
 
   final int xp;
@@ -165,6 +166,9 @@ class PerfilEntrenador {
 
   /// Temporadas ya cerradas (para no premiar dos veces).
   final Set<String> temporadasCerradas;
+
+  /// Álbum: cartas que son tuyas (las que fichaste en un draft y las de los sobres de la tienda).
+  final Set<String> coleccion;
 
   /// XP total necesaria para llegar a un nivel: 0, 150, 450, 900, 1500…
   static int xpParaNivel(int nivel) => 75 * nivel * (nivel - 1);
@@ -196,6 +200,7 @@ class PerfilEntrenador {
     List<ResumenTemporada>? historial,
     Map<String, (int, LineaEstadistica)>? carrera,
     Set<String>? temporadasCerradas,
+    Set<String>? coleccion,
   }) => PerfilEntrenador(
     xp: xp ?? this.xp,
     monedas: monedas ?? this.monedas,
@@ -205,6 +210,7 @@ class PerfilEntrenador {
     historial: historial ?? this.historial,
     carrera: carrera ?? this.carrera,
     temporadasCerradas: temporadasCerradas ?? this.temporadasCerradas,
+    coleccion: coleccion ?? this.coleccion,
   );
 
   factory PerfilEntrenador.fromJson(Map<String, dynamic> j) => PerfilEntrenador(
@@ -227,6 +233,7 @@ class PerfilEntrenador {
         ),
     },
     temporadasCerradas: {...(j['cerradas'] as List? ?? const []).cast<String>()},
+    coleccion: {...(j['coleccion'] as List? ?? const []).cast<String>()},
   );
 
   Map<String, dynamic> toJson() => {
@@ -240,5 +247,6 @@ class PerfilEntrenador {
       for (final e in carrera.entries) e.key: {'t': e.value.$1, 'l': e.value.$2.toJson()},
     },
     'cerradas': temporadasCerradas.toList(),
+    'coleccion': coleccion.toList(),
   };
 }

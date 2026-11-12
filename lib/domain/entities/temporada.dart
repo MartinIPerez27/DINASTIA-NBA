@@ -1,4 +1,5 @@
 import 'franquicia.dart';
+import 'jugador.dart';
 import 'partido.dart';
 import 'plantel.dart';
 import '../motor.dart';
@@ -104,6 +105,22 @@ enum Dificultad {
   final int? mediaRivales;
 }
 
+/// Reglas especiales del draft (modos de draft). Algunas solo existen en el modo Cartas.
+enum ReglaDraft {
+  libre('Libre', 'Todo el catálogo, como siempre.'),
+  unaDecada('Una sola década', 'Todos los jugadores salen de la misma época.'),
+  franquiciaPura('Franquicia pura', 'Solo jugadores que pasaron por tu franquicia.'),
+  underdog('Underdog', 'Sin leyendas: solo cartas A y B.'),
+  aCiegas('A ciegas', 'Las 5 cartas vienen boca abajo: elegís sin verlas.', soloCartas: true),
+  serpiente('Draft en serpiente', 'Los rivales también eligen, y a veces antes que vos.', soloCartas: true),
+  coleccion('Mi colección', 'Solo con las cartas de tu álbum.');
+
+  const ReglaDraft(this.nombre, this.descripcion, {this.soloCartas = false});
+  final String nombre;
+  final String descripcion;
+  final bool soloCartas;
+}
+
 enum FaseTemporada { draft, tacticas, temporadaRegular, playoffs, finalizada }
 
 /// Partida guardada: todo lo que el usuario construyó y jugó en una temporada.
@@ -124,6 +141,11 @@ class Temporada {
     this.lineas = const {},
     this.lineasPlayoffs = const {},
     this.dificultad = Dificultad.normal,
+    this.regla = ReglaDraft.libre,
+    this.epocaRegla,
+    this.robos = const {},
+    this.entrenadorId,
+    this.forma = const {},
   });
 
   static const rerollsPorTemporada = 3;
@@ -159,6 +181,20 @@ class Temporada {
   final Map<String, LineaEstadistica> lineasPlayoffs;
 
   final Dificultad dificultad;
+
+  final ReglaDraft regla;
+
+  /// Década elegida con la regla [ReglaDraft.unaDecada].
+  final Epoca? epocaRegla;
+
+  /// Draft en serpiente: cartas que se llevó cada rival (franquicia → ids de carta).
+  final Map<String, List<String>> robos;
+
+  /// Carta de entrenador (7.º puesto), si ya se eligió.
+  final String? entrenadorId;
+
+  /// Forma de cada carta en la temporada (−3 a +3): suma a su media mientras dure la racha.
+  final Map<String, int> forma;
 
   /// Ganador de Las Finales (null mientras se juegan).
   String? get campeonId {
@@ -239,6 +275,9 @@ class Temporada {
     Map<String, Rival>? rivales,
     Map<String, LineaEstadistica>? lineas,
     Map<String, LineaEstadistica>? lineasPlayoffs,
+    Map<String, List<String>>? robos,
+    String? entrenadorId,
+    Map<String, int>? forma,
   }) => Temporada(
     id: id,
     franquiciaUsuarioId: franquiciaUsuarioId,
@@ -255,6 +294,11 @@ class Temporada {
     lineas: lineas ?? this.lineas,
     lineasPlayoffs: lineasPlayoffs ?? this.lineasPlayoffs,
     dificultad: dificultad,
+    regla: regla,
+    epocaRegla: epocaRegla,
+    robos: robos ?? this.robos,
+    entrenadorId: entrenadorId ?? this.entrenadorId,
+    forma: forma ?? this.forma,
   );
 
   Temporada conTirada(Tirada? nueva) => _con(tirada: nueva, oferta: oferta);
@@ -277,6 +321,11 @@ class Temporada {
     lineas: lineas,
     lineasPlayoffs: lineasPlayoffs,
     dificultad: dificultad,
+    regla: regla,
+    epocaRegla: epocaRegla,
+    robos: robos,
+    entrenadorId: entrenadorId,
+    forma: forma,
   );
 
   factory Temporada.fromJson(Map<String, dynamic> j) => Temporada(
@@ -307,6 +356,13 @@ class Temporada {
     },
     // Las partidas de antes del selector se armaron con rivales casi all-time.
     dificultad: Dificultad.values.byName(j['dificultad'] as String? ?? 'leyenda'),
+    regla: ReglaDraft.values.byName(j['regla'] as String? ?? 'libre'),
+    epocaRegla: j['epocaRegla'] == null ? null : Epoca.values.byName(j['epocaRegla'] as String),
+    robos: {
+      for (final e in (j['robos'] as Map<String, dynamic>? ?? {}).entries) e.key: (e.value as List).cast<String>(),
+    },
+    entrenadorId: j['entrenador'] as String?,
+    forma: (j['forma'] as Map<String, dynamic>? ?? {}).map((k, v) => MapEntry(k, v as int)),
   );
 
   Map<String, dynamic> toJson() => {
@@ -321,6 +377,11 @@ class Temporada {
     'tacticaConfirmada': tacticaConfirmada,
     'modo': modo.name,
     'dificultad': dificultad.name,
+    'regla': regla.name,
+    if (epocaRegla != null) 'epocaRegla': epocaRegla!.name,
+    if (robos.isNotEmpty) 'robos': robos,
+    if (entrenadorId != null) 'entrenador': entrenadorId,
+    if (forma.isNotEmpty) 'forma': forma,
     if (oferta != null) 'oferta': oferta!.toJson(),
     if (rivales.isNotEmpty) 'rivales': {for (final e in rivales.entries) e.key: e.value.toJson()},
     if (lineas.isNotEmpty) 'lineas': {for (final e in lineas.entries) e.key: e.value.toJson()},

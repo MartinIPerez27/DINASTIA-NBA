@@ -1,10 +1,12 @@
 import 'dart:math';
 
+import 'entities/entrenador.dart';
 import 'entities/jugador.dart';
 import 'entities/plantel.dart';
 import 'entities/posicion.dart';
 import 'entities/tactica.dart';
 import 'playbook.dart';
+import 'quimica.dart';
 
 /// Línea de box score (por partido o acumulada en la temporada).
 class LineaEstadistica {
@@ -57,11 +59,21 @@ class LineaEstadistica {
 
 /// Un equipo listo para jugar: identidad visual, 5 titulares + Sexto Hombre y su táctica.
 class EquipoPartido {
-  EquipoPartido({required this.identidadId, required this.plantel, required this.tactica});
+  EquipoPartido({
+    required this.identidadId,
+    required this.plantel,
+    required this.tactica,
+    this.entrenador,
+    this.forma = const {},
+  });
 
   final String identidadId;
   final Plantel plantel;
   final Tactica tactica;
+  final Entrenador? entrenador;
+
+  /// Forma de cada carta (−3 a +3), que se suma a su media en este partido.
+  final Map<String, int> forma;
 }
 
 enum TipoEvento { tiro, libres, perdida, cambio, tiempoMuerto, finCuarto, finPartido }
@@ -162,8 +174,13 @@ const _defensivos = {
 class _Lado {
   _Lado(this.equipo) {
     final perfil = PerfilPlantel.de(equipo.plantel);
-    afinidadOfensiva = perfil.afinidad(equipo.tactica.ofensiva.rasgos);
-    afinidadDefensiva = perfil.afinidad(equipo.tactica.defensiva.rasgos);
+    final dt = equipo.entrenador;
+    // El entrenador potencia su sistema y su esquema preferidos.
+    afinidadOfensiva =
+        perfil.afinidad(equipo.tactica.ofensiva.rasgos) + (dt?.ofensiva == equipo.tactica.ofensiva ? 12 : 0);
+    afinidadDefensiva =
+        perfil.afinidad(equipo.tactica.defensiva.rasgos) + (dt?.defensiva == equipo.tactica.defensiva ? 12 : 0);
+    quimica = Quimica.de(equipo.plantel.jugadores, entrenador: dt);
     for (final p in Posicion.titulares) {
       final j = equipo.plantel.en(p);
       if (j != null) enCancha.add(j);
@@ -177,6 +194,13 @@ class _Lado {
 
   final EquipoPartido equipo;
   late final int afinidadOfensiva, afinidadDefensiva;
+  late final Quimica quimica;
+
+  /// Media de la carta con su forma del momento.
+  int media(Jugador j) => j.media + (equipo.forma[j.id] ?? 0);
+
+  /// Orden del entrenador: un gran técnico baja las pérdidas (hasta −6 %).
+  double get ordenEntrenador => 1 - ((equipo.entrenador?.nivel ?? 80) - 80) / 320;
   final enCancha = <Jugador>[];
   Jugador? banco;
   final energia = <String, double>{};
@@ -229,6 +253,9 @@ class MotorPartido {
   List<Jugador> enCancha(bool local) => List.unmodifiable((local ? _l : _v).enCancha);
   Jugador? enBanco(bool local) => (local ? _l : _v).banco;
   int tiemposMuertos(bool local) => (local ? _l : _v).tiemposMuertos;
+
+  /// Forma de las cartas en este partido (−3 a +3).
+  Map<String, int> get forma => {..._l.equipo.forma, ..._v.equipo.forma};
 
   /// Faltas del equipo en el cuarto que se está jugando.
   int faltas(bool local) => (local ? _l : _v).faltas;
@@ -364,6 +391,7 @@ class MotorPartido {
                 perdidas *
                 (0.6 + 0.4 * robos) *
                 ataque.ofensivo.perdidas *
+                ataque.ordenEntrenador *
                 defensa.defensivo.robos *
                 (defensa.presion ? 1.3 : 1) *
                 (1 - (ataque.equipo.plantel.jugadores.map((j) => j.stats.iq).reduce(max) - 75) / 400))
@@ -413,8 +441,10 @@ class MotorPartido {
     var p = triple ? s.pctT3.clamp(0.22, 0.46) : _pctDos(tirador);
     p *= triple ? defensa.defensivo.tripleRival : defensa.defensivo.interiorRival;
     // La calidad manda: las cartas de más media rinden más y una defensa de cracks cierra más.
-    p += (tirador.media - _media(defensa.enCancha, (j) => j.media.toDouble())) * pesoDiferencia;
-    p += 0.035 + (tirador.media - 82) / 400;
+    final mediaTirador = ataque.media(tirador);
+    p += (mediaTirador - _media(defensa.enCancha, (j) => defensa.media(j).toDouble())) * pesoDiferencia;
+    p += 0.035 + (mediaTirador - 82) / 400;
+    p += ataque.quimica.efectoTiro;
     if (clutch) p += MotorPartido.clutch(tirador) * 0.03;
     p += (ataque.afinidadOfensiva - defensa.afinidadDefensiva) / 1500;
     p -= _media(defensa.enCancha, (j) => j.stats.robP + j.stats.tapP) / 60;

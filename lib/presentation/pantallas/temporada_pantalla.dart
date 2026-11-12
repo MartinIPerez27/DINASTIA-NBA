@@ -11,6 +11,7 @@ import '../../domain/entities/temporada.dart';
 import '../../domain/liga.dart';
 import '../../domain/motor.dart';
 import '../widgets/escudo.dart';
+import '../widgets/indicador_forma.dart';
 import '../widgets/texto_led.dart';
 import 'partido_pantalla.dart';
 import 'playbook_pantalla.dart';
@@ -341,7 +342,12 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
             String prom(int v) => pj == 0 ? '-' : (v / pj).toStringAsFixed(1);
             return ListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text(j.nombre),
+              title: Row(
+                children: [
+                  Flexible(child: Text(j.nombre, overflow: TextOverflow.ellipsis)),
+                  IndicadorForma(_t.forma[j.id] ?? 0),
+                ],
+              ),
               subtitle: Text(
                 '${p.etiqueta} · $pj PJ · ${l == null || l.tcA == 0 ? '-' : (100 * l.tcI / l.tcA).toStringAsFixed(1)} %TC',
               ),

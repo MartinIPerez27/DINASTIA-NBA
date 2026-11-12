@@ -53,6 +53,9 @@ void main() {
     expect(find.text('¿CÓMO ARMÁS TU PLANTEL?'), findsOneWidget);
     await tester.tap(find.text('CARTAS'));
     await tester.pumpAndSettle();
+    expect(find.text('¿CON QUÉ REGLAS?'), findsOneWidget);
+    await tester.tap(find.text('LIBRE'));
+    await tester.pumpAndSettle();
     expect(find.text('¿QUÉ TAN DURA LA LIGA?'), findsOneWidget);
     await tester.tap(find.text('NORMAL'));
     // El catálogo grande se decodifica en otro isolate: no se espera a que termine de cargar.

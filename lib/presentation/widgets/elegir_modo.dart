@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/entities/jugador.dart';
 import '../../domain/entities/oferta.dart';
 import '../../domain/entities/temporada.dart';
 import 'carta_vertical.dart';
@@ -30,6 +31,96 @@ Future<ModoDraft?> elegirModoDraft(BuildContext context) => showModalBottomSheet
     );
   },
 );
+
+/// Hoja para elegir las reglas del draft (modos de draft). Devuelve la regla y, para "Una sola
+/// década", la época. Null si se cierra sin elegir.
+Future<(ReglaDraft, Epoca?)?> elegirRegla(
+  BuildContext context, {
+  required ModoDraft modo,
+  required Future<bool> coleccionAlcanza,
+}) async {
+  final regla = await showModalBottomSheet<ReglaDraft>(
+    context: context,
+    showDragHandle: true,
+    useSafeArea: true,
+    isScrollControlled: true,
+    builder: (context) {
+      final tema = Theme.of(context);
+      final esquema = tema.colorScheme;
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('¿CON QUÉ REGLAS?', style: tema.textTheme.headlineSmall),
+            const SizedBox(height: 12),
+            for (final r in ReglaDraft.values)
+              if (!r.soloCartas || modo == ModoDraft.cartas)
+                FutureBuilder<bool>(
+                  future: r == ReglaDraft.coleccion ? coleccionAlcanza : Future.value(true),
+                  builder: (context, alcanza) {
+                    final bloqueada = r == ReglaDraft.coleccion && alcanza.data != true;
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      enabled: !bloqueada,
+                      minVerticalPadding: 10,
+                      title: Text(
+                        r.nombre.toUpperCase(),
+                        style: tema.textTheme.titleMedium?.copyWith(letterSpacing: 0.5),
+                      ),
+                      subtitle: Text(
+                        bloqueada
+                            ? 'Tu álbum todavía no alcanza para los 6 puestos: fichá o abrí sobres en la tienda.'
+                            : r.descripcion,
+                      ),
+                      trailing: Icon(
+                        r == ReglaDraft.libre ? Icons.all_inclusive : Icons.chevron_right,
+                        color: bloqueada ? esquema.outlineVariant : esquema.primary,
+                      ),
+                      onTap: bloqueada ? null : () => Navigator.of(context).pop(r),
+                    );
+                  },
+                ),
+          ],
+        ),
+      );
+    },
+  );
+  if (regla == null || !context.mounted) return null;
+  if (regla != ReglaDraft.unaDecada) return (regla, null);
+  final epoca = await showModalBottomSheet<Epoca>(
+    context: context,
+    showDragHandle: true,
+    useSafeArea: true,
+    builder: (context) => SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('¿QUÉ DÉCADA?', style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                // Desde los 50: los 40 no tienen suficientes cartas en todos los puestos.
+                for (final e in Epoca.values.skip(1))
+                  ActionChip(
+                    label: TextoLed(e.codigo, tamano: 18),
+                    onPressed: () => Navigator.of(context).pop(e),
+                    tooltip: e.etiqueta,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+  return epoca == null ? null : (regla, epoca);
+}
 
 /// Hoja para elegir la dificultad (qué tan fuertes son los 29 rivales). Null si se cierra.
 Future<Dificultad?> elegirDificultad(BuildContext context) => showModalBottomSheet<Dificultad>(
