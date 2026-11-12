@@ -1,7 +1,9 @@
 import 'franquicia.dart';
 import 'partido.dart';
 import 'plantel.dart';
+import '../motor.dart';
 import 'oferta.dart';
+import 'rival.dart';
 import 'tactica.dart';
 import 'tirada.dart';
 
@@ -104,6 +106,8 @@ class Temporada {
     this.tacticaConfirmada = false,
     this.modo = ModoDraft.ruleta,
     this.oferta,
+    this.rivales = const {},
+    this.lineas = const {},
   });
 
   static const rerollsPorTemporada = 3;
@@ -128,6 +132,12 @@ class Temporada {
 
   /// Modo cartas: las 5 cartas repartidas para un puesto, pendientes de elegir.
   final Oferta? oferta;
+
+  /// Planteles de las otras 29 franquicias esta temporada.
+  final Map<String, Rival> rivales;
+
+  /// Estadísticas acumuladas de tus jugadores en la temporada (por id de carta).
+  final Map<String, LineaEstadistica> lineas;
 
   FaseTemporada get fase {
     if (!plantel.completo) return FaseTemporada.draft;
@@ -179,6 +189,8 @@ class Temporada {
     List<Partido>? calendario,
     List<SeriePlayoff>? series,
     bool? tacticaConfirmada,
+    Map<String, Rival>? rivales,
+    Map<String, LineaEstadistica>? lineas,
   }) => Temporada(
     id: id,
     franquiciaUsuarioId: franquiciaUsuarioId,
@@ -191,6 +203,8 @@ class Temporada {
     tacticaConfirmada: tacticaConfirmada ?? this.tacticaConfirmada,
     modo: modo,
     oferta: oferta,
+    rivales: rivales ?? this.rivales,
+    lineas: lineas ?? this.lineas,
   );
 
   Temporada conTirada(Tirada? nueva) => _con(tirada: nueva, oferta: oferta);
@@ -209,6 +223,8 @@ class Temporada {
     tacticaConfirmada: tacticaConfirmada,
     modo: modo,
     oferta: oferta,
+    rivales: rivales,
+    lineas: lineas,
   );
 
   factory Temporada.fromJson(Map<String, dynamic> j) => Temporada(
@@ -225,6 +241,14 @@ class Temporada {
     tacticaConfirmada: j['tacticaConfirmada'] as bool? ?? false,
     modo: ModoDraft.values.byName(j['modo'] as String? ?? 'ruleta'),
     oferta: j['oferta'] == null ? null : Oferta.fromJson(j['oferta'] as Map<String, dynamic>),
+    rivales: {
+      for (final e in (j['rivales'] as Map<String, dynamic>? ?? {}).entries)
+        e.key: Rival.fromJson(e.value as Map<String, dynamic>),
+    },
+    lineas: {
+      for (final e in (j['lineas'] as Map<String, dynamic>? ?? {}).entries)
+        e.key: LineaEstadistica.fromJson(e.value as Map<String, dynamic>),
+    },
   );
 
   Map<String, dynamic> toJson() => {
@@ -239,5 +263,7 @@ class Temporada {
     'tacticaConfirmada': tacticaConfirmada,
     'modo': modo.name,
     if (oferta != null) 'oferta': oferta!.toJson(),
+    if (rivales.isNotEmpty) 'rivales': {for (final e in rivales.entries) e.key: e.value.toJson()},
+    if (lineas.isNotEmpty) 'lineas': {for (final e in lineas.entries) e.key: e.value.toJson()},
   };
 }
