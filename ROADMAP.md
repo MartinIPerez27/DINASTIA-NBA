@@ -31,13 +31,13 @@ final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
 ## 3. Temporada y liga
 - [ ] **Banco más largo y lesiones** (rotación de 8).
 - [ ] **Mercado de pases** con fecha límite.
-- [ ] **Clima de temporada**: titulares semanales, carrera al MVP en vivo, fin de semana All-Star.
-- [ ] **Play-In** (7.º a 10.º).
-- [ ] **Premios completos**: DPOY, 6.º Hombre, Más Mejorado, quintetos All-NBA.
-- [ ] **Récords históricos en vivo** (100 de Chamberlain, rachas).
-- [ ] **Desempates oficiales** e historial contra cada rival.
+- [x] ✅ **Clima de temporada**: titulares semanales, carrera al MVP en vivo, fin de semana All-Star.
+- [x] ✅ **Play-In** (7.º a 10.º).
+- [x] ✅ **Premios completos**: DPOY, 6.º Hombre, Más Mejorado, quintetos All-NBA.
+- [x] ✅ **Récords históricos en vivo** (100 de Chamberlain, rachas).
+- [x] ✅ **Desempates oficiales** e historial contra cada rival.
 - [ ] **Copa NBA** a mitad de temporada.
-- [ ] **Calendario con desgaste** (back-to-back, giras).
+- [x] ✅ **Calendario con desgaste** (back-to-back, giras).
 
 ## 4. Modos y metajuego
 - [ ] **Modo Dinastía**: temporadas encadenadas, envejecimiento, retiros, mini-draft.

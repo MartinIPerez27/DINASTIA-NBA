@@ -55,6 +55,7 @@ void main() {
     expect(guardadas.last.registroUsuario.jugados, 1);
     await t.tap(find.text('Posiciones'));
     await t.pumpAndSettle();
+    await t.scrollUntilVisible(find.text('Chicago Bulls'), 200, scrollable: find.byType(Scrollable).first);
     expect(find.text('Chicago Bulls'), findsOneWidget);
     await t.tap(find.text('Plantel'));
     await t.pumpAndSettle();

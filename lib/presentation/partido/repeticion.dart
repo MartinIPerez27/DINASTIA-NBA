@@ -8,6 +8,7 @@ import '../../domain/entities/jugador.dart';
 import '../../domain/motor.dart';
 import 'cancha_partido.dart';
 import 'coreografia.dart';
+import '../../domain/premios.dart' show apellido;
 
 /// Colores de las dos camisetas del partido (relleno, número y ribete).
 class Equipaciones {
@@ -108,7 +109,7 @@ class _RepeticionState extends State<Repeticion> with SingleTickerProviderStateM
     super.dispose();
   }
 
-  String _apellido(Jugador j) => j.nombre.split(' ').last.toUpperCase();
+  String _apellido(Jugador j) => apellido(j).toUpperCase();
 
   @override
   Widget build(BuildContext context) {

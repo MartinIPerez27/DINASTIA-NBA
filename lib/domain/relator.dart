@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'entities/jugador.dart';
 import 'motor.dart';
+import 'premios.dart' show apellido;
 
 /// Relator rioplatense: convierte cada jugada en una frase con personalidad, según el tipo de
 /// jugada y el momento del partido (empate, lo da vuelta, final apretado).
@@ -11,7 +12,7 @@ class Relator {
   final Random _azar;
   int _ultimaDiferencia = 0;
 
-  String _apellido(Jugador? j) => j == null ? '' : j.nombre.split(' ').last;
+  String _apellido(Jugador? j) => j == null ? '' : apellido(j);
   String _uno(List<String> opciones) => opciones[_azar.nextInt(opciones.length)];
 
   /// Frase para una jugada. [jugadores]: todos los del partido por id de carta.

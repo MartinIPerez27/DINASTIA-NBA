@@ -20,6 +20,7 @@ import '../widgets/escudo.dart';
 import '../widgets/indicador_forma.dart';
 import '../widgets/texto_led.dart';
 import '../widgets/haptica.dart';
+import '../../domain/premios.dart' show apellido;
 
 enum _Panel { jugadores, tiros, partido, relato }
 
@@ -506,7 +507,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     return '$nombre · DINASTÍA 82-0';
   }
 
-  String _apellido(Jugador j) => j.nombre.split(' ').last.toUpperCase();
+  String _apellido(Jugador j) => apellido(j).toUpperCase();
 
   @override
   Widget build(BuildContext context) {

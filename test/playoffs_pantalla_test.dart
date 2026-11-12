@@ -66,6 +66,9 @@ void main() {
     await tester.tap(find.byTooltip('STATS 82'));
     await tester.pumpAndSettle();
     expect(find.text('Máximo Anotador'), findsOneWidget);
+    // La tabla queda debajo de los premios: se baja hasta verla.
+    await tester.scrollUntilVisible(find.byType(DataTable), 300, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     double primeraPpp() {
       final fila = find.byType(DataRow).evaluate();
       final tabla = tester.widget<DataTable>(find.byType(DataTable));

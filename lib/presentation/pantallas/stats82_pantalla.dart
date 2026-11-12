@@ -6,6 +6,7 @@ import '../../domain/entities/jugador.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/liga.dart';
 import '../../domain/motor.dart';
+import '../../domain/premios.dart';
 import '../tema/tema_franquicia.dart';
 import '../widgets/escudo.dart';
 import '../widgets/jugador_avatar.dart';
@@ -137,6 +138,11 @@ class _Stats82PantallaState extends State<Stats82Pantalla> {
                     ),
                 ],
               ),
+            _SeccionPremios(
+              premios: calcularPremios(_t, widget.liga),
+              identidad: _identidad,
+              usuario: _t.franquiciaUsuarioId,
+            ),
             const SizedBox(height: 16),
             Wrap(
               spacing: 8,
@@ -308,6 +314,103 @@ class _Honor extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Premios de la temporada (o la carrera, mientras se juega) y los tres quintetos All-NBA.
+class _SeccionPremios extends StatelessWidget {
+  const _SeccionPremios({required this.premios, required this.identidad, required this.usuario});
+
+  final PremiosTemporada premios;
+  final Franquicia Function(String) identidad;
+  final String usuario;
+
+  @override
+  Widget build(BuildContext context) {
+    if (premios.mvp == null) return const SizedBox.shrink();
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final carrera = premios.definitivos ? '' : ' (por ahora)';
+    Widget fila(String premio, Galardon g, String dato) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Escudo(identidad(g.franquiciaId), tamano: 24),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(premio, style: tema.textTheme.labelMedium?.copyWith(color: esquema.onSurfaceVariant)),
+                Text(
+                  g.jugador.nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: tema.textTheme.bodyMedium?.copyWith(
+                    color: g.franquiciaId == usuario ? esquema.primary : null,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(dato, style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant)),
+        ],
+      ),
+    );
+    String uno(Galardon g, int v, String sigla) => '${(v / g.linea.pj).toStringAsFixed(1)} $sigla';
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: esquema.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: esquema.outlineVariant.withValues(alpha: 0.5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(premios.definitivos ? 'PREMIOS' : 'CARRERA A LOS PREMIOS', style: tema.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            if (premios.defensor case final g?)
+              fila('Defensor del Año$carrera', g, '${uno(g, g.linea.rob, 'ROB')} · ${uno(g, g.linea.tap, 'TAP')}'),
+            if (premios.sextoHombre case final g?) fila('Sexto Hombre del Año$carrera', g, uno(g, g.linea.pts, 'PPP')),
+            if (premios.masMejorado case final g?)
+              fila('Jugador Más Mejorado$carrera', g, '${uno(g, g.linea.pts, 'PPP')} (carta ${g.jugador.stats.ppp})'),
+            for (final (i, quinteto) in premios.allNba.indexed) ...[
+              const SizedBox(height: 10),
+              Text(
+                '${i + 1}.º QUINTETO ALL-NBA',
+                style: tema.textTheme.labelLarge?.copyWith(color: i == 0 ? esquema.primary : esquema.onSurfaceVariant),
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 10,
+                runSpacing: 6,
+                children: [
+                  for (final g in quinteto)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Escudo(identidad(g.franquiciaId), tamano: 18),
+                        const SizedBox(width: 4),
+                        Text(
+                          apellido(g.jugador),
+                          style: tema.textTheme.bodySmall?.copyWith(
+                            color: g.franquiciaId == usuario ? esquema.primary : null,
+                            fontWeight: g.franquiciaId == usuario ? FontWeight.w700 : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

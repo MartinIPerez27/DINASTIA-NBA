@@ -10,6 +10,7 @@ import '../../domain/entities/rival.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/liga.dart';
 import '../../domain/motor.dart';
+import '../temporada/clima_temporada.dart';
 import '../widgets/escudo.dart';
 import '../widgets/indicador_forma.dart';
 import '../widgets/texto_led.dart';
@@ -17,7 +18,7 @@ import 'partido_pantalla.dart';
 import 'playbook_pantalla.dart';
 import 'stats82_pantalla.dart';
 
-enum _Vista { resultados, posiciones, plantel }
+enum _Vista { resultados, posiciones, plantel, noticias }
 
 /// Temporada regular de 82 partidos (GDD §7): récord, próximo partido (en vivo o simulado),
 /// resultados, tabla Este/Oeste y estadísticas de tu plantel.
@@ -245,12 +246,16 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
                     )
                   else
                     _FinTemporada(temporada: _t, onPlayoffs: widget.onPlayoffs),
+                  // Lo que no se puede perder: récords en juego y el fin de semana All-Star.
+                  RecordsEnJuego(temporada: _t, liga: _liga),
+                  TarjetaAllStar(temporada: _t, liga: _liga),
                   const SizedBox(height: 16),
                   SegmentedButton<_Vista>(
                     segments: const [
                       ButtonSegment(value: _Vista.resultados, label: Text('Resultados')),
                       ButtonSegment(value: _Vista.posiciones, label: Text('Posiciones')),
                       ButtonSegment(value: _Vista.plantel, label: Text('Plantel')),
+                      ButtonSegment(value: _Vista.noticias, label: Text('Noticias')),
                     ],
                     selected: {_vista},
                     showSelectedIcon: false,
@@ -266,6 +271,13 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
                 _Vista.resultados => _resultados(tema),
                 _Vista.posiciones => _posiciones(tema),
                 _Vista.plantel => _plantel(tema),
+                _Vista.noticias => SliverList.list(
+                  children: [
+                    TitularesSemana(temporada: _t, liga: _liga),
+                    const SizedBox(height: 12),
+                    CarreraMvp(temporada: _t, liga: _liga),
+                  ],
+                ),
               },
             ),
           ],

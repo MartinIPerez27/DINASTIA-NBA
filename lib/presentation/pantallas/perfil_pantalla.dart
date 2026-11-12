@@ -157,6 +157,12 @@ class _Vitrina extends StatelessWidget {
     TipoTrofeo.mvp => Icons.star,
     TipoTrofeo.anotador => Icons.sports_basketball,
     TipoTrofeo.perfecta => Icons.all_inclusive,
+    TipoTrofeo.dpoy => Icons.shield,
+    TipoTrofeo.sextoHombre => Icons.event_seat,
+    TipoTrofeo.mip => Icons.trending_up,
+    TipoTrofeo.allNba => Icons.groups,
+    TipoTrofeo.allStar => Icons.auto_awesome,
+    TipoTrofeo.record => Icons.history_edu,
   };
 
   @override

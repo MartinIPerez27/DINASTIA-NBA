@@ -1,9 +1,12 @@
 import 'dart:math';
 
+import 'all_star.dart';
 import 'entities/perfil.dart';
 import 'entities/temporada.dart';
 import 'liga.dart';
+import 'historicos.dart';
 import 'motor.dart';
+import 'premios.dart';
 
 /// Algo que el jugador ganó y conviene mostrarle (XP, logro, nivel, trofeo).
 class Novedad {
@@ -108,7 +111,10 @@ class Progreso {
       if (mvp?.franquiciaId == usuario) lograr(Logro.mvpPropio);
       if (anotador?.franquiciaId == usuario) lograr(Logro.anotadorPropio);
     }
-    final propias = despues.series.where((s) => s.altoId == usuario || s.bajoId == usuario).toList();
+    // El Play-In no cuenta como playoffs (ni para barridas ni para el 16-0).
+    final propias = despues.series
+        .where((s) => !s.ronda.esPlayIn && (s.altoId == usuario || s.bajoId == usuario))
+        .toList();
     if (propias.isNotEmpty) lograr(Logro.playoffs);
     if (propias.any((s) => s.terminada && s.ganadorId == usuario && _victorias(s, usuario).$2 == 0)) {
       lograr(Logro.barrida);
@@ -121,6 +127,12 @@ class Progreso {
       if (despues.dificultad == Dificultad.dificil) lograr(Logro.campeonDificil);
       if (despues.dificultad == Dificultad.leyenda) lograr(Logro.campeonLeyenda);
     }
+    // All-Star: 3 o más convocados tuyos.
+    if (!logros.containsKey(Logro.tresAllStars)) {
+      final allStar = allStarDe(despues, liga);
+      if (allStar != null && allStar.de(usuario).length >= 3) lograr(Logro.tresAllStars);
+    }
+    if (regularTerminada && recordsBatidos(despues, liga).isNotEmpty) lograr(Logro.recordHistorico);
     p = p.copyWith(logros: logros);
 
     // Cierre de temporada: Salón de la Fama, vitrina y carrera de cada carta.
@@ -151,7 +163,10 @@ class Progreso {
   PerfilEntrenador _cerrar(PerfilEntrenador p, Temporada t, List<Novedad> novedades) {
     final usuario = t.franquiciaUsuarioId;
     final ahora = DateTime.now().millisecondsSinceEpoch;
-    final propias = t.series.where((s) => s.altoId == usuario || s.bajoId == usuario).toList();
+    final todas = t.series.where((s) => s.altoId == usuario || s.bajoId == usuario).toList();
+    // Si quedó afuera en el Play-In, ese es el resultado; si no, cuenta la última serie de playoffs.
+    final playoffs = todas.where((s) => !s.ronda.esPlayIn).toList();
+    final propias = playoffs.isNotEmpty ? playoffs : todas;
     final campeon = t.campeonId == usuario;
     final resultado = campeon
         ? 'Campeón'
@@ -197,6 +212,26 @@ class Progreso {
     }
     if (anotador != null && propiosIds.contains(anotador.jugadorId)) {
       trofeo(TipoTrofeo.anotador, detalle: liga.jugador(anotador.jugadorId)?.nombre);
+    }
+    // Premios completos, quintetos, All-Star y récords.
+    final premios = calcularPremios(t, liga);
+    for (final (tipo, g) in [
+      (TipoTrofeo.dpoy, premios.defensor),
+      (TipoTrofeo.sextoHombre, premios.sextoHombre),
+      (TipoTrofeo.mip, premios.masMejorado),
+    ]) {
+      if (g != null && g.franquiciaId == usuario) trofeo(tipo, detalle: g.jugador.nombre);
+    }
+    for (final (i, quinteto) in premios.allNba.indexed) {
+      for (final g in quinteto.where((g) => g.franquiciaId == usuario)) {
+        trofeo(TipoTrofeo.allNba, detalle: '${i + 1}.º quinteto: ${g.jugador.nombre}');
+      }
+    }
+    for (final j in allStarDe(t, liga)?.de(usuario) ?? const []) {
+      trofeo(TipoTrofeo.allStar, detalle: j.nombre);
+    }
+    for (final r in recordsBatidos(t, liga)) {
+      trofeo(TipoTrofeo.record, detalle: r.texto);
     }
 
     final carrera = Map.of(p.carrera);
