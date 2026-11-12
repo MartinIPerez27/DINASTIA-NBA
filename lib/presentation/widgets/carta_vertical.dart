@@ -75,27 +75,33 @@ class CartaVertical extends StatelessWidget {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                TextoLed('${jugador.media}', tamano: w * 0.27, color: led),
-                                Row(
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.topLeft,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      _codigoPosicion(jugador.posiciones.first.etiqueta),
-                                      style: TextStyle(
-                                        fontFamily: Fuentes.estadio,
-                                        fontVariations: const [FontVariation.weight(700)],
-                                        fontSize: w * 0.11,
-                                        color: esquema.onSurfaceVariant,
-                                        height: 1,
-                                      ),
+                                    TextoLed('${jugador.media}', tamano: w * 0.27, color: led),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          _codigoPosicion(jugador.posiciones.first.etiqueta),
+                                          style: TextStyle(
+                                            fontFamily: Fuentes.estadio,
+                                            fontVariations: const [FontVariation.weight(700)],
+                                            fontSize: w * 0.11,
+                                            color: esquema.onSurfaceVariant,
+                                            height: 1,
+                                          ),
+                                        ),
+                                        SizedBox(width: w * 0.04),
+                                        TextoLed(CartaJugador.codigoTier(jugador.tier), tamano: w * 0.1, color: led),
+                                      ],
                                     ),
-                                    SizedBox(width: w * 0.04),
-                                    TextoLed(CartaJugador.codigoTier(jugador.tier), tamano: w * 0.1, color: led),
                                   ],
                                 ),
-                              ],
+                              ),
                             ),
                             const Spacer(),
                             Column(
