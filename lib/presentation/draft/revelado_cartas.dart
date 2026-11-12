@@ -169,7 +169,7 @@ class _CartaRevelableState extends State<_CartaRevelable> with SingleTickerProvi
   int get _cargaMs => switch (widget.jugador.tier) {
     Tier.sPlus => 650,
     Tier.s => 350,
-    Tier.a => 0,
+    Tier.a || Tier.b => 0,
   };
 
   @override
@@ -206,6 +206,7 @@ class _CartaRevelableState extends State<_CartaRevelable> with SingleTickerProvi
       case Tier.s:
         HapticFeedback.mediumImpact();
       case Tier.a:
+      case Tier.b:
         HapticFeedback.selectionClick();
     }
     widget.onRevelada();
@@ -219,7 +220,7 @@ class _CartaRevelableState extends State<_CartaRevelable> with SingleTickerProvi
 
   @override
   Widget build(BuildContext context) {
-    final led = colorLed(franquiciaPorId(widget.jugador.franquiciaId));
+    final led = colorLed(identidadDe(widget.jugador));
     return Semantics(
       button: widget.onTap != null,
       selected: widget.elegida,
@@ -259,7 +260,7 @@ class _CartaRevelableState extends State<_CartaRevelable> with SingleTickerProvi
                                           switch (widget.jugador.tier) {
                                             Tier.sPlus => 0.65,
                                             Tier.s => 0.4,
-                                            Tier.a => 0.0,
+                                            Tier.a || Tier.b => 0.0,
                                           },
                                     ),
                                   ),

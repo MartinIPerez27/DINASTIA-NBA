@@ -42,7 +42,9 @@ class CartasTest(unittest.TestCase):
         self.assertEqual(ec.epoca_de("1989-90"), "anios90")
         self.assertEqual(ec.epoca_de("2009-10"), "anios2010")
         self.assertEqual(ec.epoca_de("2019-20"), "actualidad")
-        self.assertIsNone(ec.epoca_de("1975-76"))
+        self.assertEqual(ec.epoca_de("1975-76"), "anios70")
+        self.assertEqual(ec.epoca_de("1946-47"), "anios40")
+        self.assertIsNone(ec.epoca_de("1944-45"))
 
     def test_una_carta_por_franquicia_y_epoca_con_stats_propias(self):
         cartas = self.cartas_lebron()
@@ -110,8 +112,8 @@ class CatalogoTest(unittest.TestCase):
         import catalogo_bbref as cb
 
         for carta in json.loads(ec.SALIDA.read_text(encoding="utf-8")):
-            if carta["id"].split("-")[0] in cb.ID_FIJO:
-                continue
+            if carta["id"].split("-")[0] in cb.ID_FIJO or carta["nbaPlayerId"] <= 0:
+                continue  # sin ID oficial: la carta no usa el CDN de la NBA
             oficial = players.find_player_by_id(carta["nbaPlayerId"])
             self.assertIsNotNone(oficial, carta["id"])
             self.assertEqual(

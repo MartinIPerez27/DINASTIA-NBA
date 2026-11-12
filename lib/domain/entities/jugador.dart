@@ -4,6 +4,10 @@ import 'rol_cancha.dart';
 
 /// Carrete 2 del tragamonedas (GDD §4.2).
 enum Epoca {
+  anios40('Años 40'),
+  anios50('Años 50'),
+  anios60('Años 60'),
+  anios70('Años 70'),
   anios80('Años 80'),
   anios90('Años 90'),
   anios2000('Años 2000'),
@@ -12,17 +16,22 @@ enum Epoca {
 
   const Epoca(this.etiqueta);
   final String etiqueta;
+
+  /// Código corto para los LED: '40s'…'10s', 'HOY'.
+  String get codigo => this == actualidad ? 'HOY' : '${etiqueta.substring(etiqueta.length - 2)}s';
 }
 
-/// Carrete 3 del tragamonedas (GDD §4.2).
+/// Carrete 3 del tragamonedas (GDD §4.2), de menor a mayor rareza.
 enum Tier {
-  a('Tier A', 'All-Star'),
-  s('Tier S', 'Leyenda'),
-  sPlus('Tier S+', 'GOAT Histórico');
+  b('Tier B', 'Rotación', 'B'),
+  a('Tier A', 'All-Star / Titular', 'A'),
+  s('Tier S', 'Leyenda', 'S'),
+  sPlus('Tier S+', 'GOAT Histórico', 'S+');
 
-  const Tier(this.etiqueta, this.descripcion);
+  const Tier(this.etiqueta, this.descripcion, this.codigo);
   final String etiqueta;
   final String descripcion;
+  final String codigo;
 }
 
 /// Línea estadística de la carta (GDD §8.1). Porcentajes como fracción 0–1, igual que nba_api.
@@ -102,7 +111,10 @@ class Jugador {
     required this.dorsal,
     required this.stats,
     this.media = 75,
-  });
+    String? equipo,
+    this.fotos = const ['n', 'b'],
+    this.estimadas = const {},
+  }) : equipo = equipo ?? franquiciaId;
 
   final String id;
   final int nbaPlayerId;
@@ -117,10 +129,34 @@ class Jugador {
   final int dorsal;
   final EstadisticasJugador stats;
 
-  /// Valoración general 62–99 (eficiencia y premios en el tramo), estilo carta de Ultimate Team.
+  /// Valoración general 60–99 (eficiencia y premios en el tramo), estilo carta de Ultimate Team.
   final int media;
 
-  String get headshotUrl => NbaCdn.headshot(nbaPlayerId);
+  /// Identidad con la que jugó en ese tramo (p. ej. 'SEA' para una carta del Thunder de los 90).
+  final String equipo;
+
+  /// Fuentes de foto en orden: 'n' (CDN NBA), 'b' (Basketball-Reference), 'w' (Wikipedia, se busca
+  /// por nombre desde el celular) o `w:<url>` (Wikipedia ya resuelta).
+  final List<String> fotos;
+
+  /// Datos que la NBA no registraba en esa época y fueron estimados (p. ej. 'robP', 'tapP').
+  final Set<String> estimadas;
+
+  /// Id de Basketball-Reference (prefijo del id de carta).
+  String get idBbref => id.split('-').first;
+
+  /// URLs de foto en el orden en que se prueban (`wiki:<nombre>` = buscar en Wikipedia).
+  List<String> get urlsFoto => [
+    for (final f in fotos)
+      if (f == 'n' && nbaPlayerId > 0)
+        NbaCdn.headshot(nbaPlayerId)
+      else if (f == 'b')
+        'https://www.basketball-reference.com/req/202106291/images/headshots/$idBbref.jpg'
+      else if (f == 'w')
+        'wiki:$nombre'
+      else if (f.startsWith('w:'))
+        f.substring(2),
+  ];
 
   String get iniciales {
     final partes = nombre.split(' ').where((p) => p.isNotEmpty).toList();
@@ -147,6 +183,9 @@ class Jugador {
       dorsal: j['dorsal'] as int,
       stats: EstadisticasJugador.fromJson(j['stats'] as Map<String, dynamic>),
       media: j['media'] as int? ?? 75,
+      equipo: j['equipo'] as String?,
+      fotos: List.unmodifiable((j['fotos'] as List?)?.cast<String>() ?? const ['n', 'b']),
+      estimadas: Set.unmodifiable((j['estimadas'] as List?)?.cast<String>() ?? const <String>[]),
     );
   }
 
@@ -162,6 +201,9 @@ class Jugador {
     'dorsal': dorsal,
     'stats': stats.toJson(),
     'media': media,
+    'equipo': equipo,
+    'fotos': fotos,
+    if (estimadas.isNotEmpty) 'estimadas': estimadas.toList(),
   };
 
   @override

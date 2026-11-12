@@ -21,11 +21,24 @@ class Draft {
   final List<Jugador> catalogo;
   final Random _azar;
 
-  static const pesosRareza = {Tier.a: 6, Tier.s: 3, Tier.sPlus: 1};
+  static const pesosRareza = {Tier.b: 10, Tier.a: 6, Tier.s: 3, Tier.sPlus: 1};
   static const maxRetenidos = 2;
   static const cartasPorReparto = 5;
 
   late final Map<String, Jugador> _porId = {for (final j in catalogo) j.id: j};
+
+  /// Identidad más frecuente de cada franquicia en cada época (Thunder + 90s → 'SEA').
+  late final Map<(String, Epoca), String> _identidadPorGrupo = () {
+    final conteo = <(String, Epoca), Map<String, int>>{};
+    for (final j in catalogo) {
+      final c = conteo.putIfAbsent((j.franquiciaId, j.epoca), () => {});
+      c[j.equipo] = (c[j.equipo] ?? 0) + 1;
+    }
+    return {for (final e in conteo.entries) e.key: e.value.entries.reduce((a, b) => b.value > a.value ? b : a).key};
+  }();
+
+  /// Id de la identidad con la que se muestra una tirada.
+  String identidadDeTirada(Tirada t) => _identidadPorGrupo[(t.franquiciaId, t.epoca)] ?? t.franquiciaId;
 
   Iterable<Jugador> _disponibles(Plantel p) => catalogo.where((j) => p.posicionesDisponiblesPara(j).isNotEmpty);
 

@@ -174,7 +174,7 @@ void main() {
       expect(guardada.modo, ModoDraft.cartas);
     });
 
-    test('rareza por carta 6/3/1: en promedio media carta S+ por reparto', () {
+    test('rareza por carta 10/6/3/1 (B/A/S/S+): 1 de cada 20 cartas es S+', () {
       final draft = Draft(catalogo, azar: Random(3));
       var sPlus = 0, total = 0;
       for (var i = 0; i < 400; i++) {
@@ -182,7 +182,7 @@ void main() {
         total += repartidas.length;
         sPlus += repartidas.where((j) => j.tier == Tier.sPlus).length;
       }
-      expect(sPlus / total, closeTo(0.1, 0.03));
+      expect(sPlus / total, closeTo(0.05, 0.02));
     });
   });
 }

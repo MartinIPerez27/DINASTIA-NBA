@@ -26,20 +26,23 @@ class FichaJugador extends StatelessWidget {
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     final esquema = tema.colorScheme;
-    final franquicia = franquiciaPorId(jugador.franquiciaId);
+    final franquicia = identidadDe(jugador);
     final s = jugador.stats;
     String pct(double v) => (v * 100).toStringAsFixed(1);
+    // Datos que la NBA no registraba en esa época: estimados, con "~".
+    String est(String campo, String valor) => jugador.estimadas.contains(campo) ? '~$valor' : valor;
+    final sinTriple = jugador.epoca.index < Epoca.anios80.index; // la línea de tres llegó en 1979-80
     final datos = [
       ('PPP', 'Puntos por partido', s.ppp.toStringAsFixed(1)),
-      ('RPP', 'Rebotes por partido', s.rpp.toStringAsFixed(1)),
+      ('RPP', 'Rebotes por partido', est('rpp', s.rpp.toStringAsFixed(1))),
       ('APP', 'Asistencias por partido', s.app.toStringAsFixed(1)),
-      ('ROB/P', 'Robos por partido', s.robP.toStringAsFixed(1)),
-      ('TAP/P', 'Tapones por partido', s.tapP.toStringAsFixed(1)),
-      ('PER/P', 'Pérdidas por partido', s.perP.toStringAsFixed(1)),
+      ('ROB/P', 'Robos por partido', est('robP', s.robP.toStringAsFixed(1))),
+      ('TAP/P', 'Tapones por partido', est('tapP', s.tapP.toStringAsFixed(1))),
+      ('PER/P', 'Pérdidas por partido', est('perP', s.perP.toStringAsFixed(1))),
       ('%TC', 'Porcentaje de tiros de campo', pct(s.pctTc)),
-      ('%T3', 'Porcentaje de triples', pct(s.pctT3)),
+      ('%T3', 'Porcentaje de triples', sinTriple ? '—' : pct(s.pctT3)),
       ('%TL', 'Porcentaje de tiros libres', pct(s.pctTl)),
-      ('MIN/P', 'Minutos por partido', s.minP.toStringAsFixed(1)),
+      ('MIN/P', 'Minutos por partido', est('minP', s.minP.toStringAsFixed(1))),
       ('IQ', 'Inteligencia de juego (1 a 99)', '${s.iq}'),
     ];
 
@@ -147,6 +150,16 @@ class FichaJugador extends StatelessWidget {
               );
             },
           ),
+          if (jugador.estimadas.isNotEmpty || sinTriple) ...[
+            const SizedBox(height: 12),
+            Text(
+              [
+                if (jugador.estimadas.isNotEmpty) '~ Estimado: la NBA no registraba ese dato en esa época.',
+                if (sinTriple) '— Todavía no existía la línea de tres puntos.',
+              ].join('\n'),
+              style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+            ),
+          ],
         ],
       ),
     );

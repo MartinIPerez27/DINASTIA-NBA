@@ -34,7 +34,13 @@ EQUIPOS = {
     1610612762: "UTA", 1610612763: "MEM", 1610612764: "WAS", 1610612765: "DET", 1610612766: "CHA",
 }
 
-CODIGO_EPOCA = {"anios80": "80", "anios90": "90", "anios2000": "00", "anios2010": "10", "actualidad": "act"}
+CODIGO_EPOCA = {
+    "anios40": "40", "anios50": "50", "anios60": "60", "anios70": "70", "anios80": "80",
+    "anios90": "90", "anios2000": "00", "anios2010": "10", "actualidad": "act",
+}
+EPOCA_POR_DECADA = {1940: "anios40", 1950: "anios50", 1960: "anios60", 1970: "anios70", 1980: "anios80",
+                    1990: "anios90", 2000: "anios2000", 2010: "anios2010"}
+PRIMER_ANIO = 1947  # primera temporada BAA/NBA (1946-47)
 
 # Peso de cada premio para medir el nivel del jugador en ese tramo.
 PUNTOS_PREMIO = {
@@ -69,11 +75,11 @@ FAMILIAS = {
 def epoca_de(season_id):
     """'2015-16' → 'anios2010'. Se usa el año de cierre: 2009-10 a 2018-19 son los Años 2010."""
     fin = int(season_id[:4]) + 1
-    if fin < 1980:
+    if fin < PRIMER_ANIO:
         return None
     if fin >= 2020:
         return "actualidad"
-    return {1980: "anios80", 1990: "anios90", 2000: "anios2000", 2010: "anios2010"}[fin // 10 * 10]
+    return EPOCA_POR_DECADA[fin // 10 * 10]
 
 
 def agrupar(carrera):
@@ -142,7 +148,7 @@ def perfil_de(t):
     p["libres"] = t["FTA"] / fga
     p["ts"] = t["PTS"] / (2 * (t["FGA"] + 0.44 * t["FTA"])) if t["FGA"] else 0.0
     p["ast_per"] = t["AST"] / t["TOV"] if t["TOV"] else None
-    p["suplente"] = 0 < t["GS"] < t["GP"] / 2
+    p["suplente"] = 0 < t["GS"] < t["GP"] * 0.35
     return p
 
 
@@ -184,29 +190,37 @@ def rol_de(posicion, p, sexto_hombre):
             return "tiradorPantallas"
         return "superestrellaAclarados" if p["pts"] >= 20 else "tiradorPantallas"
     if posicion == "ALERO":
+        if p["reb"] >= 11:
+            return "fuerzaBruta"  # alero de pura energía en la pintura (Rodman en Detroit)
         if p["ast"] >= 5.5:
             return "controladorTotal"
-        if p["stl"] + p["blk"] >= 2.8 and p["pts"] < 18:
+        if p["stl"] + p["blk"] >= 2.6 and p["pts"] < 17:
             return "cerrojoDefensivo"
-        return "anotadorTresNiveles" if p["pts"] >= 22 else "aleroCortador"
+        if p["pts"] >= 22:
+            return "anotadorTresNiveles"
+        return "aleroCortador" if p["reb"] >= 7 or p["oreb"] >= 2.2 or p["libres"] >= 0.3 else "cerrojoDefensivo"
     if posicion == "ALA-PÍVOT":
-        if p["ast"] >= 5:
+        if p["ast"] >= 4.5:
             return "distribuidorInterior"
-        if p["tres"] >= 0.18:
+        if p["tres"] >= 0.2:
             return "alaPivotTirador"
-        if p["pts"] >= 20 and p["tres"] < 0.05:
+        if p["pts"] >= 18 and p["tres"] < 0.1:
             return "maestroPoste"
-        return "fuerzaBruta" if p["oreb"] >= 3 or p["reb"] >= 12 else "maestroPoste"
+        if p["reb"] >= 11.5 or p["oreb"] >= 3.5:
+            return "fuerzaBruta"
+        return "maestroPoste" if p["pts"] >= 16 else "fuerzaBruta"
     # PÍVOT
     if p["ast"] >= 5:
         return "pivotOrganizador"
     if p["tres"] >= 0.25:
         return "pivotTirador"
-    if p["libres"] >= 0.5 and p["pts"] >= 20:
+    if p["libres"] >= 0.45 and p["pts"] >= 18:
         return "goliatPintura"
-    if p["pts"] >= 22:
+    if p["pts"] >= 21:
         return "juegoDePies"
-    return "protectorAro"
+    if p["blk"] >= 1.8:
+        return "protectorAro"
+    return "goliatPintura" if p["reb"] >= 12 or p["oreb"] >= 4 else "protectorAro"
 
 
 def dorsal_de(jersey):

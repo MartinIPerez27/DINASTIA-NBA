@@ -24,7 +24,7 @@ class CartaJugador extends StatelessWidget {
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     final esquema = tema.colorScheme;
-    final franquicia = franquiciaPorId(jugador.franquiciaId);
+    final franquicia = identidadDe(jugador);
     final s = jugador.stats;
 
     return Semantics(
@@ -100,6 +100,12 @@ class CartaJugador extends StatelessWidget {
                               ),
                             ],
                           ),
+                          Text(
+                            jugador.rol.etiqueta,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: tema.textTheme.labelSmall?.copyWith(color: esquema.primary),
+                          ),
                           const Spacer(),
                           Row(
                             children: [
@@ -134,11 +140,7 @@ class CartaJugador extends StatelessWidget {
     );
   }
 
-  static String codigoTier(Tier t) => switch (t) {
-    Tier.a => 'A',
-    Tier.s => 'S',
-    Tier.sPlus => 'S+',
-  };
+  static String codigoTier(Tier t) => t.codigo;
 }
 
 class _Dato extends StatelessWidget {

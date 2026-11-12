@@ -11,14 +11,6 @@ import 'texto_led.dart';
 /// Proporción de las cartas verticales (ancho / alto).
 const proporcionCarta = 0.66;
 
-String _codigoEpoca(Epoca e) => switch (e) {
-  Epoca.anios80 => '80s',
-  Epoca.anios90 => '90s',
-  Epoca.anios2000 => '00s',
-  Epoca.anios2010 => '10s',
-  Epoca.actualidad => 'HOY',
-};
-
 String _codigoPosicion(String etiqueta) => switch (etiqueta) {
   'ALA-PÍVOT' => 'AP',
   'PÍVOT' => 'PIV',
@@ -37,7 +29,7 @@ class CartaVertical extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final esquema = Theme.of(context).colorScheme;
-    final franquicia = franquiciaPorId(jugador.franquiciaId);
+    final franquicia = identidadDe(jugador);
     final led = colorLed(franquicia);
     final s = jugador.stats;
     final partes = jugador.nombre.split(' ');
@@ -47,6 +39,7 @@ class CartaVertical extends StatelessWidget {
       Tier.sPlus => (2.5, led),
       Tier.s => (1.5, led.withValues(alpha: 0.7)),
       Tier.a => (1.0, esquema.outlineVariant),
+      Tier.b => (1.0, esquema.outlineVariant.withValues(alpha: 0.6)),
     };
 
     return AspectRatio(
@@ -65,7 +58,8 @@ class CartaVertical extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (jugador.tier != Tier.a) CustomPaint(painter: GrillaLedPainter(led.withValues(alpha: 0.10))),
+                  if (jugador.tier.index >= Tier.s.index)
+                    CustomPaint(painter: GrillaLedPainter(led.withValues(alpha: 0.10))),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -109,7 +103,7 @@ class CartaVertical extends StatelessWidget {
                               children: [
                                 Escudo(franquicia, tamano: w * 0.2),
                                 SizedBox(height: w * 0.02),
-                                TextoLed(_codigoEpoca(jugador.epoca), tamano: w * 0.1, color: esquema.onSurfaceVariant),
+                                TextoLed(jugador.epoca.codigo, tamano: w * 0.1, color: esquema.onSurfaceVariant),
                               ],
                             ),
                           ],
@@ -143,8 +137,26 @@ class CartaVertical extends StatelessWidget {
                           ),
                         ),
                       ),
+                      // Arquetipo (GDD §3.2).
                       Padding(
-                        padding: EdgeInsets.fromLTRB(w * 0.05, w * 0.04, w * 0.05, w * 0.05),
+                        padding: EdgeInsets.fromLTRB(w * 0.05, w * 0.03, w * 0.05, 0),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            jugador.rol.etiqueta.toUpperCase(),
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontFamily: Fuentes.estadio,
+                              fontVariations: const [FontVariation.weight(600)],
+                              fontSize: w * 0.075,
+                              letterSpacing: 0.5,
+                              color: led,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(w * 0.05, w * 0.02, w * 0.05, w * 0.05),
                         child: Row(
                           children: [
                             for (final (sigla, valor) in [

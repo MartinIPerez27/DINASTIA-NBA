@@ -58,7 +58,7 @@ class InicioPantalla extends StatelessWidget {
                         ButtonSegment(value: Conferencia.este, label: Text('Este')),
                         ButtonSegment(value: Conferencia.oeste, label: Text('Oeste')),
                       ],
-                      selected: {enfocada.conferencia},
+                      selected: {enfocada.conferencia!},
                       showSelectedIcon: false,
                       onSelectionChanged: (s) => _enfocar(franquicias.firstWhere((f) => f.conferencia == s.first)),
                     ),
@@ -174,7 +174,7 @@ class _Tablero extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '${franquicia.conferencia.etiqueta} · División ${franquicia.division.etiqueta}',
+                          '${franquicia.conferencia!.etiqueta} · División ${franquicia.division!.etiqueta}',
                           style: tema.textTheme.bodyMedium?.copyWith(color: esquema.onSurfaceVariant),
                         ),
                       ],

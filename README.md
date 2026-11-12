@@ -57,24 +57,26 @@ La app arranca en el tablero: recorré las franquicias en la cinta LED, la app s
 
 ## Catálogo de cartas
 
-`assets/database/nba_players.json` trae **1885 cartas** (48 S+, 106 S, 1731 A), unas 13 por franquicia y
-época, generadas con `tools/catalogo_bbref.py` desde datos públicos de Basketball-Reference
-([sumitrodatta/bball-reference-datasets](https://github.com/sumitrodatta/bball-reference-datasets)).
-No necesita stats.nba.com, así que corre en cualquier lado.
+`assets/database/nba_players.json` trae **11.323 cartas** de toda la historia (desde 1946-47): 74 S+, 161 S,
+3004 A y 8084 B, unas 53 por franquicia y época. Las genera `tools/catalogo_bbref.py` desde datos públicos de
+Basketball-Reference ([sumitrodatta/bball-reference-datasets](https://github.com/sumitrodatta/bball-reference-datasets)).
 
-Cada carta es **jugador + franquicia + época**, y todo se calcula solo con las temporadas de ese tramo:
+Cada carta es **jugador + franquicia + década** con al menos 20 partidos en ese tramo, y todo se calcula solo
+con esas temporadas:
 
 | Campo | Cómo se calcula |
 | --- | --- |
-| Estadísticas | Totales de esas temporadas con esa franquicia ÷ partidos (PPP, RPP, %TC…). |
-| Posiciones | Las que jugó en esas temporadas (por partidos) + la posición vecina que su perfil cubre. |
-| Tier | Premios en ese tramo (MVP, MVP de Finales, All-NBA, DPOY, 6.º Hombre, All-Star). Sin premios, entra como Tier A si fue titular productivo. Cada franquicia y época ofrece al menos 10 cartas. |
-| Rol | Perfil por 36 minutos: tasa de triples, tiros libres, asistencias, rebotes, tapones. |
-| IQ (60–99) | Asistencias por pérdida, eficiencia comparada con su época, premios y defensa. |
-| Foto | ID oficial de la NBA cruzado por nombre con la lista de `nba_api`. |
+| Identidad | El equipo con el que jugó: Thunder en los 90 es **Seattle SuperSonics**; también Bullets, Royals, Braves, New Jersey Nets y los extintos de los 40/50 (Chicago Stags…). |
+| Estadísticas | Totales del tramo ÷ partidos. Lo que la NBA no registraba (robos/tapones antes de 1974, pérdidas antes de 1978, rebotes y minutos en los 40) se estima por posición y se marca con "~". Sin triples antes de 1980. |
+| Posiciones | Las que jugó en esas temporadas + la vecina que su perfil cubre. |
+| Tier | **S+/S/A** por premios (MVP, MVP de Finales, All-NBA, DPOY, 6.º Hombre, All-Star); sin premios, **A** si fue titular productivo y **B (Rotación)** si no. |
+| Media (60–99) | Eficiencia corregida por época + premios. |
+| Arquetipo | Uno de los 24 del GDD según su perfil por 36 minutos (+ correcciones a mano para leyendas). |
+| Foto | 1) CDN de la NBA (si no es la silueta genérica), 2) Basketball-Reference, 3) Wikipedia (la busca la app desde el celular), 4) iniciales. |
 
 ```bash
 python -m pip install nba_api
+python tools/fotos.py
 python tools/catalogo_bbref.py
 ```
 

@@ -1,18 +1,174 @@
 {
  "_ayuda": "Correcciones manuales por id de carta ({bbref_id}-{franquicia}-{época}): posiciones, rol, tier, iq, dorsal, o {\"excluir\": true}. Se aplican después del cálculo automático.",
- "bryanko01-LAL-00": {"dorsal": 8},
- "bryanko01-LAL-10": {"dorsal": 24},
- "jordami01-CHI-80": {"dorsal": 23},
- "jordami01-CHI-90": {"dorsal": 23},
- "jamesle01-CLE-10": {"dorsal": 23},
- "jamesle01-LAL-act": {"dorsal": 23},
- "curryst01-GSW-10": {"dorsal": 30},
- "curryst01-GSW-act": {"dorsal": 30},
- "johnsma02-LAL-80": {"dorsal": 32},
- "birdla01-BOS-80": {"dorsal": 33},
- "duncati01-SAS-00": {"dorsal": 21},
- "onealsh01-LAL-00": {"dorsal": 34},
- "jokicni01-DEN-act": {"dorsal": 15},
- "antetgi01-MIL-act": {"dorsal": 34},
- "ginobma01-SAS-00": {"dorsal": 20}
+ "bryanko01-LAL-00": {
+  "dorsal": 8,
+  "rol": "superestrellaAclarados"
+ },
+ "bryanko01-LAL-10": {
+  "dorsal": 24
+ },
+ "jordami01-CHI-80": {
+  "dorsal": 23
+ },
+ "jordami01-CHI-90": {
+  "dorsal": 23,
+  "rol": "superestrellaAclarados"
+ },
+ "jamesle01-CLE-10": {
+  "dorsal": 23,
+  "rol": "controladorTotal"
+ },
+ "jamesle01-LAL-act": {
+  "dorsal": 23
+ },
+ "curryst01-GSW-10": {
+  "dorsal": 30,
+  "rol": "anotadorExterior"
+ },
+ "curryst01-GSW-act": {
+  "dorsal": 30
+ },
+ "johnsma02-LAL-80": {
+  "dorsal": 32,
+  "rol": "organizadorPuro"
+ },
+ "birdla01-BOS-80": {
+  "dorsal": 33,
+  "rol": "controladorTotal"
+ },
+ "duncati01-SAS-00": {
+  "dorsal": 21,
+  "rol": "maestroPoste"
+ },
+ "onealsh01-LAL-00": {
+  "dorsal": 34,
+  "rol": "goliatPintura"
+ },
+ "jokicni01-DEN-act": {
+  "dorsal": 15
+ },
+ "antetgi01-MIL-act": {
+  "dorsal": 34,
+  "rol": "distribuidorInterior"
+ },
+ "ginobma01-SAS-00": {
+  "dorsal": 20
+ },
+ "pippesc01-CHI-90": {
+  "rol": "cerrojoDefensivo"
+ },
+ "bowenbr01-SAS-00": {
+  "rol": "especialista3D"
+ },
+ "allento01-MEM-10": {
+  "rol": "especialista3D"
+ },
+ "greenda02-SAS-10": {
+  "rol": "especialista3D"
+ },
+ "thompkl01-GSW-10": {
+  "rol": "tiradorPantallas"
+ },
+ "millere01-IND-90": {
+  "rol": "tiradorPantallas"
+ },
+ "allenra02-BOS-00": {
+  "rol": "tiradorPantallas"
+ },
+ "barklch01-PHX-90": {
+  "rol": "fuerzaBruta"
+ },
+ "barklch01-PHI-90": {
+  "rol": "fuerzaBruta"
+ },
+ "wallabe01-DET-00": {
+  "rol": "fuerzaBruta"
+ },
+ "hardeja01-OKC-10": {
+  "rol": "directorSegundaUnidad"
+ },
+ "crawfja01-LAC-10": {
+  "rol": "microondas"
+ },
+ "willilo02-LAC-10": {
+  "rol": "microondas"
+ },
+ "smartma01-BOS-10": {
+  "rol": "baseDefensivo"
+ },
+ "holidjr01-MIL-act": {
+  "rol": "baseDefensivo"
+ },
+ "paytoga01-OKC-90": {
+  "rol": "baseDefensivo"
+ },
+ "malonka01-UTA-90": {
+  "rol": "maestroPoste"
+ },
+ "mchalke01-BOS-80": {
+  "rol": "maestroPoste"
+ },
+ "nowitdi01-DAL-00": {
+  "rol": "alaPivotTirador"
+ },
+ "webbech01-SAC-00": {
+  "rol": "distribuidorInterior"
+ },
+ "greendr01-GSW-10": {
+  "rol": "distribuidorInterior"
+ },
+ "sabonar01-POR-90": {
+  "rol": "pivotOrganizador"
+ },
+ "chambwi01-PHI-60": {
+  "rol": "goliatPintura"
+ },
+ "olajuha01-HOU-90": {
+  "rol": "juegoDePies"
+ },
+ "abdulka01-LAL-80": {
+  "rol": "juegoDePies"
+ },
+ "russebi01-BOS-60": {
+  "rol": "protectorAro"
+ },
+ "robinda01-SAS-90": {
+  "rol": "protectorAro"
+ },
+ "mutomdi01-DEN-90": {
+  "rol": "protectorAro"
+ },
+ "howardw01-ORL-10": {
+  "rol": "protectorAro"
+ },
+ "duranke01-OKC-10": {
+  "rol": "anotadorTresNiveles"
+ },
+ "anthoca01-DEN-00": {
+  "rol": "anotadorTresNiveles"
+ },
+ "leonaka01-TOR-10": {
+  "rol": "anotadorTresNiveles"
+ },
+ "iversal01-PHI-00": {
+  "rol": "penetradorAtletico"
+ },
+ "westbru01-OKC-10": {
+  "rol": "penetradorAtletico"
+ },
+ "rosede01-CHI-10": {
+  "rol": "penetradorAtletico"
+ },
+ "stockjo01-UTA-90": {
+  "rol": "organizadorPuro"
+ },
+ "paulch01-LAC-10": {
+  "rol": "organizadorPuro"
+ },
+ "nashst01-PHX-00": {
+  "rol": "organizadorPuro"
+ },
+ "lillada01-POR-10": {
+  "rol": "anotadorExterior"
+ }
 }

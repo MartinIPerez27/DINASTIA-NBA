@@ -22,7 +22,8 @@ enum Division {
   final Conferencia conferencia;
 }
 
-/// Franquicia base (GDD §2). Los colores van como ARGB (0xAARRGGBB) para que el dominio
+/// Franquicia base (GDD §2). También representa identidades históricas (Seattle SuperSonics,
+/// Washington Bullets, Chicago Stags…): esas no tienen división y no juegan la temporada. Los colores van como ARGB (0xAARRGGBB) para que el dominio
 /// no dependa de Flutter; la capa de presentación los convierte con `Color(valor)`.
 class Franquicia {
   const Franquicia({
@@ -30,9 +31,10 @@ class Franquicia {
     required this.nbaTeamId,
     required this.ciudad,
     required this.nombre,
-    required this.division,
+    this.division,
     required this.colorPrimario,
     required this.colorSecundario,
+    this.escudo,
   });
 
   /// Abreviatura oficial, p. ej. 'CHI'.
@@ -40,11 +42,16 @@ class Franquicia {
   final int nbaTeamId;
   final String ciudad;
   final String nombre;
-  final Division division;
+  final Division? division;
   final int colorPrimario;
   final int colorSecundario;
 
-  Conferencia get conferencia => division.conferencia;
+  /// Escudo: SVG de las actuales; PNG para algunas históricas; null → escudo tipográfico.
+  final String? escudo;
+
+  Conferencia? get conferencia => division?.conferencia;
+  bool get historica => division == null;
+  String? get rutaEscudo => escudo ?? (historica ? null : 'assets/logos/$id.svg');
   String get nombreCompleto => '$ciudad $nombre';
   String get logoUrl => NbaCdn.logo(nbaTeamId);
 

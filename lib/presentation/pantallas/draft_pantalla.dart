@@ -224,6 +224,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
                     const SizedBox(height: 12),
                     if (!_t.plantel.completo && !_modoCartas) ...[
                       TragamonedasPanel(
+                        identidad: draft.identidadDeTirada,
                         tirada: _t.tirada,
                         vuelta: _vuelta,
                         retenidos: _retenidos,

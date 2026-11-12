@@ -20,6 +20,7 @@ class TragamonedasPanel extends StatelessWidget {
     required this.retenidos,
     required this.puedeRetener,
     required this.onRetener,
+    this.identidad = _identidadPropia,
   });
 
   final Tirada? tirada;
@@ -29,6 +30,11 @@ class TragamonedasPanel extends StatelessWidget {
   final Set<Carrete> retenidos;
   final bool puedeRetener;
   final ValueChanged<Carrete> onRetener;
+
+  /// Id de la identidad que se muestra en el carrete de franquicia (Thunder + 90s → 'SEA').
+  final String Function(Tirada) identidad;
+
+  static String _identidadPropia(Tirada t) => t.franquiciaId;
 
   static const duracionGiro = Duration(milliseconds: 1100);
   static const _paradas = {
@@ -45,7 +51,14 @@ class TragamonedasPanel extends StatelessWidget {
         Expanded(
           child: Column(
             children: [
-              _Carrete(carrete: c, tirada: tirada, vuelta: vuelta, girar: !retenidos.contains(c), parada: _paradas[c]!),
+              _Carrete(
+                carrete: c,
+                identidad: identidad,
+                tirada: tirada,
+                vuelta: vuelta,
+                girar: !retenidos.contains(c),
+                parada: _paradas[c]!,
+              ),
               const SizedBox(height: 4),
               FilterChip(
                 label: const Text('RETENER'),
@@ -66,6 +79,7 @@ class TragamonedasPanel extends StatelessWidget {
 class _Carrete extends StatefulWidget {
   const _Carrete({
     required this.carrete,
+    required this.identidad,
     required this.tirada,
     required this.vuelta,
     required this.girar,
@@ -73,6 +87,7 @@ class _Carrete extends StatefulWidget {
   });
 
   final Carrete carrete;
+  final String Function(Tirada) identidad;
   final Tirada? tirada;
   final int vuelta;
   final bool girar;
@@ -139,9 +154,9 @@ class _CarreteState extends State<_Carrete> {
     final (String valor, String detalle) = t == null
         ? ('--', widget.carrete.etiqueta)
         : switch (widget.carrete) {
-            Carrete.franquicia => (t.franquiciaId, franquiciaPorId(t.franquiciaId).nombre),
-            Carrete.epoca => (_codigoEpoca(t.epoca), t.epoca.etiqueta),
-            Carrete.rareza => (_codigoTier(t.tier), t.tier.descripcion),
+            Carrete.franquicia => (widget.identidad(t), franquiciaPorId(widget.identidad(t)).nombre),
+            Carrete.epoca => (t.epoca.codigo, t.epoca.etiqueta),
+            Carrete.rareza => (t.tier.codigo, t.tier.descripcion),
           };
 
     return Semantics(
@@ -168,7 +183,7 @@ class _CarreteState extends State<_Carrete> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (widget.carrete == Carrete.franquicia && t != null) ...[
-                    Escudo(franquiciaPorId(t.franquiciaId), tamano: 22),
+                    Escudo(franquiciaPorId(widget.identidad(t)), tamano: 22),
                     const SizedBox(width: 4),
                   ],
                   Flexible(
@@ -191,18 +206,4 @@ class _CarreteState extends State<_Carrete> {
       ),
     );
   }
-
-  static String _codigoEpoca(Epoca e) => switch (e) {
-    Epoca.anios80 => '80s',
-    Epoca.anios90 => '90s',
-    Epoca.anios2000 => '00s',
-    Epoca.anios2010 => '10s',
-    Epoca.actualidad => 'HOY',
-  };
-
-  static String _codigoTier(Tier t) => switch (t) {
-    Tier.a => 'A',
-    Tier.s => 'S',
-    Tier.sPlus => 'S+',
-  };
 }

@@ -2,12 +2,14 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/cache_imagenes.dart';
+import '../../core/foto_wikipedia.dart';
 import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/jugador.dart';
 import '../tema/tema_franquicia.dart';
 
-/// Foto oficial del jugador (cacheada en disco) con fallback: iniciales en el LED de la franquicia.
-/// El fallback también es el placeholder, así nunca hay un hueco vacío.
+/// Foto del jugador (cacheada en disco). Prueba sus fuentes en orden (NBA, Basketball-Reference,
+/// Wikipedia) y, si ninguna carga, quedan las iniciales en el LED de la franquicia, que también
+/// son el placeholder: nunca hay un hueco vacío.
 /// Con [recortar], llena su caja mostrando cabeza y hombros (para miniaturas cuadradas).
 class JugadorAvatar extends StatelessWidget {
   const JugadorAvatar({super.key, required this.jugador, required this.franquicia, this.recortar = false});
@@ -32,23 +34,50 @@ class JugadorAvatar extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         fallback,
-        if (usarRed && jugador.nbaPlayerId > 0)
-          CachedNetworkImage(
-            imageUrl: jugador.headshotUrl,
-            cacheManager: cacheHeadshots,
-            fit: recortar ? BoxFit.cover : BoxFit.contain,
-            alignment: recortar ? const Alignment(0, -0.6) : Alignment.bottomCenter,
-            fadeInDuration: sinAnimaciones ? Duration.zero : const Duration(milliseconds: 180),
-            fadeInCurve: Curves.easeOut,
-            placeholder: (_, _) => const SizedBox.shrink(),
-            errorWidget: (_, _, _) => const SizedBox.shrink(),
-          ),
+        if (usarRed) _FotoEnCadena(urls: jugador.urlsFoto, recortar: recortar, animar: !sinAnimaciones),
       ],
     );
     return Semantics(
       label: jugador.nombre,
       image: true,
       child: recortar ? foto : AspectRatio(aspectRatio: proporcion, child: foto),
+    );
+  }
+}
+
+/// Prueba la primera URL; si falla, la siguiente; si no queda ninguna, no dibuja nada.
+class _FotoEnCadena extends StatelessWidget {
+  const _FotoEnCadena({required this.urls, required this.recortar, required this.animar});
+
+  final List<String> urls;
+  final bool recortar;
+  final bool animar;
+
+  @override
+  Widget build(BuildContext context) {
+    if (urls.isEmpty) return const SizedBox.shrink();
+    final siguiente = _FotoEnCadena(urls: urls.sublist(1), recortar: recortar, animar: animar);
+    if (urls.first.startsWith('wiki:')) {
+      return FutureBuilder<String?>(
+        future: fotoWikipedia(urls.first.substring(5)),
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) return const SizedBox.shrink();
+          final url = snap.data;
+          return url == null
+              ? siguiente
+              : _FotoEnCadena(urls: [url, ...urls.sublist(1)], recortar: recortar, animar: animar);
+        },
+      );
+    }
+    return CachedNetworkImage(
+      imageUrl: urls.first,
+      cacheManager: cacheHeadshots,
+      fit: recortar ? BoxFit.cover : BoxFit.contain,
+      alignment: recortar ? const Alignment(0, -0.6) : Alignment.bottomCenter,
+      fadeInDuration: animar ? const Duration(milliseconds: 180) : Duration.zero,
+      fadeInCurve: Curves.easeOut,
+      placeholder: (_, _) => const SizedBox.shrink(),
+      errorWidget: (_, _, _) => siguiente,
     );
   }
 }
