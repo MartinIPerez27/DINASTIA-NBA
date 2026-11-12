@@ -224,6 +224,18 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
                         final js = plantel.jugadores.toList()..sort((a, b) => b.media.compareTo(a.media));
                         return js.take(3).map((j) => '${j.nombre} ${j.media}').join(' · ');
                       }(),
+                      contexto: () {
+                        final rivalId = proximo.localId == _t.franquiciaUsuarioId
+                            ? proximo.visitanteId
+                            : proximo.localId;
+                        final (v, d, partidos) = _t.historialContra(rivalId);
+                        final (backToBack, gira) = _liga.desgaste(_t, proximo, _t.franquiciaUsuarioId);
+                        return [
+                          if (v + d > 0) 'Serie de la temporada: $v-$d' else 'Primer cruce de ${partidos.length}',
+                          if (backToBack) 'Back-to-back',
+                          if (gira >= 3) 'Gira: $gira.º seguido de visitante',
+                        ];
+                      }(),
                       ocupado: _ocupado,
                       onVivo: () => _jugarEnVivo(proximo),
                       onSimular: () => _simular(1),
@@ -312,7 +324,8 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
         ),
         const SizedBox(height: 8),
         for (final (i, r) in tabla.indexed) ...[
-          if (i == Temporada.clasificadosPorConferencia) Divider(color: tema.colorScheme.outlineVariant),
+          if (i == 6) Divider(color: tema.colorScheme.outlineVariant),
+          if (i == 10) Divider(color: tema.colorScheme.outlineVariant, thickness: 2),
           _FilaTabla(
             posicion: i + 1,
             franquicia: _identidad(r.franquiciaId),
@@ -325,7 +338,8 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
         ],
         const SizedBox(height: 8),
         Text(
-          'Los 8 primeros de cada conferencia van a los playoffs.',
+          'Del 1.º al 6.º van directo a los playoffs; del 7.º al 10.º juegan el Play-In. '
+          'Desempates: enfrentamientos directos, récord en la conferencia y diferencia de puntos.',
           style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant),
         ),
       ],
@@ -439,6 +453,7 @@ class _Encabezado extends StatelessWidget {
 class _ProximoPartido extends StatelessWidget {
   const _ProximoPartido({
     required this.partido,
+    this.contexto = const [],
     required this.local,
     required this.rival,
     required this.nombre,
@@ -453,6 +468,9 @@ class _ProximoPartido extends StatelessWidget {
   });
 
   final Partido partido;
+
+  /// Serie de la temporada contra ese rival, back-to-back, gira.
+  final List<String> contexto;
   final bool local;
   final Franquicia rival;
   final String nombre, detalle;
@@ -491,7 +509,29 @@ class _ProximoPartido extends StatelessWidget {
                       'Jornada ${partido.jornada} · ${local ? 'de local' : 'de visitante'} · $detalle',
                       style: tema.textTheme.bodyMedium?.copyWith(color: esquema.primary),
                     ),
-                    const SizedBox(height: 2),
+                    if (contexto.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          for (final c in contexto)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: c.startsWith('Back') || c.startsWith('Gira')
+                                      ? esquema.error
+                                      : esquema.outlineVariant,
+                                ),
+                              ),
+                              child: Text(c, style: tema.textTheme.labelSmall),
+                            ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 4),
                     Text(
                       figuras,
                       maxLines: 2,

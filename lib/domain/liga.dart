@@ -160,11 +160,46 @@ class Liga {
   }
 
   MotorPartido motor(Temporada t, Partido p, {Random? azar}) => MotorPartido(
-    local: equipo(t, p.localId),
-    visitante: equipo(t, p.visitanteId),
+    local: _conDesgaste(equipo(t, p.localId), t, p, p.localId),
+    visitante: _conDesgaste(equipo(t, p.visitanteId), t, p, p.visitanteId),
     usuarioLocal: p.localId == t.franquiciaUsuarioId,
     azar: azar ?? _azar,
   );
+
+  /// Calendario con desgaste: ¿jugó la noche anterior (back-to-back)? ¿cuántos partidos seguidos
+  /// lleva de visitante (gira)? Solo en temporada regular.
+  (bool, int) desgaste(Temporada t, Partido p, String franquiciaId) {
+    if (p.jornada <= 0) return (false, 0);
+    final propios = [
+      for (final x in t.calendario)
+        if (x.participa(franquiciaId) && x.jornada <= p.jornada) x,
+    ]..sort((a, b) => a.jornada.compareTo(b.jornada));
+    final i = propios.indexWhere((x) => x.id == p.id);
+    if (i < 0) return (false, 0);
+    // Las jornadas están comprimidas (casi todos juegan día por medio): como en la NBA real, ~18 %
+    // de los partidos de cada equipo son la segunda noche seguida, fijos según el calendario.
+    final semilla = '$franquiciaId-${p.jornada}'.codeUnits.fold(7, (h, c) => (h * 31 + c) & 0x7fffffff);
+    final backToBack = i > 0 && propios[i - 1].jornada == p.jornada - 1 && semilla % 100 < 18;
+    var gira = 0;
+    for (var k = i; k >= 0 && propios[k].visitanteId == franquiciaId; k--) {
+      gira++;
+    }
+    return (backToBack, gira);
+  }
+
+  EquipoPartido _conDesgaste(EquipoPartido e, Temporada t, Partido p, String franquiciaId) {
+    final (backToBack, gira) = desgaste(t, p, franquiciaId);
+    final energia = 100.0 - (backToBack ? 7 : 0) - (gira >= 3 ? min(5, (gira - 2) * 1.5) : 0);
+    if (energia >= 100) return e;
+    return EquipoPartido(
+      identidadId: e.identidadId,
+      plantel: e.plantel,
+      tactica: e.tactica,
+      entrenador: e.entrenador,
+      forma: e.forma,
+      energiaInicial: energia,
+    );
+  }
 
   Map<String, LineaEstadistica> _copia(Map<String, LineaEstadistica> lineas) => {
     for (final e in lineas.entries) e.key: LineaEstadistica()..sumar(e.value),
@@ -290,20 +325,39 @@ class Liga {
 
   static const _cruces = [(0, 7), (3, 4), (2, 5), (1, 6)]; // 1-8, 4-5, 3-6, 2-7: así se cruzan después
 
-  /// Arma la 1.ª ronda con los 8 mejores de cada conferencia (si la temporada regular terminó).
+  /// Con la temporada regular terminada arranca el Play-In (GDD: 7.º a 10.º de cada conferencia):
+  /// 7 vs 8 (el ganador es el 7.º) y 9 vs 10; después, el perdedor del 7-8 contra el ganador del 9-10
+  /// por el 8.º puesto. Del 1.º al 6.º entran directo.
   Temporada iniciarPlayoffs(Temporada t) {
     if (t.series.isNotEmpty || t.calendario.isEmpty || t.calendario.any((p) => !p.jugado)) return t;
     final series = <SeriePlayoff>[];
     for (final conf in [Conferencia.este, Conferencia.oeste]) {
       final tabla = t.standings(conf, franquicias);
-      for (final (a, b) in _cruces) {
-        series.add(
-          SeriePlayoff(ronda: RondaPlayoff.primeraRonda, altoId: tabla[a].franquiciaId, bajoId: tabla[b].franquiciaId),
-        );
-      }
+      series
+        ..add(SeriePlayoff(ronda: RondaPlayoff.playIn, altoId: tabla[6].franquiciaId, bajoId: tabla[7].franquiciaId))
+        ..add(SeriePlayoff(ronda: RondaPlayoff.playIn, altoId: tabla[8].franquiciaId, bajoId: tabla[9].franquiciaId));
     }
     return t.copyWith(series: series);
   }
+
+  /// Si tu equipo entró directo, el Play-In de los demás se juega al instante.
+  Temporada simularPlayIn(Temporada t) {
+    var nueva = iniciarPlayoffs(t);
+    while (nueva.series.isNotEmpty && nueva.series.last.ronda.esPlayIn && nueva.serieDelUsuario == null) {
+      final ronda = nueva.series.last.ronda;
+      for (final s in nueva.series.where((s) => s.ronda == ronda && !s.terminada).toList()) {
+        nueva = _simularSerie(nueva, s);
+      }
+      final antes = nueva.series.length;
+      nueva = _avanzar(nueva);
+      if (nueva.series.length == antes) break;
+    }
+    return nueva;
+  }
+
+  /// ¿Se está jugando el Play-In sin el usuario (que espera en la 1.ª ronda)?
+  bool esperandoPlayIn(Temporada t) =>
+      t.series.isNotEmpty && t.series.last.ronda.esPlayIn && t.serieDelUsuario == null && t.eliminacion == null;
 
   /// Partido que sigue en una serie (el local según el 2-2-1-1-1).
   Partido partidoDeSerie(SeriePlayoff s) {
@@ -397,6 +451,32 @@ class Liga {
     final ronda = t.series.last.ronda;
     final deRonda = t.series.where((s) => s.ronda == ronda).toList();
     if (ronda == RondaPlayoff.finalesNba || deRonda.any((s) => !s.terminada)) return t;
+    if (ronda == RondaPlayoff.playIn) {
+      // Por conferencia: [7 vs 8, 9 vs 10] → perdedor del 7-8 contra ganador del 9-10.
+      final finales = <SeriePlayoff>[];
+      for (var i = 0; i < deRonda.length; i += 2) {
+        final sieteOcho = deRonda[i], nueveDiez = deRonda[i + 1];
+        final perdedor = sieteOcho.ganadorId == sieteOcho.altoId ? sieteOcho.bajoId : sieteOcho.altoId;
+        finales.add(SeriePlayoff(ronda: RondaPlayoff.playInFinal, altoId: perdedor, bajoId: nueveDiez.ganadorId!));
+      }
+      return t.copyWith(series: [...t.series, ...finales]);
+    }
+    if (ronda == RondaPlayoff.playInFinal) {
+      final primera = <SeriePlayoff>[];
+      final sieteOcho = t.series.where((s) => s.ronda == RondaPlayoff.playIn).toList();
+      for (final (k, conf) in [Conferencia.este, Conferencia.oeste].indexed) {
+        final tabla = t.standings(conf, franquicias);
+        final siembra = [
+          for (final r in tabla.take(6)) r.franquiciaId,
+          sieteOcho[k * 2].ganadorId!,
+          deRonda[k].ganadorId!,
+        ];
+        for (final (a, b) in _cruces) {
+          primera.add(SeriePlayoff(ronda: RondaPlayoff.primeraRonda, altoId: siembra[a], bajoId: siembra[b]));
+        }
+      }
+      return t.copyWith(series: [...t.series, ...primera]);
+    }
     final siguiente = RondaPlayoff.values[ronda.index + 1];
     final ganadores = [for (final s in deRonda) s.ganadorId!];
     final nuevas = <SeriePlayoff>[];

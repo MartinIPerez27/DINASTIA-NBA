@@ -21,6 +21,8 @@ class RegistroEquipo {
 }
 
 enum RondaPlayoff {
+  playIn('Play-In'),
+  playInFinal('Play-In: último boleto'),
   primeraRonda('1ª Ronda de Conferencia'),
   semifinalConferencia('Semifinales de Conferencia'),
   finalConferencia('Finales de Conferencia'),
@@ -28,6 +30,9 @@ enum RondaPlayoff {
 
   const RondaPlayoff(this.etiqueta);
   final String etiqueta;
+
+  /// Partido único (los dos turnos del Play-In).
+  bool get esPlayIn => this == playIn || this == playInFinal;
 }
 
 /// Serie al mejor de 7 (GDD §7). [altoId] es la mejor siembra y tiene la ventaja de localía.
@@ -40,7 +45,8 @@ class SeriePlayoff {
     this.victoriasBajo = 0,
   });
 
-  static const victoriasParaGanar = 4;
+  /// Al mejor de 7 (4 victorias); el Play-In es a partido único.
+  int get victoriasParaGanar => ronda.esPlayIn ? 1 : 4;
 
   final RondaPlayoff ronda;
   final String altoId;
@@ -248,16 +254,60 @@ class Temporada {
   bool get esTemporadaPerfecta => registroUsuario.victorias == partidosTemporadaRegular;
 
   /// Tabla de una conferencia ordenada por % de victorias (desempate: más victorias).
+  /// Tabla de una conferencia con los desempates oficiales: % de victorias, enfrentamientos
+  /// directos, récord contra la conferencia y diferencia de puntos.
   List<RegistroEquipo> standings(Conferencia conf, Iterable<Franquicia> franquicias) {
-    final tabla = [
+    final deConf = {
       for (final f in franquicias)
-        if (f.conferencia == conf) registroDe(f.id),
-    ];
+        if (f.conferencia == conf) f.id,
+    };
+    final tabla = [for (final id in deConf) registroDe(id)];
+    final pctConf = <String, double>{}, diferencia = <String, int>{};
+    for (final id in deConf) {
+      var v = 0, d = 0, dif = 0;
+      for (final p in calendario) {
+        if (!p.jugado || !p.participa(id)) continue;
+        final propio = p.localId == id ? p.puntosLocal : p.puntosVisitante;
+        final ajeno = p.localId == id ? p.puntosVisitante : p.puntosLocal;
+        dif += propio - ajeno;
+        final rival = p.localId == id ? p.visitanteId : p.localId;
+        if (deConf.contains(rival)) p.ganadorId == id ? v++ : d++;
+      }
+      pctConf[id] = v + d == 0 ? 0 : v / (v + d);
+      diferencia[id] = dif;
+    }
     tabla.sort((a, b) {
-      final c = b.porcentaje.compareTo(a.porcentaje);
-      return c != 0 ? c : b.victorias.compareTo(a.victorias);
+      var c = b.porcentaje.compareTo(a.porcentaje);
+      if (c != 0) return c;
+      final (va, vb) = enfrentamientos(a.franquiciaId, b.franquiciaId);
+      c = vb.compareTo(va); // más victorias en el cruce directo, primero
+      if (c != 0) return c;
+      c = pctConf[b.franquiciaId]!.compareTo(pctConf[a.franquiciaId]!);
+      if (c != 0) return c;
+      c = diferencia[b.franquiciaId]!.compareTo(diferencia[a.franquiciaId]!);
+      return c != 0 ? c : a.franquiciaId.compareTo(b.franquiciaId);
     });
     return tabla;
+  }
+
+  /// Victorias de [a] y de [b] en los partidos entre ellos (temporada regular).
+  (int, int) enfrentamientos(String a, String b) {
+    var va = 0, vb = 0;
+    for (final p in calendario) {
+      if (!p.jugado || !p.participa(a) || !p.participa(b)) continue;
+      p.ganadorId == a ? va++ : vb++;
+    }
+    return (va, vb);
+  }
+
+  /// Serie de la temporada del usuario contra un rival: (ganados, perdidos) y los partidos.
+  (int, int, List<Partido>) historialContra(String rivalId) {
+    final partidos = [
+      for (final p in calendario)
+        if (p.participa(franquiciaUsuarioId) && p.participa(rivalId)) p,
+    ];
+    final (v, d) = enfrentamientos(franquiciaUsuarioId, rivalId);
+    return (v, d, partidos);
   }
 
   Temporada usarReroll() {

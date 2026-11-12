@@ -158,6 +158,7 @@ class Progreso {
         : propias.isEmpty
         ? 'Sin playoffs'
         : switch (propias.last.ronda) {
+            RondaPlayoff.playIn || RondaPlayoff.playInFinal => 'Play-In',
             RondaPlayoff.primeraRonda => '1.ª ronda',
             RondaPlayoff.semifinalConferencia => 'Semifinal de conferencia',
             RondaPlayoff.finalConferencia => 'Final de conferencia',

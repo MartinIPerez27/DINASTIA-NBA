@@ -41,21 +41,25 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(guardadas.single.series, hasLength(8), reason: 'el cuadro se arma y se guarda al entrar');
-    expect(find.text('1ª RONDA DE CONFERENCIA'), findsOneWidget);
+    expect(guardadas.single.series, hasLength(4), reason: 'el Play-In se arma y se guarda al entrar');
+    expect(find.text('PLAY-IN'), findsOneWidget);
+    Future<void> tocar(String texto) async {
+      await tester.ensureVisible(find.text(texto));
+      await tester.tap(find.text(texto));
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
 
     if (guardadas.single.serieDelUsuario != null) {
-      await tester.tap(find.text('SIMULAR SERIE'));
-      for (var i = 0; i < 4; i++) {
-        await tester.pump(const Duration(milliseconds: 50));
-      }
-      expect(find.textContaining('la serie'), findsOneWidget);
-      expect(guardadas.last.serieDelUsuario?.ronda, isNot(RondaPlayoff.primeraRonda));
+      await tocar('SIMULAR SERIE');
+      expect(guardadas.last.series.length, greaterThan(4));
+    } else if (liga.esperandoPlayIn(guardadas.single)) {
+      await tocar('SIMULAR EL PLAY-IN');
+      expect(guardadas.last.series.where((s) => s.ronda == RondaPlayoff.primeraRonda), hasLength(8));
+      expect(find.text('1ª RONDA DE CONFERENCIA'), findsOneWidget);
     } else {
-      await tester.tap(find.text('SIMULAR HASTA EL CAMPEÓN'));
-      for (var i = 0; i < 4; i++) {
-        await tester.pump(const Duration(milliseconds: 50));
-      }
+      await tocar('SIMULAR HASTA EL CAMPEÓN');
       expect(guardadas.last.campeonId, isNotNull);
     }
 

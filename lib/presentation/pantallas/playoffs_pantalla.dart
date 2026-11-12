@@ -165,6 +165,16 @@ class _PlayoffsPantallaState extends State<PlayoffsPantalla> {
                 onStats: _abrirStats,
                 onInicio: () => Navigator.of(context).popUntil((r) => r.isFirst),
               )
+            else if (_liga.esperandoPlayIn(_t))
+              _Afuera(
+                titulo: 'ENTRASTE DIRECTO',
+                texto:
+                    'Terminaste entre los 6 primeros: esperás en la 1.ª ronda mientras los puestos 7.º a 10.º '
+                    'se juegan el Play-In.',
+                boton: 'SIMULAR EL PLAY-IN',
+                ocupado: _ocupado,
+                onSimular: () => _simular(_liga.simularPlayIn, null),
+              )
             else if (serie != null)
               _SerieActual(
                 serie: serie,
@@ -184,7 +194,7 @@ class _PlayoffsPantallaState extends State<PlayoffsPantalla> {
                   final s? =>
                     'Quedaste afuera en ${s.ronda.etiqueta.toLowerCase().replaceFirst('las ', '')} '
                         '(${_marcador(s)} vs ${_nombre(s.altoId == _t.franquiciaUsuarioId ? s.bajoId : s.altoId)}).',
-                  null => 'Tu equipo no entró entre los 8 mejores de su conferencia.',
+                  null => 'Tu equipo no entró entre los 10 mejores de su conferencia (ni al Play-In).',
                 },
                 ocupado: _ocupado,
                 onSimular: () => _simular(_liga.simularRestoPlayoffs, null),
@@ -290,7 +300,9 @@ class _SerieActual extends StatelessWidget {
           const SizedBox(height: 10),
           Text('vs $nombreRival', style: tema.textTheme.titleMedium),
           Text(
-            'Juego $juego · ${local ? 'de local' : 'de visitante'} · gana el primero en llegar a 4',
+            serie.ronda.esPlayIn
+                ? 'Partido único · ${local ? 'de local' : 'de visitante'} · el que gana sigue'
+                : 'Juego $juego · ${local ? 'de local' : 'de visitante'} · gana el primero en llegar a 4',
             style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
           ),
           const SizedBox(height: 14),
@@ -327,9 +339,15 @@ class _SerieActual extends StatelessWidget {
 }
 
 class _Afuera extends StatelessWidget {
-  const _Afuera({required this.texto, required this.ocupado, required this.onSimular});
+  const _Afuera({
+    required this.texto,
+    required this.ocupado,
+    required this.onSimular,
+    this.titulo = 'FIN DEL CAMINO',
+    this.boton = 'SIMULAR HASTA EL CAMPEÓN',
+  });
 
-  final String texto;
+  final String texto, titulo, boton;
   final bool ocupado;
   final VoidCallback onSimular;
 
@@ -342,14 +360,14 @@ class _Afuera extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('FIN DEL CAMINO', style: tema.textTheme.headlineSmall),
+          Text(titulo, style: tema.textTheme.headlineSmall),
           const SizedBox(height: 4),
           Text(texto, style: tema.textTheme.bodyMedium),
           const SizedBox(height: 14),
           FilledButton(
             onPressed: ocupado ? null : onSimular,
             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-            child: const Text('SIMULAR HASTA EL CAMPEÓN'),
+            child: Text(boton),
           ),
         ],
       ),

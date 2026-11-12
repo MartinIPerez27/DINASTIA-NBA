@@ -70,6 +70,7 @@ class EquipoPartido {
     required this.tactica,
     this.entrenador,
     this.forma = const {},
+    this.energiaInicial = 100,
   });
 
   final String identidadId;
@@ -79,6 +80,9 @@ class EquipoPartido {
 
   /// Forma de cada carta (−3 a +3), que se suma a su media en este partido.
   final Map<String, int> forma;
+
+  /// Energía con la que arrancan (menos en un back-to-back o al final de una gira larga).
+  final double energiaInicial;
 }
 
 enum TipoEvento { tiro, libres, perdida, cambio, tiempoMuerto, finCuarto, finPartido }
@@ -217,7 +221,7 @@ class _Lado {
     }
     banco = equipo.plantel.sextoHombre;
     for (final j in equipo.plantel.jugadores) {
-      energia[j.id] = 100;
+      energia[j.id] = equipo.energiaInicial;
       box[j.id] = LineaEstadistica()..pj = 1;
     }
   }
