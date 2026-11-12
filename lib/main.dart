@@ -2,13 +2,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'data/catalogo_jugadores.dart';
 import 'data/db_local.dart';
 import 'data/franquicias.dart';
 import 'domain/entities/franquicia.dart';
 import 'domain/entities/temporada.dart';
+import 'domain/liga.dart';
 import 'presentation/pantallas/draft_pantalla.dart';
 import 'presentation/pantallas/inicio_pantalla.dart';
 import 'presentation/pantallas/playbook_pantalla.dart';
+import 'presentation/pantallas/temporada_pantalla.dart';
 import 'presentation/tema/tema_franquicia.dart';
 import 'presentation/widgets/elegir_modo.dart';
 
@@ -49,27 +52,33 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   late Temporada? _guardada = widget.guardada;
 
   /// Abre la pantalla que corresponde a la fase de la temporada.
-  void _abrirTemporada(Temporada t, {bool reemplazar = false}) {
+  Future<void> _abrirTemporada(Temporada t, {bool reemplazar = false}) async {
     setState(() => _enfocada = franquiciaPorId(t.franquiciaUsuarioId));
-    final pantalla = t.fase == FaseTemporada.draft
-        ? DraftPantalla(
-            temporada: t,
-            onCambio: _guardarCambios,
-            onCompleto: () => _abrirTemporada(_guardada!, reemplazar: true),
-          )
-        : PlaybookPantalla(temporada: t, onConfirmar: _confirmarTacticas);
+    final Widget pantalla;
+    switch (t.fase) {
+      case FaseTemporada.draft:
+        pantalla = DraftPantalla(
+          temporada: t,
+          onCambio: _guardarCambios,
+          onCompleto: () => _abrirTemporada(_guardada!, reemplazar: true),
+        );
+      case FaseTemporada.tacticas:
+        pantalla = PlaybookPantalla(temporada: t, onConfirmar: _confirmarTacticas);
+      case _:
+        final liga = Liga(await cargarCatalogo(), franquicias);
+        pantalla = TemporadaPantalla(temporada: t, liga: liga, onCambio: _guardarCambios);
+    }
     final ruta = MaterialPageRoute<void>(builder: (_) => pantalla);
     final navegador = _navegador.currentState!;
     reemplazar ? navegador.pushReplacement(ruta) : navegador.push(ruta);
   }
 
-  // shortcut: hasta la Fase 5 no hay pantalla de temporada; al confirmar se vuelve al inicio.
+  /// Con las tácticas confirmadas se arma la temporada (calendario y rivales) y se abre.
   Future<void> _confirmarTacticas(Temporada t) async {
-    await _guardarCambios(t);
-    _navegador.currentState!.pop();
-    ScaffoldMessenger.of(_navegador.currentContext!).showSnackBar(
-      SnackBar(content: Text('Tácticas listas: ${t.tactica.ofensiva.nombre} + ${t.tactica.defensiva.nombre}.')),
-    );
+    final liga = Liga(await cargarCatalogo(), franquicias);
+    final lista = t.calendario.isEmpty ? liga.iniciar(t) : t;
+    await _guardarCambios(lista);
+    await _abrirTemporada(lista, reemplazar: true);
   }
 
   /// Cada paso del draft se guarda al instante (cerrar la app no regala tiradas).

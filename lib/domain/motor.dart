@@ -225,6 +225,7 @@ class MotorPartido {
   Map<String, LineaEstadistica> get boxVisitante => _v.box;
   Map<String, double> energias(bool local) => Map.unmodifiable((local ? _l : _v).energia);
   List<Jugador> enCancha(bool local) => List.unmodifiable((local ? _l : _v).enCancha);
+  Jugador? enBanco(bool local) => (local ? _l : _v).banco;
   int tiemposMuertos(bool local) => (local ? _l : _v).tiemposMuertos;
 
   /// Intervenciones del entrenador (GDD §6).
