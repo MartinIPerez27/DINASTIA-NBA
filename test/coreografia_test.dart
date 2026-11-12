@@ -75,7 +75,11 @@ void main() {
             reason:
                 '${e.tipo} ${j.nombre} ${c.atacantes.contains(j) ? "ataca" : "defiende"} en $k/$pasos contra=${e.contraataque} t2=$segunda',
           );
-          expect(ahora.dx, inInclusiveRange(-4, 54));
+          expect(
+            ahora.dx,
+            inInclusiveRange(-4, 54),
+            reason: '${e.texto} ${j.nombre} ${c.atacantes.contains(j) ? "ataca" : "defiende"}',
+          );
           expect(ahora.dy, inInclusiveRange(-4, 98));
           previa = ahora;
         }

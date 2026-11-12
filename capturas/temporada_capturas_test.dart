@@ -10,6 +10,7 @@ import 'package:dinastia_nba/domain/entities/temporada.dart';
 import 'package:dinastia_nba/domain/liga.dart';
 import 'package:dinastia_nba/presentation/pantallas/partido_pantalla.dart';
 import 'package:dinastia_nba/presentation/partido/sonido_partido.dart';
+import 'package:dinastia_nba/presentation/partido/voz_relator.dart';
 import 'package:dinastia_nba/presentation/pantallas/playoffs_pantalla.dart';
 import 'package:dinastia_nba/presentation/pantallas/stats82_pantalla.dart';
 import 'package:dinastia_nba/presentation/pantallas/temporada_pantalla.dart';
@@ -33,6 +34,7 @@ void main() {
   late Temporada temporada;
   setUpAll(() async {
     SonidoPartido.habilitado = false;
+    VozRelator.habilitado = false;
     JugadorAvatar.usarRed = false;
     const mf = '/opt/flutter/bin/cache/artifacts/material_fonts';
     await _fuente('Roboto', ['$mf/Roboto-Regular.ttf', '$mf/Roboto-Medium.ttf', '$mf/Roboto-Bold.ttf']);

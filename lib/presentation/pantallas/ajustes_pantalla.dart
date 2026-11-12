@@ -71,7 +71,9 @@ class _AjustesPantallaState extends State<AjustesPantalla> {
                 ),
                 SwitchListTile(
                   title: const Text('Voz del relator'),
-                  subtitle: const Text('Llega con el relator, en la próxima tanda.'),
+                  subtitle: const Text(
+                    'El relator lee las jugadas con la voz del celular (sin internet; necesita la voz en español instalada).',
+                  ),
                   value: _a.vozRelator,
                   onChanged: (v) => _cambiar(_a.copyWith(vozRelator: v)),
                 ),

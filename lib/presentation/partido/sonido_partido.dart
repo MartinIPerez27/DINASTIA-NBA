@@ -16,6 +16,9 @@ import 'package:flutter/foundation.dart';
 /// sonido.chicharra();              // fin de cuarto / partido
 /// sonido.silbato();                // falta, infracción, tiempo muerto
 /// sonido.ovacion();                // jugada grande (triple, tapón, clutch)
+/// sonido.abucheo();                // el público local abuchea al visitante
+/// sonido.canto();                  // "DE-FEN-SA" (como mucho uno cada 8 s)
+/// sonido.golpe();                  // volcada: aro y tablero
 /// sonido.pausar(); sonido.reanudar();
 /// sonido.silencio = true;          // botón de silencio
 /// await sonido.liberar();          // en dispose()
@@ -34,6 +37,7 @@ class SonidoPartido {
   var _pausado = false;
   var _listo = false;
   DateTime _ultimoPique = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _ultimoCanto = DateTime.fromMillisecondsSinceEpoch(0);
 
   bool get silencio => _silencio;
 
@@ -63,6 +67,9 @@ class SonidoPartido {
         ('chicharra', 1),
         ('silbato', 2),
         ('ovacion', 1),
+        ('abucheo', 1),
+        ('defensa', 1),
+        ('golpe', 2),
       ]) {
         _pools[nombre] = await AudioPool.create(source: AssetSource('sonidos/$nombre.ogg'), maxPlayers: maximo);
       }
@@ -91,6 +98,19 @@ class SonidoPartido {
   void silbato() => _efecto('silbato', 0.7);
 
   void ovacion() => _efecto('ovacion', 0.9);
+
+  void abucheo() => _efecto('abucheo', 0.75);
+
+  /// Canto "DE-FEN-SA" de la tribuna: como mucho uno cada 8 segundos (si no, satura).
+  void canto() {
+    if (!habilitado || _silencio || _pausado) return;
+    final ahora = DateTime.now();
+    if (ahora.difference(_ultimoCanto) < const Duration(seconds: 8)) return;
+    _ultimoCanto = ahora;
+    _efecto('defensa', 0.7);
+  }
+
+  void golpe() => _efecto('golpe', 0.95);
 
   void pausar() {
     _pausado = true;

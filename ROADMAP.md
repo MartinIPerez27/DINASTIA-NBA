@@ -18,15 +18,15 @@ final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
 - [x] ✅ **Draft en serpiente contra la IA** (los rivales también eligen).
 
 ## 2. Partido en vivo
-- [ ] **Jugada clave en el clutch**: pausa y elegís aislamiento / pick & roll / triple.
-- [ ] **Relator rioplatense** con frases según la jugada.
-- [ ] **Saltar a lo importante** (hasta el último cuarto o el próximo final clutch).
-- [ ] **Volcadas y alley-oops** con animación propia.
-- [ ] **Cambios y minutos a mano**.
-- [ ] **Faltas personales** (cargados de faltas, 6.ª falta = afuera).
-- [ ] **Repetición en cámara lenta** de las mejores jugadas.
-- [ ] **Público según la cancha** (abucheos de visitante, "DE-FEN-SA" de local).
-- [ ] **Pospartido**: jugador del partido, box score de ambos equipos y las 3 mejores jugadas.
+- [x] ✅ **Jugada clave en el clutch**: pausa y elegís aislamiento / pick & roll / triple.
+- [x] ✅ **Relator rioplatense** con frases según la jugada.
+- [x] ✅ **Saltar a lo importante** (hasta el último cuarto o el próximo final clutch).
+- [x] ✅ **Volcadas y alley-oops** con animación propia.
+- [x] ✅ **Cambios y minutos a mano**.
+- [x] ✅ **Faltas personales** (cargados de faltas, 6.ª falta = afuera).
+- [x] ✅ **Repetición en cámara lenta** de las mejores jugadas.
+- [x] ✅ **Público según la cancha** (abucheos de visitante, "DE-FEN-SA" de local).
+- [x] ✅ **Pospartido**: jugador del partido, box score de ambos equipos y las 3 mejores jugadas.
 
 ## 3. Temporada y liga
 - [ ] **Banco más largo y lesiones** (rotación de 8).

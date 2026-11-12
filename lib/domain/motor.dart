@@ -13,6 +13,9 @@ class LineaEstadistica {
   LineaEstadistica();
 
   int pj = 0, pts = 0, reb = 0, ast = 0, rob = 0, tap = 0, per = 0;
+
+  /// Faltas personales (con 6 queda afuera del partido).
+  int fal = 0;
   int tcI = 0, tcA = 0, t3I = 0, t3A = 0, tlI = 0, tlA = 0;
   double seg = 0;
 
@@ -31,6 +34,7 @@ class LineaEstadistica {
     tlI += o.tlI;
     tlA += o.tlA;
     seg += o.seg;
+    fal += o.fal;
   }
 
   factory LineaEstadistica.fromJson(Map<String, dynamic> j) {
@@ -49,11 +53,12 @@ class LineaEstadistica {
       ..t3A = v[10].toInt()
       ..tlI = v[11].toInt()
       ..tlA = v[12].toInt()
-      ..seg = v[13].toDouble();
+      ..seg = v[13].toDouble()
+      ..fal = v.length > 14 ? v[14].toInt() : 0;
   }
 
   Map<String, dynamic> toJson() => {
-    'v': [pj, pts, reb, ast, rob, tap, per, tcI, tcA, t3I, t3A, tlI, tlA, seg.round()],
+    'v': [pj, pts, reb, ast, rob, tap, per, tcI, tcA, t3I, t3A, tlI, tlA, seg.round(), fal],
   };
 }
 
@@ -78,6 +83,17 @@ class EquipoPartido {
 
 enum TipoEvento { tiro, libres, perdida, cambio, tiempoMuerto, finCuarto, finPartido }
 
+/// Jugada que pide el entrenador en el final apretado (GDD: jugada clave en el clutch).
+enum JugadaClave {
+  aislamiento('Aislamiento', 'La pelota a tu figura: uno contra uno.'),
+  pickAndRoll('Pick & roll', 'Base y grande: doble cerca del aro, con asistencia.'),
+  triple('Triple', 'Tu mejor tirador busca la de tres.');
+
+  const JugadaClave(this.nombre, this.descripcion);
+  final String nombre;
+  final String descripcion;
+}
+
 /// Lo que pasó en una posesión (o una pausa), con el marcador después de la jugada.
 class EventoPartido {
   const EventoPartido({
@@ -100,6 +116,10 @@ class EventoPartido {
     this.taponado = false,
     this.entraId,
     this.saleId,
+    this.volcada = false,
+    this.alleyOop = false,
+    this.jugadaClave,
+    this.expulsadoId,
   });
 
   final TipoEvento tipo;
@@ -123,6 +143,16 @@ class EventoPartido {
   final bool taponado;
   final String? entraId;
   final String? saleId;
+
+  /// La canasta fue una volcada (y si vino de un pase alto, un alley-oop).
+  final bool volcada;
+  final bool alleyOop;
+
+  /// Jugada clave que pidió el entrenador del usuario para esta posesión.
+  final JugadaClave? jugadaClave;
+
+  /// Jugador que se fue con 6 faltas en esta jugada.
+  final String? expulsadoId;
 }
 
 /// Efectos de cada sistema sobre el juego (multiplicadores; 1 = neutro).
@@ -208,6 +238,17 @@ class _Lado {
   final parciales = <int>[0];
   int tiemposMuertos = 5;
   int faltas = 0; // faltas del equipo en el cuarto
+  bool rotacionAuto = true;
+
+  /// −1 = pocos minutos para el Sexto Hombre, 0 = normal, 1 = muchos.
+  int minutosBanco = 0;
+
+  /// Cambio pedido a mano (o forzado por la 6.ª falta): sale este jugador en la próxima pausa.
+  String? salePendiente;
+  final expulsados = <String>{};
+
+  /// Posesiones jugadas desde el último cambio automático (evita cambios en cadena).
+  int posesionesDesdeCambio = 99;
   double recuperoTiempoMuerto = 10; // energía que devuelve cada tiempo muerto
   int racha = 0; // puntos seguidos sin respuesta del rival
   bool acelerar = false, presion = false;
@@ -253,6 +294,36 @@ class MotorPartido {
   List<Jugador> enCancha(bool local) => List.unmodifiable((local ? _l : _v).enCancha);
   Jugador? enBanco(bool local) => (local ? _l : _v).banco;
   int tiemposMuertos(bool local) => (local ? _l : _v).tiemposMuertos;
+
+  // ── Jugada clave, cambios y minutos (intervenciones del entrenador del usuario) ──
+
+  JugadaClave? _jugadaClave;
+
+  /// ¿La próxima posesión es del usuario? (para ofrecerle la jugada clave).
+  bool get ataqueDelUsuario => usuarioLocal != null && _ataqueLocal == usuarioLocal;
+
+  /// Pide una jugada para la próxima posesión del usuario.
+  void pedirJugada(JugadaClave jugada) => _jugadaClave = jugada;
+
+  void rotacionAutomatica(bool local, bool activa) => (local ? _l : _v).rotacionAuto = activa;
+  bool esRotacionAutomatica(bool local) => (local ? _l : _v).rotacionAuto;
+
+  void minutosDelBanco(bool local, int nivel) => (local ? _l : _v).minutosBanco = nivel.clamp(-1, 1);
+  int nivelMinutosBanco(bool local) => (local ? _l : _v).minutosBanco;
+
+  /// Saca a [saleId] para que entre el Sexto Hombre en la próxima jugada.
+  bool cambiar(bool local, String saleId) {
+    final lado = local ? _l : _v;
+    if (lado.banco == null || !lado.enCancha.any((j) => j.id == saleId)) return false;
+    if (lado.expulsados.contains(lado.banco!.id)) return false;
+    lado.salePendiente = saleId;
+    return true;
+  }
+
+  /// Jugador que sale en la próxima jugada por un cambio pedido (null si no hay).
+  String? cambioPendiente(bool local) => (local ? _l : _v).salePendiente;
+
+  bool expulsado(String id) => _l.expulsados.contains(id) || _v.expulsados.contains(id);
 
   /// Forma de las cartas en este partido (−3 a +3).
   Map<String, int> get forma => {..._l.equipo.forma, ..._v.equipo.forma};
@@ -322,6 +393,8 @@ class MotorPartido {
       final rival = local ? _v : _l;
       if (usuarioLocal != local && rival.racha >= 10 && pedirTiempoMuerto(local)) return siguiente();
     }
+    final pedido = _cambioPedido(_l, true) ?? _cambioPedido(_v, false);
+    if (pedido != null) return pedido;
     final cambio = _rotar(_l, true) ?? _rotar(_v, false);
     if (cambio != null) return cambio;
     return _posesion();
@@ -350,15 +423,56 @@ class MotorPartido {
   }
 
   /// Rotación del Sexto Hombre: entra por el titular más cansado y sale cuando se agota.
+  /// Cambio pedido a mano o por la 6.ª falta.
+  EventoPartido? _cambioPedido(_Lado lado, bool local) {
+    final saleId = lado.salePendiente;
+    final banco = lado.banco;
+    if (saleId == null) return null;
+    lado.salePendiente = null;
+    final i = lado.enCancha.indexWhere((j) => j.id == saleId);
+    if (banco == null || i < 0 || lado.expulsados.contains(banco.id)) return null;
+    final sale = lado.enCancha[i];
+    lado.enCancha[i] = banco;
+    lado.banco = sale;
+    final motivo = lado.expulsados.contains(sale.id) ? 'Sexta falta de ${sale.nombre}: ' : 'Cambio: ';
+    return _evento(
+      TipoEvento.cambio,
+      local,
+      '${motivo}entra ${banco.nombre} por ${sale.nombre}.',
+      entraId: banco.id,
+      saleId: sale.id,
+    );
+  }
+
   EventoPartido? _rotar(_Lado lado, bool local) {
     final banco = lado.banco;
-    if (banco == null) return null;
+    if (banco == null || !lado.rotacionAuto || lado.expulsados.contains(banco.id)) return null;
+    if (lado.posesionesDesdeCambio < 2) return null;
     final cierre = cuarto >= 4 && reloj < 150 && (_l.puntos - _v.puntos).abs() <= 8;
+    // Cargado de faltas: 2 en el 1.º cuarto, 3 en el 2.º, 4 en el 3.º, 5 en el último → al banco.
+    final limite = min(cuarto, 4) + 1;
+    final enProblemas = lado.enCancha.where((j) => lado.box[j.id]!.fal >= limite).toList();
+    if (enProblemas.isNotEmpty && !cierre && lado.energia[banco.id]! > 60 && lado.box[banco.id]!.fal < limite) {
+      final sale = enProblemas.first;
+      lado.posesionesDesdeCambio = 0;
+      lado.enCancha[lado.enCancha.indexOf(sale)] = banco;
+      lado.banco = sale;
+      return _evento(
+        TipoEvento.cambio,
+        local,
+        'Cambio: ${sale.nombre} se sienta cargado de faltas; entra ${banco.nombre}.',
+        entraId: banco.id,
+        saleId: sale.id,
+      );
+    }
     final cansado = lado.enCancha.reduce((a, b) => lado.energia[a.id]! < lado.energia[b.id]! ? a : b);
-    final debeEntrar = lado.energia[cansado.id]! < 62 && lado.energia[banco.id]! > 75;
-    final debeVolver = lado.energia[banco.id]! > 92 && lado.energia[cansado.id]! < 70;
+    final umbralEntra = 62 + lado.minutosBanco * 10, umbralVuelve = 92 + lado.minutosBanco * 4;
+    final debeEntrar = lado.energia[cansado.id]! < umbralEntra && lado.energia[banco.id]! > 75;
+    final debeVolver = lado.energia[banco.id]! > umbralVuelve && lado.energia[cansado.id]! < umbralEntra + 8;
     if (cierre && banco.media < cansado.media - 3) return null;
+    if (lado.box[cansado.id]!.fal >= 5 && lado.box[banco.id]!.fal >= 5) return null;
     if (!debeEntrar && !debeVolver) return null;
+    lado.posesionesDesdeCambio = 0;
     lado.enCancha[lado.enCancha.indexOf(cansado)] = banco;
     lado.banco = cansado;
     return _evento(
@@ -373,6 +487,8 @@ class MotorPartido {
   EventoPartido _posesion() {
     final ataque = _ataqueLocal ? _l : _v;
     final defensa = _ataqueLocal ? _v : _l;
+    _l.posesionesDesdeCambio++;
+    _v.posesionesDesdeCambio++;
     final contraataque = _contraataque;
     _contraataque = false;
 
@@ -416,27 +532,54 @@ class MotorPartido {
       );
     }
 
-    // Tiro: quién y de dónde.
+    // Tiro: quién y de dónde (o la jugada que pidió el entrenador del usuario).
+    final jugada = (ataque == _l) == usuarioLocal ? _jugadaClave : null;
+    if ((ataque == _l) == usuarioLocal) _jugadaClave = null;
     final clutch = momentoClutch;
     // En el final apretado, la pelota busca al que más se agranda.
     final efectoEstrella = ataque.ofensivo.estrella * defensa.defensivo.estrella * (clutch ? 1.6 : 1);
     final estrella = ataque.enCancha.reduce((a, b) => a.stats.ppp > b.stats.ppp ? a : b);
-    final tirador = _elegir(
-      ataque.enCancha,
-      (j) =>
-          pow(j.stats.ppp * 36 / max(j.stats.minP, 12), 1.3) *
-          (j == estrella ? efectoEstrella : 1).toDouble() *
-          (clutch ? 1 + 0.4 * max(0, MotorPartido.clutch(j)) : 1),
-    );
+    bool interior(Jugador j) => j.posiciones.contains(Posicion.pivot) || j.posiciones.contains(Posicion.alaPivot);
+    final Jugador tirador;
+    final bool triple;
+    Jugador? asistente;
+    switch (jugada) {
+      case JugadaClave.aislamiento:
+        tirador = ataque.enCancha.reduce((a, b) => ataque.media(a) >= ataque.media(b) ? a : b);
+        triple = _azar.nextDouble() < _tasaTriples(tirador) * 0.6;
+      case JugadaClave.pickAndRoll:
+        final grandes = ataque.enCancha.where(interior).toList();
+        final organizador = ataque.enCancha.reduce((a, b) => a.stats.app >= b.stats.app ? a : b);
+        tirador = grandes.isNotEmpty && _azar.nextDouble() < 0.6
+            ? grandes.reduce((a, b) => a.stats.ppp >= b.stats.ppp ? a : b)
+            : organizador;
+        triple = false;
+        if (tirador != organizador) asistente = organizador;
+      case JugadaClave.triple:
+        tirador = ataque.enCancha.reduce(
+          (a, b) => a.stats.pctT3 * _tasaTriples(a) >= b.stats.pctT3 * _tasaTriples(b) ? a : b,
+        );
+        triple = tirador.stats.pctT3 > 0;
+      case null:
+        tirador = _elegir(
+          ataque.enCancha,
+          (j) =>
+              pow(j.stats.ppp * 36 / max(j.stats.minP, 12), 1.3) *
+              (j == estrella ? efectoEstrella : 1).toDouble() *
+              (clutch ? 1 + 0.4 * max(0, MotorPartido.clutch(j)) : 1),
+        );
+        final tasaTriple = _tasaTriples(tirador) * ataque.ofensivo.triples;
+        triple = !contraataque && _azar.nextDouble() < tasaTriple.clamp(0.0, 0.75);
+    }
     final s = tirador.stats;
-    final tasaTriple = _tasaTriples(tirador) * ataque.ofensivo.triples;
-    final triple = !contraataque && _azar.nextDouble() < tasaTriple.clamp(0.0, 0.75);
-    final asistente = _azar.nextDouble() < 0.58 * ataque.ofensivo.asistencias
-        ? _elegir([
-            for (final j in ataque.enCancha)
-              if (j != tirador) j,
-          ], (j) => j.stats.app + 0.3)
-        : null;
+    if (jugada == null || jugada == JugadaClave.triple) {
+      asistente = _azar.nextDouble() < 0.58 * ataque.ofensivo.asistencias
+          ? _elegir([
+              for (final j in ataque.enCancha)
+                if (j != tirador) j,
+            ], (j) => j.stats.app + 0.3)
+          : null;
+    }
 
     var p = triple ? s.pctT3.clamp(0.22, 0.46) : _pctDos(tirador);
     p *= triple ? defensa.defensivo.tripleRival : defensa.defensivo.interiorRival;
@@ -446,6 +589,13 @@ class MotorPartido {
     p += 0.035 + (mediaTirador - 82) / 400;
     p += ataque.quimica.efectoTiro;
     if (clutch) p += MotorPartido.clutch(tirador) * 0.03;
+    // La jugada bien elegida vale: aislar a un crack, el pick & roll cerca del aro, el triple abierto.
+    p += switch (jugada) {
+      JugadaClave.aislamiento => 0.02 + (ataque.media(tirador) - 85) / 400,
+      JugadaClave.pickAndRoll => 0.04,
+      JugadaClave.triple => 0.03,
+      null => 0,
+    };
     p += (ataque.afinidadOfensiva - defensa.afinidadDefensiva) / 1500;
     p -= _media(defensa.enCancha, (j) => j.stats.robP + j.stats.tapP) / 60;
     if (contraataque) p += 0.14;
@@ -457,7 +607,25 @@ class MotorPartido {
     p = p.clamp(0.15, 0.8);
 
     final falta = _azar.nextDouble() < 0.07 + s.pctTl * 0.04 + (triple ? 0 : 0.03);
-    if (falta) defensa.faltas++;
+    String? expulsado;
+    if (falta) {
+      defensa.faltas++;
+      // La comete un defensor (más los grandes que van a taponar y los que presionan).
+      final infractor = _elegir(defensa.enCancha, (j) => j.stats.tapP + j.stats.robP * 0.6 + 0.6);
+      final linea = defensa.box[infractor.id]!;
+      linea.fal++;
+      if (linea.fal == 6) {
+        defensa.expulsados.add(infractor.id);
+        expulsado = infractor.id;
+        defensa.salePendiente = infractor.id;
+      }
+    }
+    String conExpulsion(String texto) {
+      if (expulsado == null) return texto;
+      final j = defensa.enCancha.firstWhere((x) => x.id == expulsado);
+      return '$texto ¡Sexta falta de ${j.nombre}: se va a las duchas!';
+    }
+
     final convertido = _azar.nextDouble() < p;
     final caja = ataque.box[tirador.id]!;
     caja.tcA++;
@@ -472,20 +640,37 @@ class MotorPartido {
       caja.pts += puntos + extra;
       _anotar(ataque, defensa, puntos + extra);
       _cambiarPosesion();
-      final texto = StringBuffer(triple ? '¡Triple de ${tirador.nombre}!' : 'Doble de ${tirador.nombre}.');
-      if (asistente != null) texto.write(' Asistencia de ${asistente.nombre}.');
+      // Volcadas: más en contraataque y para los grandes y los atléticos; con pase alto, alley-oop.
+      final atletico = interior(tirador) || tirador.posiciones.contains(Posicion.alero);
+      final volcada =
+          !triple && _azar.nextDouble() < (contraataque ? 0.55 : (atletico ? 0.24 : 0.07)) * (0.8 + s.tapP / 2.5);
+      final alleyOop = volcada && asistente != null && _azar.nextDouble() < 0.4;
+      final texto = StringBuffer(
+        triple
+            ? '¡Triple de ${tirador.nombre}!'
+            : alleyOop
+            ? '¡Alley-oop de ${asistente.nombre} para ${tirador.nombre}!'
+            : volcada
+            ? '¡Volcada de ${tirador.nombre}!'
+            : 'Doble de ${tirador.nombre}.',
+      );
+      if (asistente != null && !alleyOop) texto.write(' Asistencia de ${asistente.nombre}.');
       if (falta) texto.write(extra > 0 ? ' ¡Y la falta!' : ' Falla el adicional.');
       if (clutch && MotorPartido.clutch(tirador) >= 1) texto.write(' ¡Sangre fría!');
       return _evento(
         TipoEvento.tiro,
         ataque == _l,
-        texto.toString(),
+        conExpulsion(texto.toString()),
         jugadorId: tirador.id,
         asistenteId: asistente?.id,
         puntos: puntos + extra,
         convertido: true,
         triple: triple,
         contraataque: contraataque,
+        volcada: volcada,
+        alleyOop: alleyOop,
+        jugadaClave: jugada,
+        expulsadoId: expulsado,
       );
     }
 
@@ -498,11 +683,13 @@ class MotorPartido {
       return _evento(
         TipoEvento.libres,
         ataque == _l,
-        'Falta sobre ${tirador.nombre}: $anotados/${triple ? 3 : 2} libres.',
+        conExpulsion('Falta sobre ${tirador.nombre}: $anotados/${triple ? 3 : 2} libres.'),
         jugadorId: tirador.id,
         puntos: anotados,
         convertido: anotados > 0,
         triple: triple,
+        jugadaClave: jugada,
+        expulsadoId: expulsado,
       );
     }
     Jugador? taponador;
@@ -630,6 +817,10 @@ class MotorPartido {
     bool taponado = false,
     String? entraId,
     String? saleId,
+    bool volcada = false,
+    bool alleyOop = false,
+    JugadaClave? jugadaClave,
+    String? expulsadoId,
   }) {
     return EventoPartido(
       tipo: tipo,
@@ -651,6 +842,10 @@ class MotorPartido {
       taponado: taponado,
       entraId: entraId,
       saleId: saleId,
+      volcada: volcada,
+      alleyOop: alleyOop,
+      jugadaClave: jugadaClave,
+      expulsadoId: expulsadoId,
     );
   }
 }

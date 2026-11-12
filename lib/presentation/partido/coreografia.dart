@@ -38,6 +38,8 @@ class _Ruta {
   double mover(double desde, double hasta, Offset destino) {
     final inicio = max(desde, _k.last.$1);
     final origen = en(inicio);
+    // Nadie camina más allá del borde de la cancha (ni para buscar una pelota que salió).
+    destino = Offset(destino.dx.clamp(-2.5, Cancha94.ancho + 2.5), destino.dy.clamp(-2.5, Cancha94.largo + 2.5));
     final llega = max(hasta, inicio + max(0.05, (destino - origen).distance / 18));
     _k.add((inicio, origen));
     _k.add((llega, destino));
@@ -156,6 +158,12 @@ class Coreografia {
   Offset posicion(String id, double t) => _en(id, t * duracion);
 
   Offset _en(String id, double s) {
+    final p = _enSinTope(id, s);
+    // Tope final: nadie sale de la cancha más allá del borde, venga de donde venga.
+    return Offset(p.dx.clamp(-3, Cancha94.ancho + 3), p.dy.clamp(-3, Cancha94.largo + 3));
+  }
+
+  Offset _enSinTope(String id, double s) {
     final ruta = _rutas[id];
     if (ruta != null) return ruta.en(s) + _vaiven(id.hashCode, s, 0.35);
     final i = defensores.indexWhere((j) => j.id == id);
@@ -198,7 +206,11 @@ class Coreografia {
       var cambio = deseada - _velocidades[i];
       if (cambio.distance > 45 * _paso) cambio = cambio / cambio.distance * 45 * _paso;
       _velocidades[i] += cambio;
-      muestras.add(p + _velocidades[i] * _paso);
+      final siguiente = p + _velocidades[i] * _paso;
+      // Nadie se va más allá del borde de la cancha.
+      muestras.add(
+        Offset(siguiente.dx.clamp(-2.5, Cancha94.ancho + 2.5), siguiente.dy.clamp(-2.5, Cancha94.largo + 2.5)),
+      );
     }
     final x = (s / _paso).clamp(0.0, muestras.length - 1.0);
     final k = x.floor();
@@ -290,12 +302,17 @@ class Coreografia {
   }
 
   /// Pase de [de] a [a] que llega a [destino]; devuelve el segundo en que la recibe.
-  double _pasar(double s, String de, String a, Offset destino) {
+  double _pasar(double s, String de, String a, Offset destino, {double arco = 0.15}) {
     final origen = _en(de, s);
-    final llega = _ruta(a, s).mover(s, s + _vuelo(origen, destino), destino);
-    _tramos.add(_Tramo.vuelo(s, llega, origen, destino, 0.15, de: de, a: a));
+    // El globo del alley-oop vuela más alto y más lento.
+    final vuelo = _vuelo(origen, destino) * (arco > 0.5 ? 1.5 : 1);
+    final llega = _ruta(a, s).mover(s, s + vuelo, destino);
+    _tramos.add(_Tramo.vuelo(s, llega, origen, destino, arco, de: de, a: a));
     return llega;
   }
+
+  /// La jugada termina en volcada (o alley-oop): el que vuela llega hasta el aro.
+  bool get volcada => evento.volcada;
 
   /// Subida de toda la cancha: si conduce un interno, primero la pasa al base.
   (double, String) _subir(double s, String conductor) {
@@ -325,7 +342,8 @@ class Coreografia {
     final e = evento;
     final tirador = e.jugadorId!;
     final i = max(0, atacantes.indexWhere((j) => j.id == tirador));
-    final punto = _lugarDeTiro(i, e.triple);
+    // La volcada se termina pegado al aro, entrando por uno de los costados.
+    final punto = e.volcada ? _p(Offset(25 + (_azar.nextBool() ? 2.2 : -2.2), 3.2)) : _lugarDeTiro(i, e.triple);
     final cadena = <String>[];
     final libres = [
       for (final j in atacantes)
@@ -349,11 +367,12 @@ class Coreografia {
                 Offset(_azar.nextDouble() * 6 - 3, (_azar.nextDouble() * 4 - 1) * (haciaArriba ? 1 : -1));
       // El receptor se desmarca hacia la pelota antes del pase.
       _rutas[receptor]!.mover(espera - 0.5, espera + 0.05, destino);
-      t = _pasar(espera, quien, receptor, destino);
+      t = _pasar(espera, quien, receptor, destino, arco: e.alleyOop && receptor == tirador ? 0.9 : 0.15);
       quien = receptor;
     }
     if (quien == tirador) {
-      final listo = _rutas[tirador]!.mover(t, t + (cadena.length > 1 ? 0.3 : 0.5), punto);
+      // Alley-oop: la toma en el aire y la clava sin pisar el piso.
+      final listo = e.alleyOop ? t + 0.05 : _rutas[tirador]!.mover(t, t + (cadena.length > 1 ? 0.3 : 0.5), punto);
       _tramos.add(_Tramo.lleva(t, listo, tirador));
       _tirar(listo, punto, tirador);
     }
@@ -414,8 +433,14 @@ class Coreografia {
       _rebote(_finTiro, desvio);
       return;
     }
-    _finTiro = s + (distancia > 20 ? 1.0 : (distancia < 6 ? 0.55 : 0.8));
-    _tramos.add(_Tramo.vuelo(s, _finTiro, punto, aro, 1, de: tirador));
+    if (e.volcada) {
+      // Volcada: la pelota baja de golpe al aro.
+      _finTiro = s + 0.22;
+      _tramos.add(_Tramo.vuelo(s, _finTiro, punto, aro, 0.35, de: tirador));
+    } else {
+      _finTiro = s + (distancia > 20 ? 1.0 : (distancia < 6 ? 0.55 : 0.8));
+      _tramos.add(_Tramo.vuelo(s, _finTiro, punto, aro, 1, de: tirador));
+    }
     if (e.convertido || e.reboteId == null) {
       _canasta = _finTiro;
       _tramos.add(_Tramo.vuelo(_finTiro, _finTiro + 0.35, aro, aro + Offset(0, haciaArriba ? -1.5 : 1.5), 0));

@@ -44,11 +44,14 @@ class Ficha {
 
 /// Lo que le pasa al aro de un lado: la red se sacude al entrar la pelota o el aro vibra al rebotar.
 class EfectoAro {
-  const EfectoAro({required this.arriba, required this.progreso, required this.adentro});
+  const EfectoAro({required this.arriba, required this.progreso, required this.adentro, this.fuerte = false});
 
   final bool arriba;
   final double progreso; // 0–1
   final bool adentro;
+
+  /// Volcada: además de la red, tiembla todo el aro y el tablero.
+  final bool fuerte;
 }
 
 /// "+2"/"+3" que sube desde el aro al anotar.
@@ -305,8 +308,8 @@ class CanchaPartidoPainter extends CustomPainter {
     canvas.drawRect(Rect.fromPoints(q(-0.45, -6.6), q(0.45, -1.4)), Paint()..color = const Color(0xFF2A2D33));
     // Tablero: vidrio con borde blanco y el recuadro del tirador.
     var vibra = 0.0;
-    if (efecto != null && !efecto.adentro) {
-      vibra = sin(efecto.progreso * pi * 9) * (1 - efecto.progreso) * 0.35;
+    if (efecto != null && (!efecto.adentro || efecto.fuerte)) {
+      vibra = sin(efecto.progreso * pi * 9) * (1 - efecto.progreso) * (efecto.fuerte ? 0.7 : 0.35);
     }
     final tablero = Rect.fromPoints(q(-3 + vibra, -1.45), q(3 + vibra, -0.95));
     canvas.drawRect(
