@@ -50,4 +50,8 @@ enum ModoJuego {
   final GrupoModo grupo;
   final String nombre;
   final String descripcion;
+
+  /// Si la partida usa la temporada de 82 (calendario y rivales de liga). Los de escalera y el
+  /// duelo arman sus propios cruces.
+  bool get usaTemporada => !const {racha, caminoAlAnillo, mejoresEquipos, mundial, escenario, duelo}.contains(this);
 }

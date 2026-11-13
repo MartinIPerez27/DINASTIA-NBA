@@ -215,7 +215,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   /// Con las tácticas confirmadas se arma la temporada (calendario y rivales) y se abre.
   Future<void> _confirmarTacticas(Temporada t) async {
     final liga = await _ligaLista();
-    final lista = t.calendario.isEmpty ? liga.iniciar(t) : t;
+    final lista = t.calendario.isEmpty && t.modoJuego.usaTemporada ? liga.iniciar(t) : t;
     await _guardarCambios(lista);
     await _abrirTemporada(lista, reemplazar: true);
   }
