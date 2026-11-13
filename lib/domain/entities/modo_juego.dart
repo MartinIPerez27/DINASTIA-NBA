@@ -3,9 +3,11 @@ enum GrupoModo {
   principal('La temporada'),
   rapido('Partidas rápidas'),
   desafio('Desafíos'),
+  historia('Historia de la NBA'),
   torneo('Torneos históricos'),
   carrera('Gestión y carrera'),
-  amigos('Con amigos, en el mismo dispositivo');
+  amigos('Con amigos, en el mismo dispositivo'),
+  minijuegos('Minijuegos');
 
   const GrupoModo(this.etiqueta);
   final String etiqueta;
@@ -57,7 +59,35 @@ enum ModoJuego {
     GrupoModo.amigos,
     'Reto de un amigo',
     'Ingresá su código y jugá su mismo draft, con los mismos rivales. ¿Quién hace mejor récord?',
-  );
+  ),
+  // Historia de la NBA
+  temporadaReal(
+    GrupoModo.historia,
+    'Temporada real',
+    'Un año real con los 30 planteles de entonces: superá lo que pasó.',
+  ),
+  queHubiera(GrupoModo.historia, '¿Qué hubiera pasado si…?', 'Momentos famosos con la historia cambiada.'),
+  ultimoCuarto(
+    GrupoModo.historia,
+    'Momentos clutch',
+    'Entrás al final de partidos reales con el marcador de entonces.',
+  ),
+  // Torneos
+  guantelete(GrupoModo.torneo, 'Guantelete de las décadas', 'De los 40 a los 2020: vencé al campeón de cada década.'),
+  camadas(GrupoModo.torneo, 'Batalla de camadas', 'Cada equipo es una clase de draft: 84, 96, 2003…'),
+  universidades(
+    GrupoModo.torneo,
+    'Torneo de universidades',
+    'Duke, North Carolina, Kentucky, UCLA… con sus ex alumnos.',
+  ),
+  // Armado
+  topeSalarial(GrupoModo.desafio, 'Tope salarial', 'Armá el quinteto con \$15: estrellas caras, obreros baratos.'),
+  desafiosArmado(GrupoModo.desafio, 'Desafíos de armado', 'Acertijos de quinteto con las cartas de tu álbum.'),
+  ligaIA(GrupoModo.rapido, 'Liga de 8 contra la IA', 'Draft en serpiente contra 7 mánagers con estilo propio.'),
+  // Carrera
+  figuraFranquicia(GrupoModo.carrera, 'Figura franquicia', 'Elegís un novato y armás todo alrededor de él.'),
+  // Minijuegos
+  adivina(GrupoModo.minijuegos, 'Adiviná la carta', 'Quién es por sus números, o cuál de dos tiene más media.');
 
   const ModoJuego(this.grupo, this.nombre, this.descripcion);
   final GrupoModo grupo;
@@ -66,5 +96,21 @@ enum ModoJuego {
 
   /// Si la partida usa la temporada de 82 (calendario y rivales de liga). Los de escalera y el
   /// duelo arman sus propios cruces.
-  bool get usaTemporada => !const {racha, caminoAlAnillo, mejoresEquipos, mundial, escenario, duelo}.contains(this);
+  bool get usaTemporada => !const {
+    racha,
+    caminoAlAnillo,
+    mejoresEquipos,
+    mundial,
+    escenario,
+    duelo,
+    ultimoCuarto,
+    queHubiera,
+    guantelete,
+    camadas,
+    universidades,
+    topeSalarial,
+    desafiosArmado,
+    ligaIA,
+    adivina,
+  }.contains(this);
 }

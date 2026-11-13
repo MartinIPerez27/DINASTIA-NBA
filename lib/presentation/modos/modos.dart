@@ -6,8 +6,11 @@ import '../../domain/entities/modo_juego.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/liga.dart';
 import 'amigos.dart';
+import 'armado.dart';
 import 'carrera.dart';
+import 'epocas.dart';
 import 'escalera.dart';
+import 'historia.dart';
 import 'reto.dart';
 import 'variantes.dart';
 
@@ -45,6 +48,9 @@ Future<void> iniciarModo(ModoJuego m, Franquicia enfocada, ContextoModos c) => s
   _ when esModoVariante(m) => iniciarVariante(m, enfocada, c),
   _ when esModoCarrera(m) => iniciarCarrera(m, enfocada, c),
   _ when m == ModoJuego.reto => iniciarReto(c),
+  _ when esModoHistoria(m) => iniciarHistoria(m, enfocada, c),
+  _ when esModoEpocas(m) => iniciarEpocas(m, enfocada, c),
+  _ when esModoArmado(m) => iniciarArmado(m, enfocada, c),
   _ when esModoAmigos(m) => iniciarAmigos(m, enfocada, c),
   _ => Future.value(),
 };
@@ -57,6 +63,9 @@ Future<Widget?> pantallaDeModo(Temporada t, ContextoModos c) async {
   if (esModoVariante(m)) return pantallaVariante(t, c);
   if (esModoCarrera(m)) return pantallaCarrera(t, c);
   if (esModoAmigos(m)) return pantallaAmigos(t, c);
+  if (esModoHistoria(m)) return pantallaHistoria(t, c);
+  if (esModoEpocas(m)) return pantallaEpocas(t, c);
+  if (esModoArmado(m)) return pantallaArmado(t, c);
   return null;
 }
 
@@ -83,6 +92,17 @@ class ModosPantalla extends StatelessWidget {
     ModoJuego.draftEnGrupo => Icons.groups_outlined,
     ModoJuego.duelo => Icons.sports_kabaddi,
     ModoJuego.reto => Icons.qr_code_2,
+    ModoJuego.temporadaReal => Icons.event_note,
+    ModoJuego.queHubiera => Icons.alt_route,
+    ModoJuego.ultimoCuarto => Icons.timer_outlined,
+    ModoJuego.guantelete => Icons.hourglass_bottom,
+    ModoJuego.camadas => Icons.school_outlined,
+    ModoJuego.universidades => Icons.account_balance_outlined,
+    ModoJuego.topeSalarial => Icons.attach_money,
+    ModoJuego.desafiosArmado => Icons.extension_outlined,
+    ModoJuego.ligaIA => Icons.smart_toy_outlined,
+    ModoJuego.figuraFranquicia => Icons.person_pin_outlined,
+    ModoJuego.adivina => Icons.quiz_outlined,
   };
 
   @override

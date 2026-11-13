@@ -18,7 +18,8 @@ import 'carrera_pantallas.dart';
 import 'modos.dart';
 
 /// Modos de carrera: varias temporadas seguidas con el mismo club.
-bool esModoCarrera(ModoJuego m) => const {ModoJuego.dinastia, ModoJuego.reescribi}.contains(m);
+bool esModoCarrera(ModoJuego m) =>
+    const {ModoJuego.dinastia, ModoJuego.reescribi, ModoJuego.figuraFranquicia}.contains(m);
 
 /// Arranca una partida nueva de uno de estos modos.
 Future<void> iniciarCarrera(ModoJuego m, Franquicia enfocada, ContextoModos c) async {
