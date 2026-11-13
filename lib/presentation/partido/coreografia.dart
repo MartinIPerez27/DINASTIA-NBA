@@ -89,7 +89,7 @@ class Coreografia {
     required String? poseedorDesde,
     required bool segundaOportunidad,
     this.saliente,
-  }) : _azar = Random(Object.hash(evento.jugadorId, evento.reloj, evento.marcadorLocal, evento.marcadorVisitante)) {
+  }) : _azar = Random(_semilla('${evento.jugadorId}|${evento.reloj}|${evento.marcadorLocal}|${evento.marcadorVisitante}')) {
     for (final (i, j) in atacantes.indexed) {
       final entra = evento.tipo == TipoEvento.cambio && j.id == evento.entraId;
       final origen = entra ? _banco(0, true) : desde[j.id] ?? _p(_formacion[i]);
@@ -116,6 +116,16 @@ class Coreografia {
   late final double duracion;
 
   final Random _azar;
+
+  /// Semilla estable (FNV-1a): Object.hash cambia en cada ejecución, y la misma jugada tiene que
+  /// dibujarse siempre igual (repeticiones, pruebas).
+  static int _semilla(String clave) {
+    var h = 0x811c9dc5;
+    for (final c in clave.codeUnits) {
+      h = ((h ^ c) * 0x01000193) & 0xffffffff;
+    }
+    return h;
+  }
   final _rutas = <String, _Ruta>{};
   final _marcas = <List<Offset>>[]; // recorrido de cada defensor, muestreado cada _paso
   final _velocidades = <Offset>[];
