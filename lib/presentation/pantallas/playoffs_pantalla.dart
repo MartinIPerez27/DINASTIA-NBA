@@ -16,7 +16,20 @@ import 'stats82_pantalla.dart';
 /// Playoffs (GDD §7): cuadro de 16 con series al mejor de 7 hasta Las Finales y el anillo.
 /// Tu serie se juega partido a partido (en vivo o simulado) y el resto del cuadro avanza a la par.
 class PlayoffsPantalla extends StatefulWidget {
-  const PlayoffsPantalla({super.key, required this.temporada, required this.liga, required this.onCambio});
+  const PlayoffsPantalla({
+    super.key,
+    required this.temporada,
+    required this.liga,
+    required this.onCambio,
+    this.acciones = const [],
+    this.onSiguienteTemporada,
+  });
+
+  /// Botones extra en la barra (p. ej. la historia de la dinastía).
+  final List<Widget> acciones;
+
+  /// Modos de carrera: con el campeón definido, pasa al receso y a la temporada siguiente.
+  final ValueChanged<Temporada>? onSiguienteTemporada;
 
   final Temporada temporada;
   final Liga liga;
@@ -149,6 +162,7 @@ class _PlayoffsPantallaState extends State<PlayoffsPantalla> {
         actions: [
           IconButton(onPressed: _abrirStats, icon: const Icon(Icons.leaderboard_outlined), tooltip: 'STATS 82'),
           if (serie != null) IconButton(onPressed: _abrirPlaybook, icon: const Icon(Icons.tune), tooltip: 'Tácticas'),
+          ...widget.acciones,
         ],
       ),
       body: SafeArea(
@@ -199,6 +213,15 @@ class _PlayoffsPantallaState extends State<PlayoffsPantalla> {
                 ocupado: _ocupado,
                 onSimular: () => _simular(_liga.simularRestoPlayoffs, null),
               ),
+            if (campeon != null && widget.onSiguienteTemporada != null) ...[
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: () => widget.onSiguienteTemporada!(_t),
+                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                icon: const Icon(Icons.skip_next),
+                label: const Text('SIGUIENTE TEMPORADA'),
+              ),
+            ],
             if (_resumen case final r?) ...[
               const SizedBox(height: 10),
               Text(r, style: tema.textTheme.bodyMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant)),

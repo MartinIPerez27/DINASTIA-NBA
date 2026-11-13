@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 
 import '../../data/estado_app.dart';
 import '../../domain/entities/franquicia.dart';
+import '../../domain/entities/modo_juego.dart';
 import '../../domain/entities/temporada.dart';
+import '../../domain/misiones.dart';
 import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
 import '../widgets/haptica.dart';
@@ -24,6 +26,7 @@ class InicioPantalla extends StatelessWidget {
     this.onAjustes,
     this.onAlbum,
     this.onModos,
+    this.onMisiones,
   });
 
   final List<Franquicia> franquicias;
@@ -41,6 +44,9 @@ class InicioPantalla extends StatelessWidget {
 
   /// Menú con el resto de los modos (desafíos, torneos, carrera, con amigos).
   final VoidCallback? onModos;
+
+  /// Misiones diarias y semanales, pase de temporada y vestuario.
+  final VoidCallback? onMisiones;
 
   void _enfocar(Franquicia f) {
     if (f == enfocada) return;
@@ -65,7 +71,13 @@ class InicioPantalla extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _BarraCarrera(onPerfil: onPerfil, onPartidas: onPartidas, onAjustes: onAjustes, onAlbum: onAlbum),
+                    _BarraCarrera(
+                      onPerfil: onPerfil,
+                      onPartidas: onPartidas,
+                      onAjustes: onAjustes,
+                      onAlbum: onAlbum,
+                      onMisiones: onMisiones,
+                    ),
                     const SizedBox(height: 8),
                     const _Encabezado(),
                     const SizedBox(height: 16),
@@ -94,7 +106,13 @@ class InicioPantalla extends StatelessWidget {
                       OutlinedButton(
                         onPressed: onSeguir,
                         style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                        child: Text('Seguir la temporada de los ${delGuardado.nombre}'),
+                        child: Text(
+                          guardada.modoJuego == ModoJuego.clasico
+                              ? 'Seguir la temporada de los ${delGuardado.nombre}'
+                              : 'Seguir: ${guardada.modoJuego.nombre} (${delGuardado.nombre})',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                       const SizedBox(height: 8),
                     ],
@@ -126,9 +144,10 @@ class _BarraCarrera extends StatelessWidget {
     required this.onPartidas,
     required this.onAjustes,
     required this.onAlbum,
+    this.onMisiones,
   });
 
-  final VoidCallback? onPerfil, onPartidas, onAjustes, onAlbum;
+  final VoidCallback? onPerfil, onPartidas, onAjustes, onAlbum, onMisiones;
 
   @override
   Widget build(BuildContext context) {
@@ -138,42 +157,49 @@ class _BarraCarrera extends StatelessWidget {
       valueListenable: perfilApp,
       builder: (context, perfil, _) => Row(
         children: [
-          Semantics(
-            button: true,
-            label: 'Tu carrera: nivel ${perfil.nivel}, ${perfil.monedas} monedas',
-            child: ExcludeSemantics(
-              child: Material(
-                color: esquema.surfaceContainerLowest,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  side: BorderSide(color: esquema.outlineVariant.withValues(alpha: 0.6)),
-                ),
-                child: InkWell(
-                  onTap: onPerfil,
-                  borderRadius: BorderRadius.circular(24),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 48),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('NIV', style: tema.textTheme.labelMedium?.copyWith(color: esquema.onSurfaceVariant)),
-                          const SizedBox(width: 6),
-                          TextoLed('${perfil.nivel}', tamano: 20),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: 42,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(2),
-                              child: LinearProgressIndicator(value: perfil.avanceNivel, minHeight: 4),
-                            ),
+          // En teléfonos angostos la píldora se achica apenas antes que tapar los íconos.
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Semantics(
+                button: true,
+                label: 'Tu carrera: nivel ${perfil.nivel}, ${perfil.monedas} monedas',
+                child: ExcludeSemantics(
+                  child: Material(
+                    color: esquema.surfaceContainerLowest,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      side: BorderSide(color: esquema.outlineVariant.withValues(alpha: 0.6)),
+                    ),
+                    child: InkWell(
+                      onTap: onPerfil,
+                      borderRadius: BorderRadius.circular(24),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('NIV', style: tema.textTheme.labelMedium?.copyWith(color: esquema.onSurfaceVariant)),
+                              const SizedBox(width: 6),
+                              TextoLed('${perfil.nivel}', tamano: 20),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 42,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(2),
+                                  child: LinearProgressIndicator(value: perfil.avanceNivel, minHeight: 4),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Icon(Icons.toll, size: 18, color: esquema.onSurfaceVariant),
+                              const SizedBox(width: 4),
+                              TextoLed('${perfil.monedas}', tamano: 18, color: esquema.onSurface),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          Icon(Icons.toll, size: 18, color: esquema.onSurfaceVariant),
-                          const SizedBox(width: 4),
-                          TextoLed('${perfil.monedas}', tamano: 18, color: esquema.onSurface),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -181,7 +207,16 @@ class _BarraCarrera extends StatelessWidget {
               ),
             ),
           ),
-          const Spacer(),
+          if (onMisiones != null)
+            IconButton(
+              onPressed: onMisiones,
+              icon: Badge(
+                isLabelVisible: Misiones.hayParaReclamar(perfil),
+                smallSize: 8,
+                child: const Icon(Icons.flag_outlined),
+              ),
+              tooltip: 'Misiones y pase',
+            ),
           IconButton(
             onPressed: onPartidas,
             icon: const Icon(Icons.folder_open_outlined),

@@ -42,8 +42,16 @@ enum ModoJuego {
     'Los mejores equipos de la historia',
     'Tu equipo contra los Bulls 96, Celtics 86, Lakers 87, Warriors 2017…',
   ),
-  mundial(GrupoModo.torneo, 'Mundial de franquicias', 'Cuadro de 32 con el plantel histórico de cada franquicia.'),
-  draftEnGrupo(GrupoModo.amigos, 'Draft en grupo', 'De 2 a 8 personas eligen por turnos y juegan una liga entre ellas.'),
+  mundial(
+    GrupoModo.torneo,
+    'Mundial de franquicias',
+    'Cuadro de 32: tu equipo contra todas las franquicias y dos clásicos (Sonics, Nets).',
+  ),
+  draftEnGrupo(
+    GrupoModo.amigos,
+    'Draft en grupo',
+    'De 2 a 8 personas eligen por turnos y juegan una liga entre ellas.',
+  ),
   duelo(GrupoModo.amigos, 'Duelo', 'Dos personas, dos drafts, una serie al mejor de 7.');
 
   const ModoJuego(this.grupo, this.nombre, this.descripcion);

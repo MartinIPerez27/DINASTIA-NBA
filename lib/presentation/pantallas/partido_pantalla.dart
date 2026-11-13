@@ -21,6 +21,9 @@ import '../widgets/indicador_forma.dart';
 import '../widgets/texto_led.dart';
 import '../widgets/haptica.dart';
 import '../../domain/premios.dart' show apellido;
+import '../../domain/entities/metajuego.dart' show TipoMision;
+import '../../domain/misiones.dart';
+import '../tema/vestuario.dart';
 
 enum _Panel { jugadores, tiros, partido, relato }
 
@@ -109,11 +112,11 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     final (rival, textoRival, ribeteRival) = _coloresRival(
       widget.usuarioLocal ? widget.identidadVisitante : widget.identidadLocal,
     );
-    final propio = Color(widget.franquiciaUsuario.colorPrimario);
+    final propio = _camiseta.$1;
     return Equipaciones(
       propio: propio,
       textoPropio: _contraste(propio),
-      ribetePropio: _ribete(propio, Color(widget.franquiciaUsuario.colorSecundario)),
+      ribetePropio: _ribete(propio, _camiseta.$2),
       rival: rival,
       textoRival: textoRival,
       ribeteRival: _ribete(rival, ribeteRival),
@@ -121,6 +124,18 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   }();
 
   MotorPartido get _m => widget.motor;
+
+  /// Tu camiseta (relleno, ribete): la titular o la elegida en el vestuario.
+  late final (Color, Color) _camiseta = () {
+    final (primario, secundario) = (
+      Color(widget.franquiciaUsuario.colorPrimario),
+      Color(widget.franquiciaUsuario.colorSecundario),
+    );
+    return Vestuario.uniforme(primario, secundario) ?? (primario, secundario);
+  }();
+
+  /// Piso, pelota y LED del vestuario (con lo de fábrica, la cancha de siempre).
+  late final EstiloCancha _estilo = Vestuario.cancha();
 
   @override
   void initState() {
@@ -433,6 +448,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   void _terminar() {
     if (_registrado) return;
     _registrado = true;
+    Misiones.anotar(TipoMision.jugarEnVivo);
     widget.onTerminado(_m);
     setState(() => _final = true);
     _sonido.chicharra();
@@ -479,7 +495,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
 
   /// Camiseta del rival: (color, número, ribete), que no se confunda con la tuya.
   (Color, Color, Color) _coloresRival(Franquicia rival) {
-    final propio = Color(widget.franquiciaUsuario.colorPrimario);
+    final propio = _camiseta.$1;
     double distancia(Color a, Color b) => (a.r - b.r).abs() + (a.g - b.g).abs() + (a.b - b.b).abs();
     var color = Color(rival.colorPrimario);
     var ribete = Color(rival.colorSecundario);
@@ -516,8 +532,8 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     final (colorRival, textoRival, ribeteRival) = _coloresRival(
       usuarioLocal ? widget.identidadVisitante : widget.identidadLocal,
     );
-    final colorPropio = Color(widget.franquiciaUsuario.colorPrimario);
-    final ribetePropio = _ribete(colorPropio, Color(widget.franquiciaUsuario.colorSecundario));
+    final colorPropio = _camiseta.$1;
+    final ribetePropio = _ribete(colorPropio, _camiseta.$2);
     final ribeteDelRival = _ribete(colorRival, ribeteRival);
     final energias = {..._m.energias(true), ..._m.energias(false)};
     final todos = {
@@ -561,7 +577,8 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                                     fichas: const [],
                                     balon: const Offset(25, 47),
                                     camaraY: _camara,
-                                    colorLed: esquema.primary,
+                                    colorLed: Vestuario.led() ?? esquema.primary,
+                                    estilo: _estilo,
                                     escudo: _escudo,
                                     cartel: _cartel(null, 0),
                                   ),
@@ -592,7 +609,8 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                               return CustomPaint(
                                 painter: CanchaPartidoPainter(
                                   franquicia: widget.franquiciaUsuario,
-                                  colorLed: esquema.primary,
+                                  colorLed: Vestuario.led() ?? esquema.primary,
+                                  estilo: _estilo,
                                   camaraY: _camara,
                                   camaraX: _camaraX,
                                   zoom: _zoom,

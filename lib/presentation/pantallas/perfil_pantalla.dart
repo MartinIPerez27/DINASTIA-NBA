@@ -11,10 +11,13 @@ import '../widgets/texto_led.dart';
 /// Tu carrera de entrenador: nivel y ventajas, vitrina de trofeos, logros, Salón de la Fama
 /// (temporadas terminadas) y la carrera de cada carta con vos.
 class PerfilPantalla extends StatelessWidget {
-  const PerfilPantalla({super.key, required this.jugador});
+  const PerfilPantalla({super.key, required this.jugador, this.onVestuario});
 
   /// Para nombrar las cartas de la carrera (null si la carta ya no existe).
   final Jugador? Function(String cartaId) jugador;
+
+  /// Abre el vestuario (cosméticos del pase y del nivel).
+  final VoidCallback? onVestuario;
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
@@ -22,6 +25,10 @@ class PerfilPantalla extends StatelessWidget {
     child: Scaffold(
       appBar: AppBar(
         title: const Text('Tu carrera'),
+        actions: [
+          if (onVestuario != null)
+            IconButton(onPressed: onVestuario, icon: const Icon(Icons.checkroom_outlined), tooltip: 'Vestuario'),
+        ],
         bottom: const TabBar(
           isScrollable: true,
           tabAlignment: TabAlignment.start,
@@ -164,6 +171,10 @@ class _Vitrina extends StatelessWidget {
     TipoTrofeo.allStar => Icons.auto_awesome,
     TipoTrofeo.record => Icons.history_edu,
     TipoTrofeo.copa => Icons.military_tech,
+    TipoTrofeo.caminoAlAnillo => Icons.stairs,
+    TipoTrofeo.mejoresEquipos => Icons.workspace_premium_outlined,
+    TipoTrofeo.mundial => Icons.public,
+    TipoTrofeo.escenario => Icons.theaters,
   };
 
   @override

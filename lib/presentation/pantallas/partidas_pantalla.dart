@@ -12,6 +12,9 @@ import '../../data/franquicias.dart';
 import '../../domain/entities/ajustes.dart';
 import '../../domain/entities/perfil.dart';
 import '../../domain/entities/modo_juego.dart';
+import '../../domain/modos/amigos.dart';
+import '../../domain/modos/dinastia.dart';
+import '../../domain/variantes.dart';
 import '../../domain/entities/temporada.dart';
 import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
@@ -290,7 +293,25 @@ class _FilaPartida extends StatelessWidget {
   final VoidCallback onTap;
   final ValueChanged<_Accion>? onAccion;
 
-  static String _fase(Temporada t) => switch (t.fase) {
+  static String _fase(Temporada t) {
+    if (PartidaAmigos.de(t) case final a?) {
+      return switch (a.fase) {
+        FaseAmigos.draft => 'Draft por turnos',
+        FaseAmigos.tacticas => 'Tácticas',
+        FaseAmigos.liga => 'Liga',
+        FaseAmigos.serie => 'Serie',
+        FaseAmigos.terminada => 'Terminada',
+      };
+    }
+    if (t.modoJuego == ModoJuego.extremo && Variantes.extremoPerdido(t)) return 'Perdida';
+    final fase = _faseClasica(t);
+    if (t.modoJuego == ModoJuego.dinastia || t.modoJuego == ModoJuego.reescribi) {
+      return 'Temporada ${EstadoDinastia.de(t).numero} · $fase';
+    }
+    return fase;
+  }
+
+  static String _faseClasica(Temporada t) => switch (t.fase) {
     FaseTemporada.draft => 'Draft',
     FaseTemporada.tacticas => 'Tácticas',
     FaseTemporada.temporadaRegular => 'Temporada regular',
