@@ -48,7 +48,7 @@ void main() {
         balonDesde: balon,
         poseedorDesde: poseedor,
         segundaOportunidad: segunda,
-        saliente: e.tipo == TipoEvento.cambio ? m.enBanco(e.local) : null,
+        saliente: e.tipo == TipoEvento.cambio ? liga.jugador(e.saleId ?? '') : null,
       );
       expect(c.duracion, inInclusiveRange(1.2, 16), reason: '${e.tipo}: ${e.texto}');
       segundos += c.duracion;

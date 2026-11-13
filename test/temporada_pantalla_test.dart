@@ -80,7 +80,7 @@ void main() {
     await t.pump();
     expect(find.textContaining('Simulando'), findsOneWidget);
     for (var i = 0; i < 400 && guardadas.isEmpty; i++) {
-      await t.pump(const Duration(milliseconds: 1));
+      await t.pump(const Duration(milliseconds: 20));
     }
     await t.pump();
     expect(guardadas.last.registroUsuario.jugados, 82);

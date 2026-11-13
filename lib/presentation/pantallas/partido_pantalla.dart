@@ -683,7 +683,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                                     texto: local == usuarioLocal ? _contraste(colorPropio) : textoRival,
                                     ribete: local == usuarioLocal ? ribetePropio : ribeteDelRival,
                                     energia: (energias[id] ?? 100) / 100,
-                                    etiqueta: todos[id]!.dorsal > 0 ? '${todos[id]!.dorsal}' : todos[id]!.iniciales,
+                                    etiqueta: todos[id]!.iniciales,
                                     conBalon: poseedor == id,
                                     nombre: poseedor == id ? _apellido(todos[id]!) : null,
                                     opacidad: opacidad,

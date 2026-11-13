@@ -55,12 +55,21 @@ class PanelQuimica extends StatelessWidget {
                     const SizedBox(width: 8),
                     TextoLed('${q.puntaje}', tamano: 22),
                     const SizedBox(width: 10),
-                    SizedBox(
-                      width: 56,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: LinearProgressIndicator(value: q.puntaje / 100, minHeight: 5),
-                      ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          q.nivel.etiqueta,
+                          style: tema.textTheme.labelSmall?.copyWith(
+                            color: MedidorQuimica.color(q.nivel),
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        MedidorQuimica(puntaje: q.puntaje, ancho: 72, alto: 6),
+                      ],
                     ),
                     if (!compacto) ...[
                       const SizedBox(width: 12),
@@ -84,6 +93,11 @@ class PanelQuimica extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String _efecto(double e) {
+    final pct = (e * 100).toStringAsFixed(1).replaceAll('.', ',');
+    return e > 0 ? '+$pct %' : (e < 0 ? '$pct %'.replaceFirst('-', '−') : '0 %');
   }
 
   void _detalle(BuildContext context, Quimica q) {
@@ -110,10 +124,30 @@ class PanelQuimica extends StatelessWidget {
                   TextoLed('${q.puntaje}', tamano: 36),
                 ],
               ),
+              const SizedBox(height: 8),
+              LayoutBuilder(
+                builder: (context, c) =>
+                    MedidorQuimica(puntaje: q.puntaje, ancho: c.maxWidth, alto: 12, conEscala: true),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Text(
+                    q.nivel.etiqueta,
+                    style: tema.textTheme.titleMedium?.copyWith(
+                      color: MedidorQuimica.color(q.nivel),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(q.nivel.descripcion, style: tema.textTheme.bodyMedium)),
+                ],
+              ),
               const SizedBox(height: 4),
               Text(
-                'Compañeros de la misma época suman más; un dúo legendario, todavía más. '
-                'En el partido vale hasta un punto de acierto.',
+                'En el partido: ${_efecto(q.efectoTiro)} de acierto en cada tiro (va de −1 % con química 0 a '
+                '+1 % con 100; 50 es neutro). Compañeros de la misma época suman más; un dúo legendario, '
+                'todavía más.',
                 style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
               ),
               const SizedBox(height: 12),
@@ -142,6 +176,105 @@ class PanelQuimica extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Barra de química en tres colores (baja / media / alta) con una marca donde está el plantel.
+class MedidorQuimica extends StatelessWidget {
+  const MedidorQuimica({super.key, required this.puntaje, required this.ancho, this.alto = 6, this.conEscala = false});
+
+  final int puntaje;
+  final double ancho, alto;
+
+  /// Con los números de las franjas debajo (para el detalle).
+  final bool conEscala;
+
+  static Color color(NivelQuimica n) => switch (n) {
+    NivelQuimica.baja => const Color(0xFFE5484D),
+    NivelQuimica.media => const Color(0xFFF5B83D),
+    NivelQuimica.alta => const Color(0xFF46C46E),
+    NivelQuimica.excelente => const Color(0xFF2BE38A),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final franjas = [
+      (0, NivelQuimica.desdeMedia, NivelQuimica.baja),
+      (NivelQuimica.desdeMedia, NivelQuimica.desdeAlta, NivelQuimica.media),
+      (NivelQuimica.desdeAlta, NivelQuimica.desdeExcelente, NivelQuimica.alta),
+      (NivelQuimica.desdeExcelente, 100, NivelQuimica.excelente),
+    ];
+    final marca = (puntaje.clamp(0, 100) / 100) * ancho;
+    final barra = SizedBox(
+      width: ancho,
+      height: alto + 6,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 3,
+            height: alto,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(alto / 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final (desde, hasta, nivel) in franjas)
+                    Expanded(
+                      flex: hasta - desde,
+                      child: ColoredBox(
+                        color: color(nivel).withValues(alpha: NivelQuimica.de(puntaje) == nivel ? 1 : 0.35),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            left: (marca - 2).clamp(0, ancho - 4),
+            top: 0,
+            width: 4,
+            height: alto + 6,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 2)],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!conEscala) return barra;
+    final estilo = Theme.of(context).textTheme.labelSmall
+        ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        barra,
+        const SizedBox(height: 4),
+        SizedBox(
+          width: ancho,
+          height: 16,
+          child: Stack(
+            children: [
+              for (final (desde, hasta, nivel) in franjas)
+                Positioned(
+                  left: ancho * desde / 100,
+                  width: ancho * (hasta - desde) / 100,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(nivel.etiqueta, style: estilo, maxLines: 1),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

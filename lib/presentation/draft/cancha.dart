@@ -222,7 +222,7 @@ class _Puesto extends StatelessWidget {
                         ],
                       ),
                     ),
-                    // Placa con el uniforme de la franquicia: dorsal y apellido.
+                    // Placa con el uniforme de la franquicia y el apellido (sin dorsal: el catálogo no los tiene todos).
                     ColoredBox(
                       color: uniforme,
                       child: Padding(
@@ -230,10 +230,7 @@ class _Puesto extends StatelessWidget {
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
-                            [
-                              if (jugador.dorsal > 0) '${jugador.dorsal}',
-                              _apellido(jugador.nombre),
-                            ].join(' ').toUpperCase(),
+                            _apellido(jugador.nombre).toUpperCase(),
                             maxLines: 1,
                             style: TextStyle(
                               fontFamily: Fuentes.estadio,

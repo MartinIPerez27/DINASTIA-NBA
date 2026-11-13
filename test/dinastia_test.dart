@@ -53,13 +53,22 @@ void main() {
     expect(CarreraDinastia.cambioPorEdad(22), greaterThan(0));
     expect(CarreraDinastia.cambioPorEdad(29), 0);
     expect(CarreraDinastia.cambioPorEdad(35), lessThan(0));
-    final t = primera().copyWith(
-      datosModo: EstadoDinastia(raiz: 'din', edades: {for (final j in primera().plantel.jugadores) j.id: 21}).toJson(),
+    final base = primera();
+    final t = base.copyWith(
+      datosModo: EstadoDinastia(
+        raiz: 'din',
+        edades: {for (final j in [...base.plantel.jugadores, ...base.suplentes]) j.id: 21},
+      ).toJson(),
     );
     final terminada = jugarEntera(t);
     final r = carrera.receso(terminada, nombre);
     expect(r.retiros, isEmpty, reason: 'a los 22 nadie se retira');
-    expect(r.cambios.values.every((c) => c >= 2), isTrue, reason: r.cambios.toString());
+    final titulares = {for (final j in base.plantel.jugadores) j.id};
+    expect(
+      r.cambios.entries.where((e) => titulares.contains(e.key)).every((e) => e.value >= 2),
+      isTrue,
+      reason: r.cambios.toString(),
+    );
     for (final j in r.plantel.jugadores) {
       final original = catalogo.firstWhere((c) => c.id == j.id);
       expect(j.media, original.media + r.cambios[j.id]!);

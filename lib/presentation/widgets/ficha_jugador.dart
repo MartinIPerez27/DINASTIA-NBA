@@ -81,7 +81,7 @@ class FichaJugador extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '${franquicia.nombreCompleto} · ${jugador.epoca.etiqueta} · ${jugador.dorsal > 0 ? '#${jugador.dorsal} · ' : ''}'
+                  '${franquicia.nombreCompleto} · ${jugador.epoca.etiqueta} · '
                   '${jugador.tier.etiqueta} (${jugador.tier.descripcion})',
                   style: tema.textTheme.bodyMedium?.copyWith(color: esquema.onSurfaceVariant),
                 ),

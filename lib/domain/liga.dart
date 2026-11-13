@@ -28,7 +28,7 @@ class Liga {
   Temporada iniciar(Temporada t, {Set<int> excluidos = const {}}) {
     if (!t.plantel.completo || !t.tacticaConfirmada) throw StateError('Faltan el plantel o las tácticas.');
     final propios = {for (final j in t.plantel.jugadores) j.nbaPlayerId, ...excluidos};
-    return t.copyWith(
+    final armada = t.copyWith(
       calendario: generarCalendario(franquicias, _azar),
       rivales: {
         for (final f in franquicias)
@@ -41,6 +41,19 @@ class Liga {
             ),
       },
     );
+    return t.suplentes.isEmpty ? _bancoInicial(armada) : armada;
+  }
+
+  /// Rotación de 8 desde el arranque: 2 suplentes del mercado de agentes libres (el mejor y el
+  /// mejor de otro puesto). Se pueden liberar y cambiar desde el Plantel.
+  Temporada _bancoInicial(Temporada t) {
+    final libres = agentesLibres(t);
+    if (libres.isEmpty) return t;
+    final primero = libres.first;
+    final segundo =
+        libres.skip(1).where((j) => !j.posiciones.any(primero.posiciones.contains)).firstOrNull ??
+        libres.skip(1).firstOrNull;
+    return t.copyWith(suplentes: [primero, ?segundo]);
   }
 
   /// [robadas]: cartas que ese rival se llevó en el draft en serpiente (entran sí o sí).
@@ -401,36 +414,50 @@ class Liga {
 
   /// Forma de las cartas: rendir por encima de lo esperado sube la racha (hasta +3), rendir por
   /// debajo la baja (hasta −3), y con el tiempo todo vuelve a 0.
+  /// Forma (−3 a +3, se suma a la media): cómo rindió cada uno en el partido comparado con su
+  /// carta (puntos, rebotes, asistencias, robos, tapas, pérdidas y tiros errados, por minuto)
+  /// y relativo a sus compañeros: la pelota se reparte, así que en un equipo de figuras no todos
+  /// pueden llegar a sus números reales. Un partido muy bueno suma 1, uno muy flojo resta 1 y uno
+  /// normal la acerca 1 a cero: hacen falta varios partidos seguidos para llegar a ±3.
   void _actualizarForma(Map<String, int> forma, MotorPartido m) {
-    for (final e in [...m.boxLocal.entries, ...m.boxVisitante.entries]) {
-      final j = _porId[e.key];
-      final l = e.value;
-      if (j == null || l.seg < 300) continue;
-      final s = j.stats;
+    for (final box in [m.boxLocal, m.boxVisitante]) {
       double valor(double pts, double reb, double ast, double rob, double tap, double per) =>
           pts + 0.7 * reb + 0.7 * ast + rob + tap - per;
-      final minutos = l.seg / 60;
-      final hizo =
-          valor(
-            l.pts.toDouble(),
-            l.reb.toDouble(),
-            l.ast.toDouble(),
-            l.rob.toDouble(),
-            l.tap.toDouble(),
-            l.per.toDouble(),
-          ) -
-          0.5 * (l.tcA - l.tcI);
-      final esperado =
-          (valor(s.ppp, s.rpp, s.app, s.robP, s.tapP, s.perP) - 0.5 * s.ppp * (1 - s.pctTc) / 2) *
-          minutos /
-          max(s.minP, 12);
-      final delta = esperado <= 0 ? 0 : (hizo / esperado > 1.3 ? 1 : (hizo / esperado < 0.7 ? -1 : 0));
-      final antes = forma[j.id] ?? 0;
-      final nueva = (antes * 0.8 + delta * 1.2).round().clamp(-3, 3);
-      if (nueva == 0) {
-        forma.remove(j.id);
-      } else {
-        forma[j.id] = nueva;
+      final rendimiento = <String, (double, double)>{};
+      for (final e in box.entries) {
+        final j = _porId[e.key];
+        final l = e.value;
+        if (j == null || l.seg < 300) continue;
+        final s = j.stats;
+        final hizo =
+            valor(
+              l.pts.toDouble(),
+              l.reb.toDouble(),
+              l.ast.toDouble(),
+              l.rob.toDouble(),
+              l.tap.toDouble(),
+              l.per.toDouble(),
+            ) -
+            0.5 * (l.tcA - l.tcI); // tiros errados (tcA: intentados, tcI: convertidos)
+        final esperado =
+            (valor(s.ppp, s.rpp, s.app, s.robP, s.tapP, s.perP) - 0.5 * s.ppp * (1 - s.pctTc) / 2) *
+            (l.seg / 60) /
+            max(s.minP, 12);
+        if (esperado > 0) rendimiento[j.id] = (hizo, esperado);
+      }
+      if (rendimiento.isEmpty) continue;
+      final equipo =
+          rendimiento.values.fold(0.0, (a, x) => a + x.$1) / rendimiento.values.fold(0.0, (a, x) => a + x.$2);
+      for (final MapEntry(key: id, value: (hizo, esperado)) in rendimiento.entries) {
+        final relativo = equipo <= 0 ? 1.0 : hizo / esperado / equipo;
+        final delta = relativo > 1.3 ? 1 : (relativo < 0.7 ? -1 : 0);
+        final antes = forma[id] ?? 0;
+        final nueva = (delta != 0 ? antes + delta : antes - antes.sign).clamp(-3, 3);
+        if (nueva == 0) {
+          forma.remove(id);
+        } else {
+          forma[id] = nueva;
+        }
       }
     }
   }

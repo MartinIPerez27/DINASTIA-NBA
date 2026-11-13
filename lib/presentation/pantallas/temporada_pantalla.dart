@@ -172,9 +172,16 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
     for (var i = 0; i < partidos && _liga.proximoDelUsuario(t) != null; i++) {
       // Le da aire a la pantalla entre partido y partido (barra de progreso, sin trabarse).
       if (i > 0) {
-        await Future<void>.delayed(Duration.zero);
         if (!mounted) return;
-        if (total > 1) setState(() => _progreso = (i, total));
+        // El récord y los resultados se van actualizando a la vista (se guarda todo al final).
+        if (total > 1) {
+          setState(() {
+            _progreso = (i, total);
+            _t = t;
+          });
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+        if (!mounted) return;
       }
       final p = _liga.proximoDelUsuario(t)!;
       t = _liga.simularProximo(t);

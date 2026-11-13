@@ -120,4 +120,29 @@ class Quimica {
 
   /// Efecto en el tiro: de −1 punto (química 0) a +1 punto (química 100).
   double get efectoTiro => (puntaje - 50) / 5000;
+
+  NivelQuimica get nivel => NivelQuimica.de(puntaje);
+}
+
+/// Cómo leer el puntaje: 50 es neutro (no suma ni resta en el partido).
+enum NivelQuimica {
+  baja('BAJA', 'Te resta: los tiros entran un poco menos.'),
+  media('MEDIA', 'Neutra: casi no cambia nada.'),
+  alta('ALTA', 'Te suma: los tiros entran un poco más.'),
+  excelente('EXCELENTE', 'Suma lo máximo: el plantel juega de memoria.');
+
+  const NivelQuimica(this.etiqueta, this.descripcion);
+  final String etiqueta;
+  final String descripcion;
+
+  /// Límites de cada franja (0–39, 40–59, 60–84, 85–100).
+  static const desdeMedia = 40, desdeAlta = 60, desdeExcelente = 85;
+
+  static NivelQuimica de(int puntaje) => puntaje >= desdeExcelente
+      ? excelente
+      : puntaje >= desdeAlta
+      ? alta
+      : puntaje >= desdeMedia
+      ? media
+      : baja;
 }

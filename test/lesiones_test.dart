@@ -17,7 +17,21 @@ void main() {
   for (final pos in Posicion.values) {
     p = p.asignar(js.firstWhere((j) => p.posicionesDisponiblesPara(j).contains(pos)), pos);
   }
-  final inicio = liga.iniciar(Temporada(id: 'les', franquiciaUsuarioId: 'DAL', plantel: p, tacticaConfirmada: true));
+  final conBanco = liga.iniciar(Temporada(id: 'les', franquiciaUsuarioId: 'DAL', plantel: p, tacticaConfirmada: true));
+  // Para probar fichajes se arranca con el banco largo vacío.
+  final inicio = conBanco.copyWith(suplentes: []);
+
+  test('la temporada arranca con rotación de 8: 2 suplentes de puestos distintos, fuera de todo plantel', () {
+    expect(conBanco.suplentes, hasLength(Temporada.maxSuplentes));
+    final [a, b] = conBanco.suplentes;
+    expect(a.posiciones.any(b.posiciones.contains), isFalse);
+    final ocupados = {
+      for (final j in conBanco.plantel.jugadores) j.nbaPlayerId,
+      for (final r in conBanco.rivales.values)
+        for (final id in r.cartaIds.values) liga.jugador(id)!.nbaPlayerId,
+    };
+    expect(conBanco.suplentes.any((j) => ocupados.contains(j.nbaPlayerId)), isFalse);
+  });
 
   test('agentes libres: 8, fuera de todos los planteles, estables en el bloque; firmar y liberar', () {
     final libres = liga.agentesLibres(inicio);

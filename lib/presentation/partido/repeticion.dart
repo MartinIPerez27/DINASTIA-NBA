@@ -153,7 +153,7 @@ class _RepeticionState extends State<Repeticion> with SingleTickerProviderStateM
                     relleno: propio ? eq.propio : eq.rival,
                     texto: propio ? eq.textoPropio : eq.textoRival,
                     ribete: propio ? eq.ribetePropio : eq.ribeteRival,
-                    etiqueta: j.dorsal > 0 ? '${j.dorsal}' : j.iniciales,
+                    etiqueta: j.iniciales,
                     conBalon: poseedor == j.id,
                     nombre: poseedor == j.id ? _apellido(j) : null,
                     opacidad: opacidad,

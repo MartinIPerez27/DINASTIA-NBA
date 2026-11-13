@@ -119,7 +119,11 @@ AllStar? _jugar(Temporada t, Liga liga) {
 /// Quinteto + sexto con los convocados, cada uno en un puesto que juega (el mejor disponible).
 Plantel? _plantel(List<Galardon> convocados) {
   var plantel = const Plantel();
-  for (final p in [...Posicion.titulares, Posicion.sextoHombre]) {
+  // Primero los puestos con menos candidatos (si no, un alero-pívot puede quedar de alero y faltar
+  // pívot); el Sexto Hombre al final.
+  int candidatos(Posicion p) => convocados.where((g) => g.jugador.posiciones.contains(p)).length;
+  final titulares = [...Posicion.titulares]..sort((a, b) => candidatos(a).compareTo(candidatos(b)));
+  for (final p in [...titulares, Posicion.sextoHombre]) {
     final candidato = convocados.where((g) => plantel.posicionesDisponiblesPara(g.jugador).contains(p)).firstOrNull;
     if (candidato == null) return null;
     plantel = plantel.asignar(candidato.jugador, p);
