@@ -324,6 +324,21 @@ class _FilaPartida extends StatelessWidget {
     return fase;
   }
 
+  /// El número grande de la fila: tu récord; en las partidas con amigos, la serie (alto-bajo) o el
+  /// récord del jugador 1 en la liga, y "--" mientras se arma el draft.
+  static String _marcador(Temporada t) {
+    if (PartidaAmigos.de(t) case final a?) {
+      if (a.serie case final s?) return '${s.victoriasDe(s.alto)}-${s.victoriasDe(s.bajo)}';
+      if (a.liga.any((p) => p.jugado)) {
+        final fila = a.tabla().firstWhere((f) => f.indice == 0);
+        return '${fila.victorias}-${fila.derrotas}';
+      }
+      return '--';
+    }
+    final r = t.registroUsuario;
+    return '${r.victorias}-${r.derrotas}';
+  }
+
   static String _faseClasica(Temporada t) => switch (t.fase) {
     FaseTemporada.draft => 'Draft',
     FaseTemporada.tacticas => 'Tácticas',
@@ -390,7 +405,7 @@ class _FilaPartida extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  TextoLed('${r.victorias}-${r.derrotas}', tamano: 22),
+                  TextoLed(_marcador(t), tamano: 22),
                   if (onAccion case final accion?)
                     PopupMenuButton<_Accion>(
                       tooltip: 'Opciones de la partida',

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/misiones.dart';
+
+import '../../data/estado_app.dart';
+
 import '../../data/franquicias.dart';
 import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/rival.dart';
@@ -208,6 +212,11 @@ class _PlayoffsPantallaState extends State<PlayoffsPantalla> {
                             propia: _identidad(_t.franquiciaUsuarioId),
                             rival: _identidad(serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId),
                             nombreRival: _nombre(serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId),
+                            revancha: Rivalidades.contexto(
+                              perfilApp.value,
+                              _t,
+                              serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId,
+                            ),
                             local: _liga.partidoDeSerie(serie).localId == _t.franquiciaUsuarioId,
                             ocupado: _ocupado,
                             onVivo: () => _vivo(serie),
@@ -276,6 +285,11 @@ class _PlayoffsPantallaState extends State<PlayoffsPantalla> {
                       propia: _identidad(_t.franquiciaUsuarioId),
                       rival: _identidad(serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId),
                       nombreRival: _nombre(serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId),
+                      revancha: Rivalidades.contexto(
+                        perfilApp.value,
+                        _t,
+                        serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId,
+                      ),
                       local: _liga.partidoDeSerie(serie).localId == _t.franquiciaUsuarioId,
                       ocupado: _ocupado,
                       onVivo: () => _vivo(serie),
@@ -429,7 +443,11 @@ class _SerieActual extends StatelessWidget {
     required this.onVivo,
     required this.onSimular,
     required this.onSimularSerie,
+    this.revancha,
   });
+
+  /// "Te eliminaron en…": cuenta pendiente con este rival de otra partida tuya.
+  final String? revancha;
 
   final SeriePlayoff serie;
   final String usuarioId;
@@ -472,6 +490,22 @@ class _SerieActual extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text('vs $nombreRival', style: tema.textTheme.titleMedium),
+          if (revancha case final r?)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: esquema.primary.withValues(alpha: 0.14),
+                  border: Border.all(color: esquema.primary),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'REVANCHA · $r',
+                  style: tema.textTheme.labelMedium?.copyWith(color: esquema.primary, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
           Text(
             serie.ronda.esPlayIn
                 ? 'Partido único · ${local ? 'de local' : 'de visitante'} · el que gana sigue'
