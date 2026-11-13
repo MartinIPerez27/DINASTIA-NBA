@@ -6,7 +6,10 @@ import '../../domain/entities/rival.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/liga.dart';
 import '../../domain/motor.dart';
+import '../compartir/tarjeta_compartir.dart';
+import '../modos/reto.dart';
 import '../tema/tema_franquicia.dart';
+import '../widgets/disposicion.dart';
 import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
 import 'partido_pantalla.dart';
@@ -162,97 +165,244 @@ class _PlayoffsPantallaState extends State<PlayoffsPantalla> {
         actions: [
           IconButton(onPressed: _abrirStats, icon: const Icon(Icons.leaderboard_outlined), tooltip: 'STATS 82'),
           if (serie != null) IconButton(onPressed: _abrirPlaybook, icon: const Icon(Icons.tune), tooltip: 'Tácticas'),
+          BotonCompartir(temporada: _t, liga: _liga),
           ...widget.acciones,
         ],
       ),
       body: SafeArea(
         top: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-          children: [
-            if (campeon != null)
-              _Campeon(
-                campeon: _identidad(campeon),
-                nombre: _nombre(campeon),
-                propio: campeon == _t.franquiciaUsuarioId,
-                finales: _t.series.last,
-                onStats: _abrirStats,
-                onInicio: () => Navigator.of(context).popUntil((r) => r.isFirst),
-              )
-            else if (_liga.esperandoPlayIn(_t))
-              _Afuera(
-                titulo: 'ENTRASTE DIRECTO',
-                texto:
-                    'Terminaste entre los 6 primeros: esperás en la 1.ª ronda mientras los puestos 7.º a 10.º '
-                    'se juegan el Play-In.',
-                boton: 'SIMULAR EL PLAY-IN',
-                ocupado: _ocupado,
-                onSimular: () => _simular(_liga.simularPlayIn, null),
-              )
-            else if (serie != null)
-              _SerieActual(
-                serie: serie,
-                usuarioId: _t.franquiciaUsuarioId,
-                propia: _identidad(_t.franquiciaUsuarioId),
-                rival: _identidad(serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId),
-                nombreRival: _nombre(serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId),
-                local: _liga.partidoDeSerie(serie).localId == _t.franquiciaUsuarioId,
-                ocupado: _ocupado,
-                onVivo: () => _vivo(serie),
-                onSimular: () => _simular(_liga.simularPartidoPlayoff, serie),
-                onSimularSerie: () => _simular(_liga.simularSerieUsuario, serie),
-              )
-            else
-              _Afuera(
-                texto: switch (_t.eliminacion) {
-                  final s? =>
-                    'Quedaste afuera en ${s.ronda.etiqueta.toLowerCase().replaceFirst('las ', '')} '
-                        '(${_marcador(s)} vs ${_nombre(s.altoId == _t.franquiciaUsuarioId ? s.bajoId : s.altoId)}).',
-                  null => 'Tu equipo no entró entre los 10 mejores de su conferencia (ni al Play-In).',
-                },
-                ocupado: _ocupado,
-                onSimular: () => _simular(_liga.simularRestoPlayoffs, null),
-              ),
-            if (campeon != null && widget.onSiguienteTemporada != null) ...[
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () => widget.onSiguienteTemporada!(_t),
-                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-                icon: const Icon(Icons.skip_next),
-                label: const Text('SIGUIENTE TEMPORADA'),
-              ),
-            ],
-            if (_resumen case final r?) ...[
-              const SizedBox(height: 10),
-              Text(r, style: tema.textTheme.bodyMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
-            ],
-            const SizedBox(height: 20),
-            for (final ronda in rondas.reversed) ...[
-              Text(ronda.etiqueta.toUpperCase(), style: tema.textTheme.titleMedium),
-              const SizedBox(height: 6),
-              for (final conf in ronda == RondaPlayoff.finalesNba ? [null] : Conferencia.values) ...[
-                if (conf != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, bottom: 2),
-                    child: Text(
-                      conf == Conferencia.este ? 'Este' : 'Oeste',
-                      style: tema.textTheme.labelMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+        child: esTabletApaisada(context)
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: 400,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 16, 24),
+                      children: [
+                        // Retos: tu récord contra el de tu amigo (solo en las partidas de un reto).
+                        TarjetaReto(temporada: _t),
+                        if (campeon != null)
+                          _Campeon(
+                            campeon: _identidad(campeon),
+                            nombre: _nombre(campeon),
+                            propio: campeon == _t.franquiciaUsuarioId,
+                            finales: _t.series.last,
+                            onStats: _abrirStats,
+                            onInicio: () => Navigator.of(context).popUntil((r) => r.isFirst),
+                          )
+                        else if (_liga.esperandoPlayIn(_t))
+                          _Afuera(
+                            titulo: 'ENTRASTE DIRECTO',
+                            texto:
+                                'Terminaste entre los 6 primeros: esperás en la 1.ª ronda mientras los puestos 7.º a 10.º '
+                                'se juegan el Play-In.',
+                            boton: 'SIMULAR EL PLAY-IN',
+                            ocupado: _ocupado,
+                            onSimular: () => _simular(_liga.simularPlayIn, null),
+                          )
+                        else if (serie != null)
+                          _SerieActual(
+                            serie: serie,
+                            usuarioId: _t.franquiciaUsuarioId,
+                            propia: _identidad(_t.franquiciaUsuarioId),
+                            rival: _identidad(serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId),
+                            nombreRival: _nombre(serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId),
+                            local: _liga.partidoDeSerie(serie).localId == _t.franquiciaUsuarioId,
+                            ocupado: _ocupado,
+                            onVivo: () => _vivo(serie),
+                            onSimular: () => _simular(_liga.simularPartidoPlayoff, serie),
+                            onSimularSerie: () => _simular(_liga.simularSerieUsuario, serie),
+                          )
+                        else
+                          _Afuera(
+                            texto: switch (_t.eliminacion) {
+                              final s? =>
+                                'Quedaste afuera en ${s.ronda.etiqueta.toLowerCase().replaceFirst('las ', '')} '
+                                    '(${_marcador(s)} vs ${_nombre(s.altoId == _t.franquiciaUsuarioId ? s.bajoId : s.altoId)}).',
+                              null => 'Tu equipo no entró entre los 10 mejores de su conferencia (ni al Play-In).',
+                            },
+                            ocupado: _ocupado,
+                            onSimular: () => _simular(_liga.simularRestoPlayoffs, null),
+                          ),
+                        if (campeon != null && widget.onSiguienteTemporada != null) ...[
+                          const SizedBox(height: 12),
+                          FilledButton.icon(
+                            onPressed: () => widget.onSiguienteTemporada!(_t),
+                            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                            icon: const Icon(Icons.skip_next),
+                            label: const Text('SIGUIENTE TEMPORADA'),
+                          ),
+                        ],
+                        if (_resumen case final r?) ...[
+                          const SizedBox(height: 10),
+                          Text(r, style: tema.textTheme.bodyMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
+                        ],
+                      ],
                     ),
                   ),
-                for (final s in _t.series.where(
-                  (s) => s.ronda == ronda && (conf == null || franquiciaPorId(s.altoId).conferencia == conf),
-                ))
-                  _FilaSerie(
-                    serie: s,
-                    alto: _identidad(s.altoId),
-                    bajo: _identidad(s.bajoId),
-                    propia: s.altoId == _t.franquiciaUsuarioId || s.bajoId == _t.franquiciaUsuarioId,
-                  ),
-              ],
-              const SizedBox(height: 14),
-            ],
+                  const VerticalDivider(width: 1),
+                  Expanded(child: _cuadroApaisado(tema, rondas)),
+                ],
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                children: [
+                  // Retos: tu récord contra el de tu amigo (solo en las partidas de un reto).
+                  TarjetaReto(temporada: _t),
+                  if (campeon != null)
+                    _Campeon(
+                      campeon: _identidad(campeon),
+                      nombre: _nombre(campeon),
+                      propio: campeon == _t.franquiciaUsuarioId,
+                      finales: _t.series.last,
+                      onStats: _abrirStats,
+                      onInicio: () => Navigator.of(context).popUntil((r) => r.isFirst),
+                    )
+                  else if (_liga.esperandoPlayIn(_t))
+                    _Afuera(
+                      titulo: 'ENTRASTE DIRECTO',
+                      texto:
+                          'Terminaste entre los 6 primeros: esperás en la 1.ª ronda mientras los puestos 7.º a 10.º '
+                          'se juegan el Play-In.',
+                      boton: 'SIMULAR EL PLAY-IN',
+                      ocupado: _ocupado,
+                      onSimular: () => _simular(_liga.simularPlayIn, null),
+                    )
+                  else if (serie != null)
+                    _SerieActual(
+                      serie: serie,
+                      usuarioId: _t.franquiciaUsuarioId,
+                      propia: _identidad(_t.franquiciaUsuarioId),
+                      rival: _identidad(serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId),
+                      nombreRival: _nombre(serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId),
+                      local: _liga.partidoDeSerie(serie).localId == _t.franquiciaUsuarioId,
+                      ocupado: _ocupado,
+                      onVivo: () => _vivo(serie),
+                      onSimular: () => _simular(_liga.simularPartidoPlayoff, serie),
+                      onSimularSerie: () => _simular(_liga.simularSerieUsuario, serie),
+                    )
+                  else
+                    _Afuera(
+                      texto: switch (_t.eliminacion) {
+                        final s? =>
+                          'Quedaste afuera en ${s.ronda.etiqueta.toLowerCase().replaceFirst('las ', '')} '
+                              '(${_marcador(s)} vs ${_nombre(s.altoId == _t.franquiciaUsuarioId ? s.bajoId : s.altoId)}).',
+                        null => 'Tu equipo no entró entre los 10 mejores de su conferencia (ni al Play-In).',
+                      },
+                      ocupado: _ocupado,
+                      onSimular: () => _simular(_liga.simularRestoPlayoffs, null),
+                    ),
+                  if (campeon != null && widget.onSiguienteTemporada != null) ...[
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: () => widget.onSiguienteTemporada!(_t),
+                      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                      icon: const Icon(Icons.skip_next),
+                      label: const Text('SIGUIENTE TEMPORADA'),
+                    ),
+                  ],
+                  if (_resumen case final r?) ...[
+                    const SizedBox(height: 10),
+                    Text(r, style: tema.textTheme.bodyMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
+                  ],
+
+                  const SizedBox(height: 20),
+                  for (final ronda in rondas.reversed) ...[
+                    Text(ronda.etiqueta.toUpperCase(), style: tema.textTheme.titleMedium),
+                    const SizedBox(height: 6),
+                    for (final conf in ronda == RondaPlayoff.finalesNba ? [null] : Conferencia.values) ...[
+                      if (conf != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, bottom: 2),
+                          child: Text(
+                            conf == Conferencia.este ? 'Este' : 'Oeste',
+                            style: tema.textTheme.labelMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+                          ),
+                        ),
+                      for (final s in _t.series.where(
+                        (s) => s.ronda == ronda && (conf == null || franquiciaPorId(s.altoId).conferencia == conf),
+                      ))
+                        _FilaSerie(
+                          serie: s,
+                          alto: _identidad(s.altoId),
+                          bajo: _identidad(s.bajoId),
+                          propia: s.altoId == _t.franquiciaUsuarioId || s.bajoId == _t.franquiciaUsuarioId,
+                        ),
+                    ],
+                    const SizedBox(height: 14),
+                  ],
+                ],
+              ),
+      ),
+    );
+  }
+
+  /// Tablet apaisada: el cuadro entero a la vista, Este | Las Finales | Oeste, cada conferencia de
+  /// la 1.ª ronda (arriba) a la final de conferencia (abajo).
+  Widget _cuadroApaisado(ThemeData tema, List<RondaPlayoff> rondas) {
+    Widget fila(SeriePlayoff s) => _FilaSerie(
+      serie: s,
+      alto: _identidad(s.altoId),
+      bajo: _identidad(s.bajoId),
+      propia: s.altoId == _t.franquiciaUsuarioId || s.bajoId == _t.franquiciaUsuarioId,
+    );
+    Widget columna(Conferencia? conf) {
+      final deLaColumna = [
+        for (final r in rondas)
+          if ((conf == null) == (r == RondaPlayoff.finalesNba)) r,
+      ];
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            switch (conf) {
+              Conferencia.este => 'ESTE',
+              Conferencia.oeste => 'OESTE',
+              _ => 'LAS FINALES',
+            },
+            textAlign: TextAlign.center,
+            style: tema.textTheme.titleLarge?.copyWith(color: tema.colorScheme.primary, letterSpacing: 1),
+          ),
+          const SizedBox(height: 8),
+          if (conf == null && deLaColumna.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 24),
+              child: Text(
+                'Se definen al final.',
+                textAlign: TextAlign.center,
+                style: tema.textTheme.bodyMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+              ),
+            ),
+          for (final ronda in deLaColumna) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 4),
+              child: Text(
+                ronda.etiqueta.toUpperCase(),
+                style: tema.textTheme.labelMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+              ),
+            ),
+            for (final s in _t.series.where(
+              (s) => s.ronda == ronda && (conf == null || franquiciaPorId(s.altoId).conferencia == conf),
+            ))
+              fila(s),
+            const SizedBox(height: 8),
           ],
-        ),
+        ],
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 24, 24),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: columna(Conferencia.este)),
+          const SizedBox(width: 16),
+          Expanded(child: columna(null)),
+          const SizedBox(width: 16),
+          Expanded(child: columna(Conferencia.oeste)),
+        ],
       ),
     );
   }

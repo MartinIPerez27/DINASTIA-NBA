@@ -8,6 +8,7 @@ import '../../domain/liga.dart';
 import '../../domain/motor.dart';
 import '../../domain/premios.dart';
 import '../tema/tema_franquicia.dart';
+import '../widgets/disposicion.dart';
 import '../widgets/escudo.dart';
 import '../widgets/jugador_avatar.dart';
 
@@ -103,140 +104,143 @@ class _Stats82PantallaState extends State<Stats82Pantalla> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('STATS 82')),
-      body: SafeArea(
-        top: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-          children: [
-            if (mvp != null || anotador != null)
-              Row(
+      body: AnchoMaximo(
+        ancho: 1000,
+        child: SafeArea(
+          top: false,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+            children: [
+              if (mvp != null || anotador != null)
+                Row(
+                  children: [
+                    if (mvp != null)
+                      Expanded(
+                        child: _Honor(
+                          titulo: regularTerminada ? 'MVP de la Temporada' : 'Carrera al MVP',
+                          jugador: widget.liga.jugador(mvp.jugadorId)!,
+                          franquicia: _identidad(mvp.franquiciaId),
+                          dato: () {
+                            final l = _t.lineas[mvp.jugadorId]!;
+                            return '${(l.pts / l.pj).toStringAsFixed(1)} PPP · ${(l.reb / l.pj).toStringAsFixed(1)} RPP · '
+                                '${(l.ast / l.pj).toStringAsFixed(1)} APP';
+                          }(),
+                          propio: mvp.franquiciaId == _t.franquiciaUsuarioId,
+                        ),
+                      ),
+                    if (mvp != null && anotador != null) const SizedBox(width: 10),
+                    if (anotador != null)
+                      Expanded(
+                        child: _Honor(
+                          titulo: 'Máximo Anotador',
+                          jugador: widget.liga.jugador(anotador.jugadorId)!,
+                          franquicia: _identidad(anotador.franquiciaId),
+                          dato: '${anotador.valor.toStringAsFixed(1)} PPP',
+                          propio: anotador.franquiciaId == _t.franquiciaUsuarioId,
+                        ),
+                      ),
+                  ],
+                ),
+              _SeccionPremios(
+                premios: calcularPremios(_t, widget.liga),
+                identidad: _identidad,
+                usuario: _t.franquiciaUsuarioId,
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  if (mvp != null)
-                    Expanded(
-                      child: _Honor(
-                        titulo: regularTerminada ? 'MVP de la Temporada' : 'Carrera al MVP',
-                        jugador: widget.liga.jugador(mvp.jugadorId)!,
-                        franquicia: _identidad(mvp.franquiciaId),
-                        dato: () {
-                          final l = _t.lineas[mvp.jugadorId]!;
-                          return '${(l.pts / l.pj).toStringAsFixed(1)} PPP · ${(l.reb / l.pj).toStringAsFixed(1)} RPP · '
-                              '${(l.ast / l.pj).toStringAsFixed(1)} APP';
-                        }(),
-                        propio: mvp.franquiciaId == _t.franquiciaUsuarioId,
-                      ),
-                    ),
-                  if (mvp != null && anotador != null) const SizedBox(width: 10),
-                  if (anotador != null)
-                    Expanded(
-                      child: _Honor(
-                        titulo: 'Máximo Anotador',
-                        jugador: widget.liga.jugador(anotador.jugadorId)!,
-                        franquicia: _identidad(anotador.franquiciaId),
-                        dato: '${anotador.valor.toStringAsFixed(1)} PPP',
-                        propio: anotador.franquiciaId == _t.franquiciaUsuarioId,
-                      ),
+                  SegmentedButton<_Alcance>(
+                    segments: const [
+                      ButtonSegment(value: _Alcance.equipo, label: Text('Mi equipo')),
+                      ButtonSegment(value: _Alcance.liga, label: Text('Liga')),
+                    ],
+                    selected: {_alcance},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (s) => setState(() => _alcance = s.first),
+                  ),
+                  if (_t.lineasPlayoffs.isNotEmpty)
+                    SegmentedButton<_Tramo>(
+                      segments: const [
+                        ButtonSegment(value: _Tramo.regular, label: Text('Temporada')),
+                        ButtonSegment(value: _Tramo.playoffs, label: Text('Playoffs')),
+                      ],
+                      selected: {_tramo},
+                      showSelectedIcon: false,
+                      onSelectionChanged: (s) => setState(() => _tramo = s.first),
                     ),
                 ],
               ),
-            _SeccionPremios(
-              premios: calcularPremios(_t, widget.liga),
-              identidad: _identidad,
-              usuario: _t.franquiciaUsuarioId,
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                SegmentedButton<_Alcance>(
-                  segments: const [
-                    ButtonSegment(value: _Alcance.equipo, label: Text('Mi equipo')),
-                    ButtonSegment(value: _Alcance.liga, label: Text('Liga')),
-                  ],
-                  selected: {_alcance},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (s) => setState(() => _alcance = s.first),
-                ),
-                if (_t.lineasPlayoffs.isNotEmpty)
-                  SegmentedButton<_Tramo>(
-                    segments: const [
-                      ButtonSegment(value: _Tramo.regular, label: Text('Temporada')),
-                      ButtonSegment(value: _Tramo.playoffs, label: Text('Playoffs')),
-                    ],
-                    selected: {_tramo},
-                    showSelectedIcon: false,
-                    onSelectionChanged: (s) => setState(() => _tramo = s.first),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tocá una sigla para ordenar; otra vez, para invertir.',
-              style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
-            ),
-            const SizedBox(height: 4),
-            if (mostradas.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Text('Todavía no hay partidos jugados.', style: tema.textTheme.bodyMedium),
-              )
-            else
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: DataTable(
-                  sortColumnIndex: _orden + 1,
-                  sortAscending: _ascendente,
-                  columnSpacing: 18,
-                  horizontalMargin: 0,
-                  headingRowHeight: 44,
-                  dataRowMinHeight: 48,
-                  dataRowMaxHeight: 52,
-                  headingTextStyle: tema.textTheme.labelMedium?.copyWith(color: esquema.onSurfaceVariant),
-                  columns: [
-                    const DataColumn(label: Text('JUGADOR')),
-                    for (final (i, c) in _columnas.indexed)
-                      DataColumn(
-                        label: Text(c.sigla),
-                        tooltip: c.descripcion,
-                        numeric: true,
-                        onSort: (_, _) => setState(() {
-                          _ascendente = _orden == i ? !_ascendente : false;
-                          _orden = i;
-                        }),
-                      ),
-                  ],
-                  rows: [
-                    for (final (j, l, f) in mostradas)
-                      DataRow(
-                        color: f == _t.franquiciaUsuarioId && _alcance == _Alcance.liga
-                            ? WidgetStatePropertyAll(esquema.primary.withValues(alpha: 0.08))
-                            : null,
-                        cells: [
-                          DataCell(
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 170),
-                              child: Row(
-                                children: [
-                                  Escudo(_identidad(f), tamano: 20),
-                                  const SizedBox(width: 8),
-                                  Flexible(child: Text(j.nombre, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                                ],
-                              ),
-                            ),
-                          ),
-                          for (final (i, c) in _columnas.indexed)
-                            DataCell(
-                              Text(
-                                c.texto(j, l),
-                                style: i == _orden ? numeros.copyWith(color: esquema.primary) : numeros,
-                              ),
-                            ),
-                        ],
-                      ),
-                  ],
-                ),
+              const SizedBox(height: 8),
+              Text(
+                'Tocá una sigla para ordenar; otra vez, para invertir.',
+                style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
               ),
-          ],
+              const SizedBox(height: 4),
+              if (mostradas.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Text('Todavía no hay partidos jugados.', style: tema.textTheme.bodyMedium),
+                )
+              else
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    sortColumnIndex: _orden + 1,
+                    sortAscending: _ascendente,
+                    columnSpacing: 18,
+                    horizontalMargin: 0,
+                    headingRowHeight: 44,
+                    dataRowMinHeight: 48,
+                    dataRowMaxHeight: 52,
+                    headingTextStyle: tema.textTheme.labelMedium?.copyWith(color: esquema.onSurfaceVariant),
+                    columns: [
+                      const DataColumn(label: Text('JUGADOR')),
+                      for (final (i, c) in _columnas.indexed)
+                        DataColumn(
+                          label: Text(c.sigla),
+                          tooltip: c.descripcion,
+                          numeric: true,
+                          onSort: (_, _) => setState(() {
+                            _ascendente = _orden == i ? !_ascendente : false;
+                            _orden = i;
+                          }),
+                        ),
+                    ],
+                    rows: [
+                      for (final (j, l, f) in mostradas)
+                        DataRow(
+                          color: f == _t.franquiciaUsuarioId && _alcance == _Alcance.liga
+                              ? WidgetStatePropertyAll(esquema.primary.withValues(alpha: 0.08))
+                              : null,
+                          cells: [
+                            DataCell(
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 170),
+                                child: Row(
+                                  children: [
+                                    Escudo(_identidad(f), tamano: 20),
+                                    const SizedBox(width: 8),
+                                    Flexible(child: Text(j.nombre, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            for (final (i, c) in _columnas.indexed)
+                              DataCell(
+                                Text(
+                                  c.texto(j, l),
+                                  style: i == _orden ? numeros.copyWith(color: esquema.primary) : numeros,
+                                ),
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

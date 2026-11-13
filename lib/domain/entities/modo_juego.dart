@@ -52,7 +52,12 @@ enum ModoJuego {
     'Draft en grupo',
     'De 2 a 8 personas eligen por turnos y juegan una liga entre ellas.',
   ),
-  duelo(GrupoModo.amigos, 'Duelo', 'Dos personas, dos drafts, una serie al mejor de 7.');
+  duelo(GrupoModo.amigos, 'Duelo', 'Dos personas, dos drafts, una serie al mejor de 7.'),
+  reto(
+    GrupoModo.amigos,
+    'Reto de un amigo',
+    'Ingresá su código y jugá su mismo draft, con los mismos rivales. ¿Quién hace mejor récord?',
+  );
 
   const ModoJuego(this.grupo, this.nombre, this.descripcion);
   final GrupoModo grupo;

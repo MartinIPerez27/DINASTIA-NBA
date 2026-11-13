@@ -6,6 +6,7 @@ import '../../data/franquicias.dart';
 import '../../domain/entities/oferta.dart';
 import '../../domain/entities/posicion.dart';
 import '../tema/tema_franquicia.dart';
+import '../widgets/disposicion.dart';
 import '../widgets/carta_vertical.dart';
 import '../widgets/escudo.dart';
 import '../widgets/haptica.dart';
@@ -69,7 +70,7 @@ class _ElegirSobreState extends State<ElegirSobre> with SingleTickerProviderStat
           child: LayoutBuilder(
             builder: (context, c) {
               const separacion = 12.0;
-              final ancho = min((c.maxWidth - 2 * separacion) / 3, 170.0);
+              final ancho = min((c.maxWidth - 2 * separacion) / 3, esTabletApaisada(context) ? 230.0 : 170.0);
               return Column(
                 children: [
                   Text(

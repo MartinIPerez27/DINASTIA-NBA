@@ -8,6 +8,7 @@ import '../../domain/liga.dart';
 import 'amigos.dart';
 import 'carrera.dart';
 import 'escalera.dart';
+import 'reto.dart';
 import 'variantes.dart';
 
 /// Lo que la app le presta a cada modo: la liga, la base, el navegador y cómo guardar y abrir
@@ -43,6 +44,7 @@ Future<void> iniciarModo(ModoJuego m, Franquicia enfocada, ContextoModos c) => s
   _ when esModoEscalera(m) => iniciarEscalera(m, enfocada, c),
   _ when esModoVariante(m) => iniciarVariante(m, enfocada, c),
   _ when esModoCarrera(m) => iniciarCarrera(m, enfocada, c),
+  _ when m == ModoJuego.reto => iniciarReto(c),
   _ when esModoAmigos(m) => iniciarAmigos(m, enfocada, c),
   _ => Future.value(),
 };
@@ -80,6 +82,7 @@ class ModosPantalla extends StatelessWidget {
     ModoJuego.mundial => Icons.public,
     ModoJuego.draftEnGrupo => Icons.groups_outlined,
     ModoJuego.duelo => Icons.sports_kabaddi,
+    ModoJuego.reto => Icons.qr_code_2,
   };
 
   @override

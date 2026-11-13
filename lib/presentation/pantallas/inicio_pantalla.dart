@@ -6,6 +6,7 @@ import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/modo_juego.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/misiones.dart';
+import '../widgets/disposicion.dart';
 import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
 import '../widgets/haptica.dart';
@@ -58,6 +59,7 @@ class InicioPantalla extends StatelessWidget {
   Widget build(BuildContext context) {
     final guardada = this.guardada;
     final delGuardado = guardada == null ? null : franquicias.firstWhere((f) => f.id == guardada.franquiciaUsuarioId);
+    final tablet = esTabletApaisada(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -65,7 +67,7 @@ class InicioPantalla extends StatelessWidget {
         body: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
+              constraints: BoxConstraints(maxWidth: tablet ? 1240 : 560),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 child: Column(
@@ -81,51 +83,117 @@ class InicioPantalla extends StatelessWidget {
                     const SizedBox(height: 8),
                     const _Encabezado(),
                     const SizedBox(height: 16),
-                    Expanded(child: _Tablero(franquicia: enfocada)),
-                    const SizedBox(height: 16),
-                    SegmentedButton<Conferencia>(
-                      segments: const [
-                        ButtonSegment(value: Conferencia.este, label: Text('Este')),
-                        ButtonSegment(value: Conferencia.oeste, label: Text('Oeste')),
-                      ],
-                      selected: {enfocada.conferencia!},
-                      showSelectedIcon: false,
-                      onSelectionChanged: (s) => _enfocar(franquicias.firstWhere((f) => f.conferencia == s.first)),
-                    ),
-                    const SizedBox(height: 8),
-                    _CintaLed(
-                      franquicias: [
-                        for (final f in franquicias)
-                          if (f.conferencia == enfocada.conferencia) f,
-                      ],
-                      enfocada: enfocada,
-                      onTocar: _enfocar,
-                    ),
-                    const SizedBox(height: 12),
-                    if (guardada != null && delGuardado != null) ...[
-                      OutlinedButton(
-                        onPressed: onSeguir,
-                        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                        child: Text(
-                          guardada.modoJuego == ModoJuego.clasico
-                              ? 'Seguir la temporada de los ${delGuardado.nombre}'
-                              : 'Seguir: ${guardada.modoJuego.nombre} (${delGuardado.nombre})',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                    if (tablet)
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(child: _Tablero(franquicia: enfocada)),
+                            const SizedBox(width: 24),
+                            SizedBox(
+                              width: 420,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  SegmentedButton<Conferencia>(
+                                    segments: const [
+                                      ButtonSegment(value: Conferencia.este, label: Text('Este')),
+                                      ButtonSegment(value: Conferencia.oeste, label: Text('Oeste')),
+                                    ],
+                                    selected: {enfocada.conferencia!},
+                                    showSelectedIcon: false,
+                                    onSelectionChanged: (s) =>
+                                        _enfocar(franquicias.firstWhere((f) => f.conferencia == s.first)),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Expanded(
+                                    child: _GrillaFranquicias(
+                                      franquicias: [
+                                        for (final f in franquicias)
+                                          if (f.conferencia == enfocada.conferencia) f,
+                                      ],
+                                      enfocada: enfocada,
+                                      onTocar: _enfocar,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  if (guardada != null && delGuardado != null) ...[
+                                    OutlinedButton(
+                                      onPressed: onSeguir,
+                                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                                      child: Text(
+                                        guardada.modoJuego == ModoJuego.clasico
+                                            ? 'Seguir la temporada de los ${delGuardado.nombre}'
+                                            : 'Seguir: ${guardada.modoJuego.nombre} (${delGuardado.nombre})',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                  ],
+                                  FilledButton(
+                                    onPressed: () => onDirigir(enfocada),
+                                    child: Text('Dirigir a los ${enfocada.nombre}'.toUpperCase()),
+                                  ),
+                                  if (onModos != null)
+                                    TextButton.icon(
+                                      onPressed: onModos,
+                                      icon: const Icon(Icons.grid_view_rounded),
+                                      label: const Text('OTROS MODOS DE JUEGO'),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
+                      )
+                    else ...[
+                      Expanded(child: _Tablero(franquicia: enfocada)),
+                      const SizedBox(height: 16),
+                      SegmentedButton<Conferencia>(
+                        segments: const [
+                          ButtonSegment(value: Conferencia.este, label: Text('Este')),
+                          ButtonSegment(value: Conferencia.oeste, label: Text('Oeste')),
+                        ],
+                        selected: {enfocada.conferencia!},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (s) => _enfocar(franquicias.firstWhere((f) => f.conferencia == s.first)),
                       ),
                       const SizedBox(height: 8),
-                    ],
-                    FilledButton(
-                      onPressed: () => onDirigir(enfocada),
-                      child: Text('Dirigir a los ${enfocada.nombre}'.toUpperCase()),
-                    ),
-                    if (onModos != null)
-                      TextButton.icon(
-                        onPressed: onModos,
-                        icon: const Icon(Icons.grid_view_rounded),
-                        label: const Text('OTROS MODOS DE JUEGO'),
+                      _CintaLed(
+                        franquicias: [
+                          for (final f in franquicias)
+                            if (f.conferencia == enfocada.conferencia) f,
+                        ],
+                        enfocada: enfocada,
+                        onTocar: _enfocar,
                       ),
+                      const SizedBox(height: 12),
+                      if (guardada != null && delGuardado != null) ...[
+                        OutlinedButton(
+                          onPressed: onSeguir,
+                          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                          child: Text(
+                            guardada.modoJuego == ModoJuego.clasico
+                                ? 'Seguir la temporada de los ${delGuardado.nombre}'
+                                : 'Seguir: ${guardada.modoJuego.nombre} (${delGuardado.nombre})',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      FilledButton(
+                        onPressed: () => onDirigir(enfocada),
+                        child: Text('Dirigir a los ${enfocada.nombre}'.toUpperCase()),
+                      ),
+                      if (onModos != null)
+                        TextButton.icon(
+                          onPressed: onModos,
+                          icon: const Icon(Icons.grid_view_rounded),
+                          label: const Text('OTROS MODOS DE JUEGO'),
+                        ),
+                    ],
                   ],
                 ),
               ),
@@ -399,6 +467,36 @@ class _CintaLedState extends State<_CintaLed> {
   }
 }
 
+/// Tablet apaisada: las 15 franquicias de la conferencia a la vista, en grilla (sin scroll lateral).
+class _GrillaFranquicias extends StatelessWidget {
+  const _GrillaFranquicias({required this.franquicias, required this.enfocada, required this.onTocar});
+
+  final List<Franquicia> franquicias;
+  final Franquicia enfocada;
+  final ValueChanged<Franquicia> onTocar;
+
+  @override
+  Widget build(BuildContext context) {
+    final esquema = Theme.of(context).colorScheme;
+    return GridView.count(
+      crossAxisCount: 5,
+      childAspectRatio: 0.8,
+      children: [
+        for (final f in franquicias)
+          Center(
+            child: _ItemCinta(
+              franquicia: f,
+              encendida: f == enfocada,
+              colorLed: esquema.primary,
+              onTap: () => onTocar(f),
+              escudo: 48,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _ItemCinta extends StatelessWidget {
   const _ItemCinta({
     super.key,
@@ -406,12 +504,16 @@ class _ItemCinta extends StatelessWidget {
     required this.encendida,
     required this.colorLed,
     required this.onTap,
+    this.escudo = 36,
   });
 
   final Franquicia franquicia;
   final bool encendida;
   final Color colorLed;
   final VoidCallback onTap;
+
+  /// Tamaño del escudo (más grande en la grilla de la tablet).
+  final double escudo;
 
   @override
   Widget build(BuildContext context) {
@@ -425,14 +527,14 @@ class _ItemCinta extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: SizedBox(
-            width: 72,
+            width: escudo * 2,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 AnimatedOpacity(
                   opacity: encendida ? 1 : 0.45,
                   duration: const Duration(milliseconds: 150),
-                  child: Escudo(franquicia, tamano: 36),
+                  child: Escudo(franquicia, tamano: escudo),
                 ),
                 const SizedBox(height: 6),
                 TextoLed(franquicia.id, tamano: 18, color: encendida ? colorLed : apagado),

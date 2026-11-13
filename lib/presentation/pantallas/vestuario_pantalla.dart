@@ -7,6 +7,7 @@ import '../../domain/entities/perfil.dart';
 import '../../domain/misiones.dart';
 import '../partido/cancha_partido.dart';
 import '../tema/vestuario.dart';
+import '../widgets/disposicion.dart';
 
 /// Vestuario: elegí cancha, pelota, uniforme y color de los LED entre lo que ganaste en el pase de
 /// temporada o con tu nivel de entrenador. Arriba, la cancha en vivo con lo elegido.
@@ -21,27 +22,30 @@ class VestuarioPantalla extends StatelessWidget {
     final tema = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Vestuario')),
-      body: ValueListenableBuilder(
-        valueListenable: perfilApp,
-        builder: (context, perfil, _) => ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          children: [
-            VistaPreviaVestuario(franquicia: franquicia, perfil: perfil),
-            for (final cat in CategoriaCosmetico.values) ...[
-              Padding(
-                padding: const EdgeInsets.only(top: 18, bottom: 6),
-                child: Text(cat.nombre.toUpperCase(), style: tema.textTheme.titleSmall?.copyWith(letterSpacing: 1)),
-              ),
-              for (final c in Cosmetico.values.where((c) => c.categoria == cat))
-                _OpcionCosmetico(
-                  cosmetico: c,
-                  franquicia: franquicia,
-                  disponible: PaseTemporada.disponible(perfil, c),
-                  elegido: perfil.metajuego.elegido(cat) == c,
-                  onElegir: () => onPerfil(PaseTemporada.elegir(perfil, c)),
+      body: AnchoMaximo(
+        ancho: 900,
+        child: ValueListenableBuilder(
+          valueListenable: perfilApp,
+          builder: (context, perfil, _) => ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: [
+              VistaPreviaVestuario(franquicia: franquicia, perfil: perfil),
+              for (final cat in CategoriaCosmetico.values) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 18, bottom: 6),
+                  child: Text(cat.nombre.toUpperCase(), style: tema.textTheme.titleSmall?.copyWith(letterSpacing: 1)),
                 ),
+                for (final c in Cosmetico.values.where((c) => c.categoria == cat))
+                  _OpcionCosmetico(
+                    cosmetico: c,
+                    franquicia: franquicia,
+                    disponible: PaseTemporada.disponible(perfil, c),
+                    elegido: perfil.metajuego.elegido(cat) == c,
+                    onElegir: () => onPerfil(PaseTemporada.elegir(perfil, c)),
+                  ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

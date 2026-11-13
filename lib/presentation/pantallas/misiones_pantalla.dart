@@ -7,6 +7,7 @@ import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/metajuego.dart';
 import '../../domain/entities/perfil.dart';
 import '../../domain/misiones.dart';
+import '../widgets/disposicion.dart';
 import '../widgets/texto_led.dart';
 import 'vestuario_pantalla.dart';
 
@@ -65,42 +66,45 @@ class _MisionesPantallaState extends State<MisionesPantalla> {
           ),
         ],
       ),
-      body: ValueListenableBuilder(
-        valueListenable: perfilApp,
-        builder: (context, perfil, _) {
-          final m = perfil.metajuego;
-          final diarias = m.misiones.where((x) => !x.semanal).toList();
-          final semanales = m.misiones.where((x) => x.semanal).toList();
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            children: [
-              _Pase(
-                perfil: perfil,
-                onReclamar: (n) {
-                  final c = PaseTemporada.cosmetico(n);
-                  final yaLoTenia = c != null && perfil.metajuego.cosmeticos.contains(c);
-                  _cobrar(
-                    PaseTemporada.reclamar(perfil, n),
-                    c != null && !yaLoTenia
-                        ? 'Nuevo en el vestuario: ${c.nombre}'
-                        : '+${PaseTemporada.monedas(n)} monedas',
-                  );
-                },
-              ),
-              const SizedBox(height: 20),
-              _Titulo('HOY', 'Se renuevan a la medianoche'),
-              for (final x in diarias) _TarjetaMision(mision: x, onReclamar: () => _reclamar(perfil, x)),
-              const SizedBox(height: 16),
-              _Titulo('ESTA SEMANA', 'Se renuevan el lunes'),
-              for (final x in semanales) _TarjetaMision(mision: x, onReclamar: () => _reclamar(perfil, x)),
-              const SizedBox(height: 12),
-              Text(
-                'Las misiones avanzan solas con lo que jugás. El pase cambia cada trimestre: lo que ganaste queda en tu vestuario.',
-                style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant),
-              ),
-            ],
-          );
-        },
+      body: AnchoMaximo(
+        ancho: 800,
+        child: ValueListenableBuilder(
+          valueListenable: perfilApp,
+          builder: (context, perfil, _) {
+            final m = perfil.metajuego;
+            final diarias = m.misiones.where((x) => !x.semanal).toList();
+            final semanales = m.misiones.where((x) => x.semanal).toList();
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              children: [
+                _Pase(
+                  perfil: perfil,
+                  onReclamar: (n) {
+                    final c = PaseTemporada.cosmetico(n);
+                    final yaLoTenia = c != null && perfil.metajuego.cosmeticos.contains(c);
+                    _cobrar(
+                      PaseTemporada.reclamar(perfil, n),
+                      c != null && !yaLoTenia
+                          ? 'Nuevo en el vestuario: ${c.nombre}'
+                          : '+${PaseTemporada.monedas(n)} monedas',
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                _Titulo('HOY', 'Se renuevan a la medianoche'),
+                for (final x in diarias) _TarjetaMision(mision: x, onReclamar: () => _reclamar(perfil, x)),
+                const SizedBox(height: 16),
+                _Titulo('ESTA SEMANA', 'Se renuevan el lunes'),
+                for (final x in semanales) _TarjetaMision(mision: x, onReclamar: () => _reclamar(perfil, x)),
+                const SizedBox(height: 12),
+                Text(
+                  'Las misiones avanzan solas con lo que jugás. El pase cambia cada trimestre: lo que ganaste queda en tu vestuario.',
+                  style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

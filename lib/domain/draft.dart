@@ -17,10 +17,24 @@ import 'entities/tirada.dart';
 /// - La primera tirada de cada elección es gratis; volver a tirar cuesta una ficha de Reroll y
 ///   permite retener hasta [maxRetenidos] carretes.
 class Draft {
-  Draft(this.catalogo, {Random? azar, this.coleccion = const {}}) : _azar = azar ?? Random();
+  Draft(this.catalogo, {Random? azar, this.azarPara, this.coleccion = const {}}) : _azar = azar ?? Random();
 
   final List<Jugador> catalogo;
   final Random _azar;
+
+  /// Azar propio de cada paso del draft (retos: el mismo draft para el mismo código). Recibe la
+  /// temporada antes del paso y un número de paso: 1 tirar, 2 volver a tirar, 100+puesto repartir,
+  /// 200+puesto volver a repartir, 300+puesto×10+sobre abrir un sobre.
+  final Random Function(Temporada t, int paso)? azarPara;
+
+  /// Si el paso gasta (o viene de gastar) una ficha: volver a tirar, volver a repartir y los sobres.
+  static bool pasoConFicha(int paso) => paso == 2 || paso >= 200;
+
+  late Random _paso = _azar;
+
+  void _sembrar(Temporada t, int paso) {
+    if (azarPara case final f?) _paso = f(t, paso);
+  }
 
   /// Cartas del álbum del jugador (para la regla "Mi colección").
   final Set<String> coleccion;
@@ -109,6 +123,7 @@ class Draft {
 
     final combinaciones = _combinaciones(t, anterior, retenidos);
     if (combinaciones.isEmpty) throw StateError('No quedan cartas para esa combinación.');
+    _sembrar(t, anterior == null ? 1 : 2);
     final base = anterior == null ? t : t.usarReroll();
     return base.conTirada(_sortear(combinaciones));
   }
@@ -131,6 +146,7 @@ class Draft {
   Temporada repartir(Temporada t, Posicion p) {
     if (t.oferta != null) throw StateError('Primero fichá una de las cartas repartidas.');
     if (t.plantel.estaOcupada(p)) throw ReglaPlantelException('${p.etiqueta} ya está ocupado.');
+    _sembrar(t, 100 + p.index);
     return t.conOferta(Oferta(posicion: p, sobres: _sobres(t, p)));
   }
 
@@ -140,6 +156,7 @@ class Draft {
     final oferta = t.oferta;
     if (oferta == null || !oferta.sinAbrir) throw StateError('No hay sobres para abrir.');
     final sobre = oferta.sobres[indice];
+    _sembrar(t, 300 + oferta.posicion.index * 10 + indice);
     var pool = _elegibles(t, oferta.posicion).where(sobre.incluye).toList();
     if (pool.length < cartasPorReparto) pool = _elegibles(t, oferta.posicion);
     final serpiente = t.regla == ReglaDraft.serpiente && t.plantel.jugadores.length.isOdd;
@@ -148,7 +165,7 @@ class Draft {
     // La sorpresa: una carta más, con más chances de ser grande.
     final resto = pool.where((j) => !cartas.any((c) => c.nbaPlayerId == j.nbaPlayerId)).toList();
     final sorpresa = resto.isEmpty ? null : _sortearCon(resto, pesosSorpresa);
-    final todas = [...cartas, ?sorpresa]..shuffle(_azar);
+    final todas = [...cartas, ?sorpresa]..shuffle(_paso);
     var robos = t.robos;
     final robadas = <(String, String)>[];
     if (serpiente) {
@@ -158,7 +175,7 @@ class Draft {
       ];
       final mejores = [...todas]..sort((a, b) => b.media.compareTo(a.media));
       for (final j in mejores.take(2)) {
-        final rival = rivales[_azar.nextInt(rivales.length)];
+        final rival = rivales[_paso.nextInt(rivales.length)];
         robadas.add((j.id, rival));
         todas.remove(j);
         robos = {
@@ -188,6 +205,7 @@ class Draft {
     final oferta = t.oferta;
     if (oferta == null) throw StateError('No hay cartas repartidas.');
     if (t.rerollsRestantes == 0) throw StateError('No quedan fichas de Reroll.');
+    _sembrar(t, 200 + oferta.posicion.index);
     return t.usarReroll().conOferta(Oferta(posicion: oferta.posicion, sobres: _sobres(t, oferta.posicion)));
   }
 
@@ -211,7 +229,7 @@ class Draft {
       final ok = [
         for (final c in claves)
           if (pool.where((j) => incluye(j, c)).length >= cartasPorReparto) c,
-      ]..shuffle(_azar);
+      ]..shuffle(_paso);
       return ok;
     }
 
@@ -253,10 +271,10 @@ class Draft {
 
   Jugador _sortearCon(List<Jugador> pool, Map<Tier, int> pesos) {
     final rarezas = Tier.values.where((t) => pool.any((j) => j.tier == t)).toList();
-    var dado = _azar.nextInt(rarezas.fold(0, (s, t) => s + pesos[t]!));
+    var dado = _paso.nextInt(rarezas.fold(0, (s, t) => s + pesos[t]!));
     final rareza = rarezas.firstWhere((t) => (dado -= pesos[t]!) < 0);
     final deEsaRareza = pool.where((j) => j.tier == rareza).toList();
-    return deEsaRareza[_azar.nextInt(deEsaRareza.length)];
+    return deEsaRareza[_paso.nextInt(deEsaRareza.length)];
   }
 
   // ── Carta de entrenador (7.º puesto) ──
@@ -264,7 +282,8 @@ class Draft {
   /// 3 entrenadores para elegir (estables para cada temporada): si alguno dirigió tu franquicia,
   /// aparece seguro.
   List<Entrenador> opcionesEntrenador(Temporada t) {
-    final azar = Random(t.id.hashCode);
+    // Con semilla (retos, desafío del día) los mismos 3 para todos los que juegan ese draft.
+    final azar = Random(t.datosModo['semilla'] as int? ?? t.id.hashCode);
     final propios = Entrenador.todos.where((e) => e.franquicias.contains(t.franquiciaUsuarioId)).toList()
       ..shuffle(azar);
     final otros = Entrenador.todos.where((e) => !propios.contains(e)).toList()..shuffle(azar);
@@ -278,9 +297,9 @@ class Draft {
       for (final t in Tier.values)
         if (combinaciones.any((c) => c.tier == t)) t,
     ];
-    var dado = _azar.nextInt(rarezas.fold(0, (s, t) => s + pesosRareza[t]!));
+    var dado = _paso.nextInt(rarezas.fold(0, (s, t) => s + pesosRareza[t]!));
     final rareza = rarezas.firstWhere((t) => (dado -= pesosRareza[t]!) < 0);
     final opciones = combinaciones.where((c) => c.tier == rareza).toList();
-    return opciones[_azar.nextInt(opciones.length)];
+    return opciones[_paso.nextInt(opciones.length)];
   }
 }

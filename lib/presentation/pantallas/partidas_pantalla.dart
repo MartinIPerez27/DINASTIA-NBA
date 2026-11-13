@@ -11,6 +11,9 @@ import '../../data/estado_app.dart';
 import '../../data/franquicias.dart';
 import '../../domain/entities/ajustes.dart';
 import '../../domain/entities/perfil.dart';
+import '../../data/catalogo_jugadores.dart';
+import '../../domain/liga.dart';
+import '../compartir/tarjeta_compartir.dart';
 import '../../domain/entities/modo_juego.dart';
 import '../../domain/modos/amigos.dart';
 import '../../domain/modos/dinastia.dart';
@@ -34,7 +37,7 @@ class PartidasPantalla extends StatefulWidget {
   State<PartidasPantalla> createState() => _PartidasPantallaState();
 }
 
-enum _Accion { exportar, borrar }
+enum _Accion { compartir, exportar, borrar }
 
 class _PartidasPantallaState extends State<PartidasPantalla> {
   List<Temporada>? _partidas;
@@ -80,6 +83,15 @@ class _PartidasPantallaState extends State<PartidasPantalla> {
         subject: nombre,
       ),
     );
+  }
+
+  /// Tarjeta para compartir (con los premios: para eso hace falta la liga, que se arma con el catálogo).
+  Future<void> _compartirTarjeta(Temporada t) async {
+    Liga? liga;
+    try {
+      liga = Liga(await cargarCatalogo(), franquicias);
+    } catch (_) {}
+    if (mounted) await compartirPartida(context, t, liga: liga);
   }
 
   Future<void> _exportar(Temporada t) async {
@@ -252,6 +264,7 @@ class _PartidasPantallaState extends State<PartidasPantalla> {
                           onAccion: widget.db == null
                               ? null
                               : (a) => switch (a) {
+                                  _Accion.compartir => _compartirTarjeta(t),
                                   _Accion.exportar => _exportar(t),
                                   _Accion.borrar => _borrar(t),
                                 },
@@ -382,9 +395,11 @@ class _FilaPartida extends StatelessWidget {
                     PopupMenuButton<_Accion>(
                       tooltip: 'Opciones de la partida',
                       onSelected: accion,
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: _Accion.exportar, child: Text('Exportar')),
-                        PopupMenuItem(value: _Accion.borrar, child: Text('Borrar')),
+                      itemBuilder: (_) => [
+                        if (sePuedeCompartir(t))
+                          const PopupMenuItem(value: _Accion.compartir, child: Text('Compartir')),
+                        const PopupMenuItem(value: _Accion.exportar, child: Text('Exportar')),
+                        const PopupMenuItem(value: _Accion.borrar, child: Text('Borrar')),
                       ],
                     )
                   else

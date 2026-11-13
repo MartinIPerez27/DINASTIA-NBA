@@ -16,7 +16,10 @@ import '../../domain/mercado.dart';
 import '../../domain/motor.dart';
 import '../temporada/clima_temporada.dart';
 import '../temporada/copa.dart';
+import '../compartir/tarjeta_compartir.dart';
+import '../modos/reto.dart';
 import '../../domain/entities/jugador.dart';
+import '../widgets/disposicion.dart';
 import '../widgets/carta_jugador.dart';
 import '../widgets/escudo.dart';
 import '../widgets/indicador_forma.dart';
@@ -215,123 +218,152 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
             tooltip: 'STATS 82',
           ),
           IconButton(onPressed: _abrirPlaybook, icon: const Icon(Icons.tune), tooltip: 'Tácticas'),
+          BotonCompartir(temporada: _t, liga: _liga),
           ...widget.acciones,
         ],
       ),
       body: SafeArea(
         top: false,
-        child: CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-              sliver: SliverList.list(
-                children: [
-                  _Encabezado(temporada: _t),
-                  if (_resumen case final resumen?) ...[
-                    const SizedBox(height: 8),
-                    Text(resumen, style: tema.textTheme.bodyMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
-                  ],
-                  const SizedBox(height: 12),
-                  if (proximo != null)
-                    _ProximoPartido(
-                      partido: proximo,
-                      local: proximo.localId == _t.franquiciaUsuarioId,
-                      rival: _identidad(
-                        proximo.localId == _t.franquiciaUsuarioId ? proximo.visitanteId : proximo.localId,
-                      ),
-                      nombre: _nombre(
-                        proximo.localId == _t.franquiciaUsuarioId ? proximo.visitanteId : proximo.localId,
-                      ),
-                      detalle: _detalleRival(
-                        proximo.localId == _t.franquiciaUsuarioId ? proximo.visitanteId : proximo.localId,
-                      ),
-                      figuras: () {
-                        final rivalId = proximo.localId == _t.franquiciaUsuarioId
-                            ? proximo.visitanteId
-                            : proximo.localId;
-                        final plantel = _liga.plantelDe(_t.rivales[rivalId]!);
-                        final js = plantel.jugadores.toList()..sort((a, b) => b.media.compareTo(a.media));
-                        return js.take(3).map((j) => '${j.nombre} ${j.media}').join(' · ');
-                      }(),
-                      contexto: () {
-                        final rivalId = proximo.localId == _t.franquiciaUsuarioId
-                            ? proximo.visitanteId
-                            : proximo.localId;
-                        final (v, d, partidos) = _t.historialContra(rivalId);
-                        final (backToBack, gira) = _liga.desgaste(_t, proximo, _t.franquiciaUsuarioId);
-                        final revancha = Rivalidades.contexto(perfilApp.value, _t, rivalId);
-                        return [
-                          if (revancha != null) 'REVANCHA · $revancha',
-                          if (v + d > 0) 'Serie de la temporada: $v-$d' else 'Primer cruce de ${partidos.length}',
-                          if (backToBack) 'Back-to-back',
-                          if (gira >= 3) 'Gira: $gira.º seguido de visitante',
-                        ];
-                      }(),
-                      ocupado: _ocupado,
-                      onVivo: () => _jugarEnVivo(proximo),
-                      onSimular: () => _simular(1),
-                      onSimular10: () => _simular(10),
-                      onSimularTodo: _simularTodo,
-                      progreso: _progreso,
-                    )
-                  else
-                    _FinTemporada(temporada: _t, onPlayoffs: widget.onPlayoffs),
-                  TarjetaCopa(
-                    temporada: _t,
-                    liga: _liga,
-                    onCambio: _guardar,
-                    franquiciaUsuario: franquiciaPorId(_t.franquiciaUsuarioId),
-                  ),
-                  // Lo que no se puede perder: récords en juego y el fin de semana All-Star.
-                  RecordsEnJuego(temporada: _t, liga: _liga),
-                  TarjetaAllStar(temporada: _t, liga: _liga),
-                  const SizedBox(height: 16),
-                  SegmentedButton<_Vista>(
-                    segments: const [
-                      ButtonSegment(
-                        value: _Vista.resultados,
-                        label: FittedBox(child: Text('Resultados', maxLines: 1)),
-                      ),
-                      ButtonSegment(
-                        value: _Vista.posiciones,
-                        label: FittedBox(child: Text('Posiciones', maxLines: 1)),
-                      ),
-                      ButtonSegment(
-                        value: _Vista.plantel,
-                        label: FittedBox(child: Text('Plantel', maxLines: 1)),
-                      ),
-                      ButtonSegment(
-                        value: _Vista.noticias,
-                        label: FittedBox(child: Text('Noticias', maxLines: 1)),
-                      ),
-                    ],
-                    selected: {_vista},
-                    showSelectedIcon: false,
-                    style: SegmentedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
-                    onSelectionChanged: (s) => setState(() => _vista = s.first),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-              ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              sliver: switch (_vista) {
-                _Vista.resultados => _resultados(tema),
-                _Vista.posiciones => _posiciones(tema),
-                _Vista.plantel => _plantel(tema),
-                _Vista.noticias => SliverList.list(
-                  children: [
-                    TitularesSemana(temporada: _t, liga: _liga),
-                    const SizedBox(height: 12),
-                    CarreraMvp(temporada: _t, liga: _liga),
-                  ],
+        child: _disponer(
+          hub: [
+            _Encabezado(temporada: _t),
+            if (_resumen case final resumen?) ...[
+              const SizedBox(height: 8),
+              Text(resumen, style: tema.textTheme.bodyMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
+            ],
+            const SizedBox(height: 12),
+            if (proximo != null)
+              _ProximoPartido(
+                partido: proximo,
+                local: proximo.localId == _t.franquiciaUsuarioId,
+                rival: _identidad(proximo.localId == _t.franquiciaUsuarioId ? proximo.visitanteId : proximo.localId),
+                nombre: _nombre(proximo.localId == _t.franquiciaUsuarioId ? proximo.visitanteId : proximo.localId),
+                detalle: _detalleRival(
+                  proximo.localId == _t.franquiciaUsuarioId ? proximo.visitanteId : proximo.localId,
                 ),
-              },
+                figuras: () {
+                  final rivalId = proximo.localId == _t.franquiciaUsuarioId ? proximo.visitanteId : proximo.localId;
+                  final plantel = _liga.plantelDe(_t.rivales[rivalId]!);
+                  final js = plantel.jugadores.toList()..sort((a, b) => b.media.compareTo(a.media));
+                  return js.take(3).map((j) => '${j.nombre} ${j.media}').join(' · ');
+                }(),
+                contexto: () {
+                  final rivalId = proximo.localId == _t.franquiciaUsuarioId ? proximo.visitanteId : proximo.localId;
+                  final (v, d, partidos) = _t.historialContra(rivalId);
+                  final (backToBack, gira) = _liga.desgaste(_t, proximo, _t.franquiciaUsuarioId);
+                  final revancha = Rivalidades.contexto(perfilApp.value, _t, rivalId);
+                  return [
+                    if (revancha != null) 'REVANCHA · $revancha',
+                    if (v + d > 0) 'Serie de la temporada: $v-$d' else 'Primer cruce de ${partidos.length}',
+                    if (backToBack) 'Back-to-back',
+                    if (gira >= 3) 'Gira: $gira.º seguido de visitante',
+                  ];
+                }(),
+                ocupado: _ocupado,
+                onVivo: () => _jugarEnVivo(proximo),
+                onSimular: () => _simular(1),
+                onSimular10: () => _simular(10),
+                onSimularTodo: _simularTodo,
+                progreso: _progreso,
+              )
+            else
+              _FinTemporada(temporada: _t, onPlayoffs: widget.onPlayoffs),
+            TarjetaReto(temporada: _t),
+            TarjetaCopa(
+              temporada: _t,
+              liga: _liga,
+              onCambio: _guardar,
+              franquiciaUsuario: franquiciaPorId(_t.franquiciaUsuarioId),
             ),
+            // Lo que no se puede perder: récords en juego y el fin de semana All-Star.
+            RecordsEnJuego(temporada: _t, liga: _liga),
+            TarjetaAllStar(temporada: _t, liga: _liga),
           ],
+          selector: SegmentedButton<_Vista>(
+            segments: const [
+              ButtonSegment(
+                value: _Vista.resultados,
+                label: FittedBox(child: Text('Resultados', maxLines: 1)),
+              ),
+              ButtonSegment(
+                value: _Vista.posiciones,
+                label: FittedBox(child: Text('Posiciones', maxLines: 1)),
+              ),
+              ButtonSegment(
+                value: _Vista.plantel,
+                label: FittedBox(child: Text('Plantel', maxLines: 1)),
+              ),
+              ButtonSegment(
+                value: _Vista.noticias,
+                label: FittedBox(child: Text('Noticias', maxLines: 1)),
+              ),
+            ],
+            selected: {_vista},
+            showSelectedIcon: false,
+            style: SegmentedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
+            onSelectionChanged: (s) => setState(() => _vista = s.first),
+          ),
+          contenido: switch (_vista) {
+            _Vista.resultados => _resultados(tema),
+            _Vista.posiciones => _posiciones(tema),
+            _Vista.plantel => _plantel(tema),
+            _Vista.noticias => SliverList.list(
+              children: [
+                TitularesSemana(temporada: _t, liga: _liga),
+                const SizedBox(height: 12),
+                CarreraMvp(temporada: _t, liga: _liga),
+              ],
+            ),
+          },
         ),
       ),
+    );
+  }
+
+  /// Teléfono: todo en una columna con scroll. Tablet apaisada: el hub (próximo partido, Copa,
+  /// récords, All-Star) a la izquierda y las pestañas a la derecha, cada uno con su scroll.
+  Widget _disponer({required List<Widget> hub, required Widget selector, required Widget contenido}) {
+    if (!esTabletApaisada(context)) {
+      return CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            sliver: SliverList.list(
+              children: [...hub, const SizedBox(height: 16), selector, const SizedBox(height: 12)],
+            ),
+          ),
+          SliverPadding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 24), sliver: contenido),
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          flex: 5,
+          child: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 16, 24),
+                sliver: SliverList.list(children: hub),
+              ),
+            ],
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(
+          flex: 6,
+          child: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 24, 12),
+                sliver: SliverToBoxAdapter(child: selector),
+              ),
+              SliverPadding(padding: const EdgeInsets.fromLTRB(16, 0, 24, 24), sliver: contenido),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

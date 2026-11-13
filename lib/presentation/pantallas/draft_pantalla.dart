@@ -22,6 +22,7 @@ import '../draft/quimica_panel.dart';
 import '../draft/revelado_cartas.dart';
 import '../draft/sobres.dart';
 import '../draft/tragamonedas_panel.dart';
+import '../widgets/disposicion.dart';
 import '../widgets/carta_jugador.dart';
 import '../widgets/carta_vertical.dart';
 import '../widgets/ficha_jugador.dart';
@@ -38,6 +39,7 @@ class DraftPantalla extends StatefulWidget {
     this.onCompleto,
     this.catalogo,
     this.azar,
+    this.azarPara,
   });
 
   final Temporada temporada;
@@ -49,6 +51,9 @@ class DraftPantalla extends StatefulWidget {
   /// Solo para tests; en la app se carga el catálogo empaquetado.
   final List<Jugador>? catalogo;
   final Random? azar;
+
+  /// Azar de cada paso del draft (retos: el mismo draft para el mismo código). Ver [Draft.azarPara].
+  final Random Function(Temporada t, int paso)? azarPara;
 
   @override
   State<DraftPantalla> createState() => _DraftPantallaState();
@@ -90,7 +95,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
 
   Draft _crearDraft(List<Jugador> catalogo) {
     if (CartaVertical.versiones.isEmpty) CartaVertical.versiones = calcularVersiones(catalogo);
-    return Draft(catalogo, azar: widget.azar, coleccion: perfilApp.value.coleccion);
+    return Draft(catalogo, azar: widget.azar, azarPara: widget.azarPara, coleccion: perfilApp.value.coleccion);
   }
 
   /// Química del plantel: líneas en la cancha entre los puestos vinculados.
@@ -222,6 +227,57 @@ class _DraftPantallaState extends State<DraftPantalla> {
     Overlay.of(context).insert(vuelo);
   }
 
+  /// Teléfono: cancha arriba, tragamonedas y cartas abajo; los sobres tapan toda la pantalla.
+  /// Tablet apaisada: la cancha a la izquierda y el draft (carretes, cartas o sobres) a la derecha.
+  Widget _disponer({required Draft draft, required Widget cancha, Widget? tragamonedas, Widget? overlay}) {
+    final grande = !_modoCartas && _t.tirada != null && !_t.plantel.completo;
+    if (!esTabletApaisada(context)) {
+      return Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(flex: 4, child: Center(child: cancha)),
+                const SizedBox(height: 12),
+                if (tragamonedas != null) ...[tragamonedas, const SizedBox(height: 12)],
+                if (grande) Expanded(flex: 5, child: _zonaInferior(draft)) else _zonaInferior(draft),
+              ],
+            ),
+          ),
+          if (overlay != null) Positioned.fill(child: overlay),
+        ],
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(flex: 5, child: Center(child: cancha)),
+          const SizedBox(width: 24),
+          Expanded(
+            flex: 6,
+            child: Stack(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisAlignment: grande ? MainAxisAlignment.start : MainAxisAlignment.center,
+                  children: [
+                    if (tragamonedas != null) ...[tragamonedas, const SizedBox(height: 12)],
+                    if (grande) Expanded(child: _zonaInferior(draft)) else _zonaInferior(draft),
+                  ],
+                ),
+                if (overlay != null) Positioned.fill(child: overlay),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final franquicia = franquiciaPorId(_t.franquiciaUsuarioId);
@@ -238,89 +294,70 @@ class _DraftPantallaState extends State<DraftPantalla> {
         child: switch ((draft, _errorCatalogo)) {
           (_, final Object e) => Center(child: Text('No se pudo cargar el catálogo: $e')),
           (null, _) => const Center(child: CircularProgressIndicator()),
-          (final Draft draft, _) => Stack(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      flex: 4,
-                      child: Center(
-                        child: Cancha(
-                          franquicia: franquicia,
-                          plantel: _plantelAntes ?? _t.plantel,
-                          resaltadas: _modoCartas
-                              ? (_t.oferta == null && _plantelAntes == null
-                                    ? {
-                                        for (final p in Posicion.values)
-                                          if (!_t.plantel.estaOcupada(p)) p,
-                                      }
-                                    : const {})
-                              : elegida == null
-                              ? const {}
-                              : _t.plantel.posicionesDisponiblesPara(elegida).toSet(),
-                          onTocar: _tocarPuesto,
-                          recienUbicada: _ubicada,
-                          clavesPuestos: _clavesPuestos,
-                          vinculos: _lineasQuimica(_plantelAntes ?? _t.plantel),
-                        ),
+          (final Draft draft, _) => _disponer(
+            draft: draft,
+            cancha: Cancha(
+              franquicia: franquicia,
+              plantel: _plantelAntes ?? _t.plantel,
+              resaltadas: _modoCartas
+                  ? (_t.oferta == null && _plantelAntes == null
+                        ? {
+                            for (final p in Posicion.values)
+                              if (!_t.plantel.estaOcupada(p)) p,
+                          }
+                        : const {})
+                  : elegida == null
+                  ? const {}
+                  : _t.plantel.posicionesDisponiblesPara(elegida).toSet(),
+              onTocar: _tocarPuesto,
+              recienUbicada: _ubicada,
+              clavesPuestos: _clavesPuestos,
+              vinculos: _lineasQuimica(_plantelAntes ?? _t.plantel),
+            ),
+            tragamonedas: !_t.plantel.completo && !_modoCartas
+                ? TragamonedasPanel(
+                    identidad: draft.identidadDeTirada,
+                    tirada: _t.tirada,
+                    vuelta: _vuelta,
+                    retenidos: _retenidos,
+                    puedeRetener:
+                        !_girando &&
+                        _t.tirada != null &&
+                        _t.rerollsRestantes > 0 &&
+                        _retenidos.length < Draft.maxRetenidos,
+                    onRetener: _retener,
+                  )
+                : null,
+            overlay: switch (_t.oferta) {
+              final oferta? when _modoCartas =>
+                oferta.sinAbrir
+                    ? ElegirSobre(
+                        key: ValueKey('sobres-${oferta.sobres.map((s) => s.toJson()).join()}'),
+                        posicion: oferta.posicion,
+                        sobres: oferta.sobres,
+                        onAbrir: _abrirSobre,
+                        aviso: _t.regla == ReglaDraft.serpiente
+                            ? (_t.plantel.jugadores.length.isOdd
+                                  ? 'Draft en serpiente: en esta ronda los rivales eligen antes que vos.'
+                                  : 'Draft en serpiente: en esta ronda elegís primero.')
+                            : null,
+                      )
+                    : ReveladoCartas(
+                        key: ValueKey('cartas-${oferta.cartaIds.join()}'),
+                        posicion: oferta.posicion,
+                        cartas: draft.cartasDeOferta(_t),
+                        rerollsRestantes: _t.rerollsRestantes,
+                        onFichar: _fichar,
+                        onVolverARepartir: _volverARepartir,
+                        sorpresaId: oferta.sorpresaId,
+                        ciega: oferta.ciega,
+                        robadas: [
+                          for (final (id, f) in oferta.robadas)
+                            if (draft.jugador(id) case final j?) (j, franquiciaPorId(f)),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (!_t.plantel.completo && !_modoCartas) ...[
-                      TragamonedasPanel(
-                        identidad: draft.identidadDeTirada,
-                        tirada: _t.tirada,
-                        vuelta: _vuelta,
-                        retenidos: _retenidos,
-                        puedeRetener:
-                            !_girando &&
-                            _t.tirada != null &&
-                            _t.rerollsRestantes > 0 &&
-                            _retenidos.length < Draft.maxRetenidos,
-                        onRetener: _retener,
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    if (!_modoCartas && _t.tirada != null && !_t.plantel.completo)
-                      Expanded(flex: 5, child: _zonaInferior(draft))
-                    else
-                      _zonaInferior(draft),
-                  ],
-                ),
-              ),
-              if (_t.oferta case final oferta? when _modoCartas)
-                Positioned.fill(
-                  child: oferta.sinAbrir
-                      ? ElegirSobre(
-                          key: ValueKey('sobres-${oferta.sobres.map((s) => s.toJson()).join()}'),
-                          posicion: oferta.posicion,
-                          sobres: oferta.sobres,
-                          onAbrir: _abrirSobre,
-                          aviso: _t.regla == ReglaDraft.serpiente
-                              ? (_t.plantel.jugadores.length.isOdd
-                                    ? 'Draft en serpiente: en esta ronda los rivales eligen antes que vos.'
-                                    : 'Draft en serpiente: en esta ronda elegís primero.')
-                              : null,
-                        )
-                      : ReveladoCartas(
-                          key: ValueKey('cartas-${oferta.cartaIds.join()}'),
-                          posicion: oferta.posicion,
-                          cartas: draft.cartasDeOferta(_t),
-                          rerollsRestantes: _t.rerollsRestantes,
-                          onFichar: _fichar,
-                          onVolverARepartir: _volverARepartir,
-                          sorpresaId: oferta.sorpresaId,
-                          ciega: oferta.ciega,
-                          robadas: [
-                            for (final (id, f) in oferta.robadas)
-                              if (draft.jugador(id) case final j?) (j, franquiciaPorId(f)),
-                          ],
-                        ),
-                ),
-            ],
+              _ => null,
+            },
           ),
         },
       ),
@@ -451,8 +488,8 @@ class _DraftPantallaState extends State<DraftPantalla> {
           child: _girando
               ? const SizedBox.shrink()
               : GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: esTabletApaisada(context) ? 4 : 3,
                     childAspectRatio: proporcionCarta,
                     mainAxisSpacing: 8,
                     crossAxisSpacing: 8,
