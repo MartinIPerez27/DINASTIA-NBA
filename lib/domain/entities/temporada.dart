@@ -107,7 +107,7 @@ class SeriePlayoff {
 /// Qué tan fuertes son los rivales (se elige al empezar la partida).
 enum Dificultad {
   normal('Normal', 'Rivales a la altura de un buen draft: con un gran plantel, el 82-0 está a tiro.', 79),
-  dificil('Difícil', 'Rivales con muchas figuras. Cada victoria cuesta.', 82),
+  dificil('Difícil', 'Rivales con muchas figuras. Cada victoria cuesta.', 84),
   leyenda('Leyenda', 'Cada rival es lo mejor de su historia o de su época. El 82-0 es una hazaña.', null);
 
   const Dificultad(this.nombre, this.descripcion, this.mediaRivales);

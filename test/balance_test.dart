@@ -88,6 +88,12 @@ void main() {
     expect(top, greaterThanOrEqualTo(0.9));
   });
 
+  test('Difícil: el draft típico pierde más de lo que gana y el mejor plantel igual sufre alguna', () {
+    final (tip, top, _) = resultados[Dificultad.dificil]!;
+    expect(tip, inInclusiveRange(0.2, 0.4));
+    expect(top, inInclusiveRange(0.75, 0.96));
+  });
+
   test('Leyenda: el draft típico sufre y el mejor plantel no arrasa', () {
     final (tip, top, _) = resultados[Dificultad.leyenda]!;
     expect(tip, lessThanOrEqualTo(0.3));
