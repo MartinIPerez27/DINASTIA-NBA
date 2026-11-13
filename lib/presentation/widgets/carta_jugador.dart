@@ -34,7 +34,7 @@ class CartaJugador extends StatelessWidget {
       onLongPress: () => mostrarFichaJugador(context, jugador),
       label:
           '${jugador.nombre}, ${jugador.posiciones.map((p) => p.etiqueta).join(' o ')}, '
-          '${franquicia.nombre} ${jugador.epoca.etiqueta}, ${jugador.tier.etiqueta}, '
+          '${franquicia.nombre} ${jugador.tramo}, ${jugador.tier.etiqueta}, '
           '${s.ppp} puntos, ${s.rpp} rebotes, ${s.app} asistencias, IQ ${s.iq}',
       child: ExcludeSemantics(
         child: Material(
@@ -90,12 +90,16 @@ class CartaJugador extends StatelessWidget {
                             children: [
                               Escudo(franquicia, tamano: 16),
                               const SizedBox(width: 4),
+                              // Puesto y tramo entero ("ALA-PÍVOT · CHI 2015–16"): si no entra, se achica.
                               Expanded(
-                                child: Text(
-                                  '${jugador.posiciones.first.etiqueta} · ${jugador.epoca.etiqueta}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: tema.textTheme.labelSmall?.copyWith(color: esquema.onSurfaceVariant),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    '${jugador.posiciones.first.etiqueta} · ${jugador.tramoConEquipo}',
+                                    maxLines: 1,
+                                    style: tema.textTheme.labelSmall?.copyWith(color: esquema.onSurfaceVariant),
+                                  ),
                                 ),
                               ),
                             ],

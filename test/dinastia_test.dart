@@ -63,7 +63,11 @@ void main() {
     final terminada = jugarEntera(t);
     final r = carrera.receso(terminada, nombre);
     expect(r.retiros, isEmpty, reason: 'a los 22 nadie se retira');
-    final titulares = {for (final j in base.plantel.jugadores) j.id};
+    // Los que ya están en 99 no pueden subir más (tope de la escala).
+    final titulares = {
+      for (final j in base.plantel.jugadores)
+        if (j.media <= 97) j.id,
+    };
     expect(
       r.cambios.entries.where((e) => titulares.contains(e.key)).every((e) => e.value >= 2),
       isTrue,

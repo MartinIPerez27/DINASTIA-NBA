@@ -28,7 +28,9 @@ class CartaVertical extends StatelessWidget {
   final bool seleccionada;
 
   /// Versión de cada carta (Novato / Prime / Veterano), calculada una vez al cargar el catálogo.
-  static Map<String, VersionCarta> versiones = const {};
+  /// Versión de cada carta (la calcula el dominio al cargar el catálogo; se puede fijar en pruebas).
+  static Map<String, VersionCarta> get versiones => versionesCatalogo;
+  static set versiones(Map<String, VersionCarta> v) => versionesCatalogo = v;
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +109,7 @@ class CartaVertical extends StatelessWidget {
                               children: [
                                 Escudo(franquicia, tamano: w * 0.2),
                                 SizedBox(height: w * 0.02),
-                                TextoLed(jugador.epoca.codigo, tamano: w * 0.1, color: esquema.onSurfaceVariant),
+                                TextoLed(jugador.tramoCorto, tamano: w * 0.1, color: esquema.onSurfaceVariant),
                               ],
                             ),
                           ],

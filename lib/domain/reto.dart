@@ -19,10 +19,15 @@ class CodigoReto {
     required this.dificultad,
     this.victorias,
     this.campeon = false,
+    this.version,
   });
 
-  /// Semilla del draft, del calendario y de los rivales (28 bits).
+  /// Semilla del draft, del calendario y de los rivales (20 bits en los códigos nuevos, 28 en los
+  /// anteriores al versionado del catálogo).
   final int semilla;
+
+  /// Los 8 bits bajos de la versión del catálogo con que se armó el reto (null en códigos viejos).
+  final int? version;
   final String franquiciaId;
   final ModoDraft modo;
   final ReglaDraft regla;
@@ -37,13 +42,23 @@ class CodigoReto {
 
   static const maxSemilla = 1 << 28;
 
+  /// Semillas de las partidas nuevas: entran en el código junto con la versión del catálogo.
+  static const maxSemillaNueva = 1 << 20;
+
+  /// Si el reto se armó con estas mismas cartas: null si el código es viejo (sin versión) o no se
+  /// conoce la versión actual.
+  bool? mismoCatalogo(int versionActual) =>
+      version == null || versionActual == 0 ? null : version == versionActual & 0xff;
+
   /// "64-18" o null.
   String? get marca => victorias == null ? null : '$victorias-${Temporada.partidosTemporadaRegular - victorias!}';
 
   // ── Codificación: 52 bits de datos + 8 de control (CRC-8) = 60 bits = 12 caracteres base32 ──
   //
-  // semilla 28 · franquicia 5 · modo 1 · regla 3 · época 4 (0 = ninguna) · dificultad 2 ·
-  // victorias 7 (127 = sin marca) · campeón 1 · control 8 (al final).
+  // Formato 2 (con versión): 1 · semilla 20 · versión del catálogo 8 · franquicia 5 · modo 1 ·
+  //   regla 3 · época 4 (0 = ninguna) · dificultad 2 · victorias 7 (127 = sin marca) · campeón 1.
+  // Formato 1 (anterior): 0 · semilla 28 · el resto igual. Los dos se leen; el 2 se escribe cuando
+  // la partida tiene versión y una semilla de 20 bits. Control (CRC-8) siempre al final.
 
   static const _alfabeto = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford: sin I, L, O, U
 
@@ -51,7 +66,8 @@ class CodigoReto {
     final f = Draft.franquiciasRivales.indexOf(franquiciaId);
     if (f < 0) throw ArgumentError('Franquicia sin código: $franquiciaId');
     if (semilla < 0 || semilla >= maxSemilla) throw RangeError.range(semilla, 0, maxSemilla - 1, 'semilla');
-    var datos = semilla;
+    final conVersion = version != null && semilla < maxSemillaNueva;
+    var datos = conVersion ? (1 << 20 | semilla) << 8 | (version! & 0xff) : semilla;
     datos = datos << 5 | f;
     datos = datos << 1 | modo.index;
     datos = datos << 3 | regla.index;
@@ -99,7 +115,17 @@ class CodigoReto {
     final regla = tomar(3);
     final modo = tomar(1);
     final f = tomar(5);
-    final semilla = tomar(28);
+    // Lo que queda: la semilla (formato 1) o 1 · semilla 20 · versión 8 (formato 2).
+    final int semilla;
+    int? version;
+    if (datos >> 28 == 0) {
+      semilla = datos;
+    } else if (datos >> 28 == 1) {
+      version = datos & 0xff;
+      semilla = (datos >> 8) & (maxSemillaNueva - 1);
+    } else {
+      return null;
+    }
     if (dificultad >= Dificultad.values.length ||
         regla >= ReglaDraft.values.length ||
         epoca > Epoca.values.length ||
@@ -116,6 +142,7 @@ class CodigoReto {
       dificultad: Dificultad.values[dificultad],
       victorias: victorias == 127 ? null : victorias,
       campeon: campeon,
+      version: version,
     );
   }
 
@@ -150,7 +177,7 @@ class Reto {
   /// Datos de una partida clásica nueva: semilla al azar y las fichas con que arranca (para que
   /// las tiradas no dependan de cuántas fichas extra tiene cada uno).
   static Map<String, dynamic> datosNuevos(int fichas, {Random? azar}) => {
-    claveSemilla: (azar ?? Random()).nextInt(CodigoReto.maxSemilla),
+    claveSemilla: (azar ?? Random()).nextInt(CodigoReto.maxSemillaNueva),
     claveFichas: fichas,
   };
 
@@ -197,6 +224,7 @@ class Reto {
       dificultad: t.dificultad,
       victorias: terminada ? t.registroUsuario.victorias : null,
       campeon: t.campeonId == t.franquiciaUsuarioId,
+      version: t.versionCatalogo == null ? null : t.versionCatalogo! & 0xff,
     );
   }
 

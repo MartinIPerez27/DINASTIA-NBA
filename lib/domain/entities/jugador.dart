@@ -12,16 +12,17 @@ enum Epoca {
   anios90('Años 90'),
   anios2000('Años 2000'),
   anios2010('Años 2010'),
-  actualidad('Actualidad');
+  // El nombre del valor queda por compatibilidad con el JSON: es toda la década del 2020.
+  actualidad('Años 2020');
 
   const Epoca(this.etiqueta);
   final String etiqueta;
 
-  /// Código corto para los LED: '40s'…'10s', 'HOY'.
-  String get codigo => this == actualidad ? 'HOY' : '${etiqueta.substring(etiqueta.length - 2)}s';
+  /// Código corto para los LED: '40s'…'10s', '20s'.
+  String get codigo => '${etiqueta.substring(etiqueta.length - 2)}s';
 
-  /// Para nombrar un plantel de época: "Detroit Pistons (90’)".
-  String get corta => this == actualidad ? 'Hoy' : '${etiqueta.substring(etiqueta.length - 2)}’';
+  /// Para nombrar un plantel de época: "Detroit Pistons (90’)", "Boston Celtics (20’)".
+  String get corta => '${etiqueta.substring(etiqueta.length - 2)}’';
 }
 
 /// Carrete 3 del tragamonedas (GDD §4.2), de menor a mayor rareza.
@@ -117,6 +118,7 @@ class Jugador {
     String? equipo,
     this.fotos = const ['n', 'b'],
     this.estimadas = const {},
+    this.temporadas,
   }) : equipo = equipo ?? franquiciaId;
 
   final String id;
@@ -144,6 +146,46 @@ class Jugador {
 
   /// Datos que la NBA no registraba en esa época y fueron estimados (p. ej. 'robP', 'tapP').
   final Set<String> estimadas;
+
+  /// Primera y última temporada del tramo, por año de cierre (2019-20 → 2020). Null en cartas viejas.
+  final (int, int)? temporadas;
+
+  /// Qué tramo es la carta: "2020–23", "1985–98", "1999–2004"; sin datos, la época ("Años 90").
+  String get tramo => switch (temporadas) {
+    (final a, final b) when a == b => '$a',
+    (final a, final b) when a ~/ 100 != b ~/ 100 => '$a–$b',
+    (final a, final b) => '$a–${(b % 100).toString().padLeft(2, '0')}',
+    null => epoca.etiqueta,
+  };
+
+  /// Tramo para carteles LED chicos: "20-23", "98-04", "2025" (una sola temporada); sin datos, la época.
+  String get tramoCorto => switch (temporadas) {
+    (final a, final b) when a == b => '$a',
+    (final a, final b) => '${(a % 100).toString().padLeft(2, '0')}-${(b % 100).toString().padLeft(2, '0')}',
+    null => epoca.codigo,
+  };
+
+  /// Franquicia (identidad de ese tramo) y temporadas: "POR 2020–23".
+  String get tramoConEquipo => '$equipo $tramo';
+
+  /// Copia con otra media (envejecimiento, novatos), conservando todo lo demás.
+  Jugador conMedia(int media) => Jugador(
+    id: id,
+    nbaPlayerId: nbaPlayerId,
+    nombre: nombre,
+    franquiciaId: franquiciaId,
+    epoca: epoca,
+    tier: tier,
+    posiciones: posiciones,
+    rol: rol,
+    dorsal: dorsal,
+    stats: stats,
+    media: media,
+    equipo: equipo,
+    fotos: fotos,
+    estimadas: estimadas,
+    temporadas: temporadas,
+  );
 
   /// Id de Basketball-Reference (prefijo del id de carta).
   String get idBbref => id.split('-').first;
@@ -189,6 +231,10 @@ class Jugador {
       equipo: j['equipo'] as String?,
       fotos: List.unmodifiable((j['fotos'] as List?)?.cast<String>() ?? const ['n', 'b']),
       estimadas: Set.unmodifiable((j['estimadas'] as List?)?.cast<String>() ?? const <String>[]),
+      temporadas: switch (j['temporadas']) {
+        [final num a, final num b] => (a.toInt(), b.toInt()),
+        _ => null,
+      },
     );
   }
 
@@ -207,6 +253,7 @@ class Jugador {
     'equipo': equipo,
     'fotos': fotos,
     if (estimadas.isNotEmpty) 'estimadas': estimadas.toList(),
+    if (temporadas case (final a, final b)) 'temporadas': [a, b],
   };
 
   @override

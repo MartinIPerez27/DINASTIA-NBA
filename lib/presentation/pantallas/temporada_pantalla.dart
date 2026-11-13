@@ -460,6 +460,8 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
                 children: [
                   Flexible(child: Text(j.nombre, overflow: TextOverflow.ellipsis)),
                   IndicadorForma(_t.forma[j.id] ?? 0),
+                  const SizedBox(width: 6),
+                  _Tramo(j),
                 ],
               ),
               subtitle: Text(
@@ -520,7 +522,13 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
       for (final j in _t.suplentes)
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: Text(j.nombre),
+          title: Row(
+            children: [
+              Flexible(child: Text(j.nombre, overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 6),
+              _Tramo(j),
+            ],
+          ),
           subtitle: Text(
             _t.lesiones.containsKey(j.id)
                 ? 'SUPLENTE · ${_lesion(j.id)}'
@@ -872,4 +880,18 @@ class _FilaTabla extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Qué etapa es la carta, al lado del nombre: "CHI 1990–98".
+class _Tramo extends StatelessWidget {
+  const _Tramo(this.jugador);
+
+  final Jugador jugador;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    jugador.tramoConEquipo,
+    maxLines: 1,
+    style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+  );
 }

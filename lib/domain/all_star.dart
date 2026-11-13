@@ -33,27 +33,41 @@ class AllStar {
 
   /// Convocados de una franquicia.
   List<Jugador> de(String franquiciaId) => [...este, ...oeste].where((j) => equipos[j.id] == franquiciaId).toList();
+
+  factory AllStar.fromJson(Map<String, dynamic> j) {
+    List<Jugador> lista(String k) => [for (final x in j[k] as List) Jugador.fromJson(x as Map<String, dynamic>)];
+    final este = lista('este'), oeste = lista('oeste');
+    final mvpId = j['mvp'] as String;
+    return AllStar(
+      este: List.unmodifiable(este),
+      oeste: List.unmodifiable(oeste),
+      puntosEste: j['puntosEste'] as int,
+      puntosOeste: j['puntosOeste'] as int,
+      mvp: [...este, ...oeste].firstWhere((x) => x.id == mvpId),
+      lineaMvp: LineaEstadistica.fromJson(j['lineaMvp'] as Map<String, dynamic>),
+      equipos: Map.unmodifiable((j['equipos'] as Map<String, dynamic>).cast<String, String>()),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'este': [for (final x in este) x.toJson()],
+    'oeste': [for (final x in oeste) x.toJson()],
+    'puntosEste': puntosEste,
+    'puntosOeste': puntosOeste,
+    'mvp': mvp.id,
+    'lineaMvp': lineaMvp.toJson(),
+    'equipos': equipos,
+  };
 }
 
-/// El All-Star se juega cuando la temporada pasa la mitad (lo que sigue para el usuario es después
-/// de la jornada del medio). Antes devuelve null. Determinista: misma temporada, mismo All-Star.
-AllStar? allStarDe(Temporada t, Liga liga) {
-  if (t.calendario.isEmpty) return null;
-  if (_jugados[t.id] case final previo?) return previo;
-  final resultado = _jugar(t, liga);
-  if (resultado != null) _jugados[t.id] = resultado;
-  return resultado;
-}
+/// El All-Star de la temporada: el que quedó guardado en ella (se juega una sola vez, al cruzar la
+/// mitad, ver [Liga.registrar]) o, en partidas guardadas antes de esto, uno armado al vuelo que se
+/// guarda en el próximo partido. Antes de la mitad, null.
+AllStar? allStarDe(Temporada t, Liga liga) => t.allStar ?? (t.calendario.isEmpty ? null : jugarAllStar(t, liga));
 
-// shortcut: el All-Star se arma con las estadísticas del momento en que se mira por primera vez
-// (pasada la mitad) y queda fijo mientras la app está abierta. Para fijarlo entre sesiones habría
-// que guardarlo en la Temporada.
-final _jugados = <String, AllStar>{};
-
-/// Solo para pruebas: olvida los All-Star ya jugados.
-void olvidarAllStars() => _jugados.clear();
-
-AllStar? _jugar(Temporada t, Liga liga) {
+/// Juega el fin de semana All-Star con las estadísticas de ese momento, si la temporada ya pasó la
+/// mitad (lo que sigue para el usuario es después de la jornada del medio). Determinista.
+AllStar? jugarAllStar(Temporada t, Liga liga) {
   final total = t.calendario.fold(0, (a, p) => max(a, p.jornada));
   final proximo = liga.proximoDelUsuario(t);
   if (proximo != null && proximo.jornada <= total ~/ 2) return null;
@@ -98,7 +112,7 @@ AllStar? _jugar(Temporada t, Liga liga) {
       plantel: plantelOeste,
       tactica: const Tactica(ofensiva: SistemaOfensivo.paceAndSpace),
     ),
-    azar: Random(Object.hash(t.id, 'all-star')),
+    azar: Random('${t.id}-all-star'.codeUnits.fold<int>(17, (h, c) => (h * 31 + c) & 0x7fffffff)),
   )..simularTodo();
   final box = {...motor.boxLocal, ...motor.boxVisitante};
   double valor(LineaEstadistica l) => l.pts + 0.7 * l.reb + 0.7 * l.ast + l.rob + l.tap - l.per;

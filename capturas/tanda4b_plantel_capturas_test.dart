@@ -43,7 +43,8 @@ void main() {
     for (var i = 0; i < 20; i++) {
       t = liga.simularProximo(t);
     }
-    t = liga.firmar(t, liga.agentesLibres(t).first);
+    // La temporada ya arranca con 2 suplentes: se libera uno para mostrar el fichaje.
+    t = liga.firmar(t.copyWith(suplentes: t.suplentes.take(1).toList()), liga.agentesLibres(t).first);
     final titular = t.plantel.en(Posicion.values[1])!;
     t = t.copyWith(lesiones: {...t.lesiones, titular.id: 6});
   });

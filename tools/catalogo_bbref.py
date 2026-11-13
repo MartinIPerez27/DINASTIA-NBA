@@ -23,6 +23,7 @@ import json
 import re
 import unicodedata
 import urllib.request
+import zlib
 from collections import Counter, defaultdict
 
 import extraer_cartas as ec
@@ -83,9 +84,6 @@ MVP_FINALES = {
 PREMIOS = {"nba mvp": 10, "nba dpoy": 3, "nba smoy": 2}
 ALL_NBA = {"1st": 5, "2nd": 3, "3rd": 2}
 
-# Tier A sin premios: titular productivo. El resto de los que llegan a MIN_PARTIDOS es Tier B.
-MIN_MINUTOS_A = 20
-MIN_EFICIENCIA_A = 11.0
 
 # Nombres que la NBA escribe distinto (Basketball-Reference → lista oficial) e IDs de homónimos.
 ALIAS = {
@@ -231,21 +229,114 @@ def posiciones(conteo, perfil):
     return pos
 
 
-def asignar_media(cartas):
-    """Media 60–99 en escala absoluta: eficiencia corregida por época (en los 60 se jugaba a otro ritmo)
-    más premios, con rendimientos decrecientes. ~66 suplente, ~78 titular, ~89 All-Star, 97+ GOAT."""
-    import math
+# Distribución de medias por época (cantidad de cartas por media, 60–99), la del catálogo v1. La media
+# v2 ordena las cartas de cada época por impacto y las reparte con la misma forma: se corrige quién
+# está arriba y quién abajo sin cambiar la escala (la dificultad apunta a medias de rivales) ni el
+# peso relativo de las épocas (la BAA de los 40 era una liga más débil).
+DISTRIBUCION_MEDIA = {
+    "anios40": {60: 27, 61: 18, 62: 28, 63: 30, 64: 19, 65: 18, 66: 19, 67: 20, 68: 20, 69: 12, 70: 11, 71: 8, 72: 6, 73: 11, 74: 3, 75: 4, 76: 7, 77: 4, 78: 1, 79: 1, 80: 2, 81: 5, 82: 1, 86: 1, 91: 1},
+    "anios50": {61: 3, 62: 7, 63: 9, 64: 18, 65: 24, 66: 19, 67: 26, 68: 24, 69: 26, 70: 42, 71: 40, 72: 34, 73: 27, 74: 27, 75: 34, 76: 28, 77: 22, 78: 22, 79: 16, 80: 6, 81: 11, 82: 15, 83: 13, 84: 6, 85: 9, 86: 6, 87: 3, 88: 3, 89: 2, 90: 2, 91: 4, 92: 1, 93: 2, 94: 3, 95: 1, 96: 2, 97: 2, 98: 1},
+    "anios60": {61: 1, 62: 2, 63: 10, 64: 20, 65: 23, 66: 23, 67: 24, 68: 23, 69: 15, 70: 27, 71: 23, 72: 31, 73: 32, 74: 27, 75: 35, 76: 18, 77: 18, 78: 19, 79: 22, 80: 11, 81: 13, 82: 11, 83: 11, 84: 9, 85: 9, 86: 9, 87: 9, 88: 7, 89: 2, 90: 6, 92: 3, 93: 2, 94: 1, 96: 1, 97: 2, 98: 5},
+    "anios70": {61: 4, 62: 10, 63: 27, 64: 34, 65: 46, 66: 38, 67: 48, 68: 61, 69: 52, 70: 55, 71: 56, 72: 62, 73: 60, 74: 45, 75: 56, 76: 65, 77: 44, 78: 42, 79: 31, 80: 40, 81: 31, 82: 30, 83: 31, 84: 31, 85: 11, 86: 23, 87: 12, 88: 7, 89: 6, 90: 10, 91: 10, 92: 1, 93: 4, 94: 1, 95: 7, 96: 2, 97: 2, 98: 1},
+    "anios80": {60: 2, 61: 1, 62: 10, 63: 26, 64: 34, 65: 55, 66: 50, 67: 64, 68: 59, 69: 60, 70: 80, 71: 72, 72: 69, 73: 75, 74: 57, 75: 63, 76: 81, 77: 62, 78: 39, 79: 62, 80: 42, 81: 51, 82: 43, 83: 40, 84: 34, 85: 34, 86: 16, 87: 15, 88: 9, 89: 10, 90: 10, 91: 3, 92: 3, 93: 2, 94: 3, 95: 2, 96: 3, 97: 2, 99: 2},
+    "anios90": {62: 11, 63: 37, 64: 54, 65: 58, 66: 84, 67: 88, 68: 91, 69: 85, 70: 104, 71: 102, 72: 87, 73: 78, 74: 85, 75: 79, 76: 62, 77: 79, 78: 89, 79: 57, 80: 61, 81: 48, 82: 51, 83: 49, 84: 31, 85: 37, 86: 30, 87: 12, 88: 11, 89: 11, 90: 7, 91: 4, 92: 7, 93: 2, 94: 4, 95: 3, 96: 3, 98: 2, 99: 2},
+    "anios2000": {60: 1, 61: 3, 62: 15, 63: 20, 64: 64, 65: 62, 66: 81, 67: 115, 68: 105, 69: 99, 70: 102, 71: 117, 72: 129, 73: 113, 74: 110, 75: 92, 76: 76, 77: 91, 78: 81, 79: 73, 80: 75, 81: 53, 82: 54, 83: 48, 84: 46, 85: 36, 86: 22, 87: 22, 88: 10, 89: 6, 90: 6, 91: 9, 92: 3, 93: 5, 94: 3, 95: 2, 96: 2, 97: 2, 98: 3, 99: 1},
+    "anios2010": {61: 8, 62: 14, 63: 32, 64: 52, 65: 66, 66: 72, 67: 77, 68: 84, 69: 111, 70: 120, 71: 145, 72: 134, 73: 134, 74: 140, 75: 131, 76: 119, 77: 119, 78: 92, 79: 94, 80: 81, 81: 71, 82: 74, 83: 56, 84: 39, 85: 25, 86: 20, 87: 17, 88: 19, 89: 15, 90: 10, 91: 10, 92: 9, 93: 2, 94: 2, 95: 3, 96: 2, 97: 4, 98: 2},
+    "actualidad": {60: 1, 61: 1, 62: 8, 63: 14, 64: 27, 65: 31, 66: 54, 67: 58, 68: 74, 69: 83, 70: 90, 71: 85, 72: 91, 73: 91, 74: 115, 75: 121, 76: 92, 77: 80, 78: 88, 79: 88, 80: 72, 81: 45, 82: 57, 83: 50, 84: 41, 85: 31, 86: 15, 87: 23, 88: 13, 89: 15, 90: 11, 91: 9, 92: 6, 93: 5, 94: 1, 95: 2, 96: 4, 98: 2},
+}
+# Si una época tiene más cartas que las de la tabla (temporadas nuevas), se estira proporcionalmente.
+PRIOR_IMPACTO = -2.0  # impacto (escala BPM) de un jugador de reemplazo: hacia ahí van las muestras chicas
+PARTIDOS_CONFIANZA = 50  # con 50 partidos, la mitad del peso es del jugador y la mitad del prior
+MINUTOS_REFERENCIA = 24.0
 
+
+def impacto_de_fila(bpm, ws48, per):
+    """Impacto por minuto en escala BPM (+10 MVP, 0 promedio, −2 reemplazo). BPM existe desde 1973-74;
+    antes se estima con Win Shares por 48 minutos y PER."""
+    if bpm is not None:
+        return bpm
+    if ws48 is None:
+        return None
+    estimado = (ws48 - 0.100) * 60
+    return estimado if per is None else 0.5 * estimado + 0.5 * (per - 15) * 0.6
+
+
+def puntaje_v2(c):
+    """Nivel de la carta: impacto por minuto (regresado a la media según los partidos) + minutos (los
+    entrenadores le dan más minutos al que más sabe) + premios por temporada (no acumulados)."""
+    gp = c["_gp"]
+    peso = gp / (gp + PARTIDOS_CONFIANZA)
+    impacto = c["_impacto_norm"] if c.get("_impacto_norm") is not None else PRIOR_IMPACTO
+    impacto = peso * impacto + (1 - peso) * PRIOR_IMPACTO
+    minutos = c["_mpg"] - MINUTOS_REFERENCIA
+    premios = min(c["_tasa_premios"], 12.0)
+    return impacto + 0.22 * minutos + 0.45 * premios
+
+
+def normalizar_impacto(cartas):
+    """Lleva el impacto de cada época a la escala de las épocas con BPM (desde los 80). Antes de 1974
+    se estima con Win Shares y, en los 40, con minutos también estimados: sin esto, los suplentes de
+    1947 quedarían como figuras."""
+    import statistics
+
+    def momentos(grupo):
+        vals = [c["_impacto"] for c in grupo if c["_impacto"] is not None and c["_gp"] >= 60]
+        return statistics.fmean(vals), statistics.pstdev(vals) or 1.0
+
+    modernas = {"anios80", "anios90", "anios2000", "anios2010", "actualidad"}
+    media_ref, desvio_ref = momentos([c for c in cartas if c["epoca"] in modernas])
     por_epoca = defaultdict(list)
     for c in cartas:
-        if c["tier"] != "b":
-            por_epoca[c["epoca"]].append(c["_eficiencia"])
-    media_epoca = {e: sum(v) / len(v) for e, v in por_epoca.items()}
-    base = media_epoca.get("anios2010", 1)
+        por_epoca[c["epoca"]].append(c)
+    for epoca, grupo in por_epoca.items():
+        media, desvio = momentos(grupo)
+        for c in grupo:
+            if c["_impacto"] is not None:
+                c["_impacto_norm"] = media_ref + (c["_impacto"] - media) / desvio * desvio_ref
+
+
+def asignar_media(cartas):
+    """Media 60–99: dentro de cada época, las cartas se ordenan por puntaje_v2 y se reparten según
+    DISTRIBUCION_MEDIA de esa época."""
+    normalizar_impacto(cartas)
+    por_epoca = defaultdict(list)
     for c in cartas:
-        eficiencia_ajustada = c["_eficiencia"] * base / media_epoca.get(c["epoca"], base)
-        puntaje = max(0.0, eficiencia_ajustada + 0.6 * c["_puntos"])
-        c["media"] = min(99, round(60 + 39 * (1 - math.exp(-puntaje / 18))))
+        por_epoca[c["epoca"]].append(c)
+    for epoca, grupo in por_epoca.items():
+        # Sin minutos registrados (antes de 1951-52) el impacto por minuto no es confiable: esas
+        # cartas se ordenan por eficiencia + premios (como en v1) y se intercalan por percentil.
+        reales = [c for c in grupo if "minP" not in c.get("estimadas", ())]
+        sin_minutos = [c for c in grupo if "minP" in c.get("estimadas", ())]
+        percentil = {}
+        for sub, clave in ((reales, puntaje_v2), (sin_minutos, lambda c: c["_eficiencia"] + 0.6 * c["_puntos"])):
+            for i, c in enumerate(sorted(sub, key=lambda c: (clave(c), c["id"]))):
+                percentil[c["id"]] = (i + 0.5) / len(sub)
+        orden = sorted(grupo, key=lambda c: (percentil[c["id"]], c["id"]))
+        escala = [m for m, n in sorted(DISTRIBUCION_MEDIA[epoca].items()) for _ in range(n)]
+        for i, c in enumerate(orden):
+            c["media"] = escala[min(len(escala) - 1, int(i * len(escala) / len(orden)))]
+
+
+# Tier v2: rareza = nivel (media) + premios por temporada. Ya no depende de cuánto tiempo estuvo.
+TIER_SPLUS_MEDIA, TIER_SPLUS_PREMIOS = 95, 4.0  # 95+ y, por temporada, ~All-NBA 2º equipo + All-Star
+TIER_S_MEDIA, TIER_S_MEDIA_CON_PREMIOS, TIER_S_PREMIOS = 91, 88, 4.0
+TIER_A_MEDIA = 79
+
+
+def tier_v2(c):
+    media, tasa = c["media"], c["_tasa_premios"]
+    if media >= TIER_SPLUS_MEDIA and (tasa >= TIER_SPLUS_PREMIOS or c["_puntos"] >= 25):
+        return "sPlus"
+    if media >= TIER_S_MEDIA or (media >= TIER_S_MEDIA_CON_PREMIOS and tasa >= TIER_S_PREMIOS):
+        return "s"
+    if media >= TIER_A_MEDIA or c["_puntos"] > 0:
+        return "a"
+    return "b"
+
+
+def id_estable(pid):
+    """ID negativo para cartas sin ID oficial de la NBA (no pide fotos al CDN). Determinístico."""
+    return -(zlib.crc32(pid.encode()) % 10_000_000) - 1
 
 
 def main():
@@ -261,6 +352,8 @@ def main():
     sin_gs = set()
     nombres = {}
     partidos_temporada = defaultdict(dict)  # (player_id, temporada) → {franquicia: partidos}
+    temporadas = defaultdict(set)  # clave → años de cierre jugados
+    minutos_fila = {}  # (player_id, sigla, temporada) → minutos (estimados si faltan)
     for original in filas:
         f, estimados = completar(original, ref)
         franquicia, identidad = EQUIPOS[f["team"]]
@@ -276,7 +369,33 @@ def main():
             sin_gs.add(clave)
         nombres[f["player_id"]] = f["player"]
         partidos_temporada[(f["player_id"], temporada)][franquicia] = g
+        if g > 0:
+            temporadas[clave].add(temporada)
+        minutos_fila[(f["player_id"], f["team"], temporada)] = numero(f["mp"]) or 0
     principal = {k: max(v, key=v.get) for k, v in partidos_temporada.items()}
+
+    # Impacto por minuto (BPM; antes de 1974, Win Shares/48 y PER) ponderado por minutos, por tramo.
+    impacto = defaultdict(lambda: [0.0, 0.0, 0.0, 0.0])  # clave → [Σ impacto·min, Σ min, Σ dbpm·min, Σ min dbpm]
+    for f in leer("Advanced.csv"):
+        if f["lg"] not in ("NBA", "BAA") or f["team"] not in EQUIPOS:
+            continue
+        temporada = int(f["season"])
+        clave = (f["player_id"], EQUIPOS[f["team"]][0], epoca_de(temporada))
+        mp = numero(f["mp"]) or minutos_fila.get((f["player_id"], f["team"], temporada), 0)
+        if mp <= 0:
+            continue
+        ws48 = numero(f["ws_48"])
+        if ws48 is None and (ws := numero(f["ws"])) is not None:
+            ws48 = ws / mp * 48
+        valor = impacto_de_fila(numero(f["bpm"]), ws48, numero(f["per"]))
+        if valor is None:
+            continue
+        d = impacto[clave]
+        d[0] += valor * mp
+        d[1] += mp
+        if (dbpm := numero(f["dbpm"])) is not None:
+            d[2] += dbpm * mp
+            d[3] += mp
 
     puntos, sexto = defaultdict(int), set()
 
@@ -321,6 +440,10 @@ def main():
         return candidatos[indice] if indice < len(candidatos) else None
 
     fotos = json.loads(FOTOS.read_text(encoding="utf-8")) if FOTOS.exists() else {}
+    # IDs ya publicados (sin ID oficial): se conservan para no cambiar cartas guardadas.
+    anteriores = {}
+    if ec.SALIDA.exists():
+        anteriores = {c["id"]: c["nbaPlayerId"] for c in json.loads(ec.SALIDA.read_text(encoding="utf-8"))}
 
     cartas = []
     for clave, t in grupos.items():
@@ -328,33 +451,40 @@ def main():
         if t["GP"] < MIN_PARTIDOS or t["MIN"] <= 0:
             continue
         pts = puntos[clave]
-        tier = ec.tier_de(pts)
-        if not tier:
-            productivo = t["MIN"] / t["GP"] >= MIN_MINUTOS_A and eficiencia(t) >= MIN_EFICIENCIA_A
-            tier = "a" if productivo else "b"
         p = ec.perfil_de(t)
+        d = impacto.get(clave)
+        p["dbpm"] = d[2] / d[3] if d and d[3] >= 200 else None
         if clave in sin_gs:
             p["suplente"] = False  # sin titularidades registradas no se puede saber
         pos = posiciones(conteo_pos[clave], p)
         nba_id = id_oficial(pid)
+        card_id = f"{pid}-{franquicia}-{ec.CODIGO_EPOCA[epoca]}"
+        if not nba_id:
+            # Sin ID oficial: un número negativo único (no pide nada al CDN), estable entre corridas.
+            nba_id = anteriores.get(card_id) if (anteriores.get(card_id) or 0) < 0 else id_estable(pid)
+        anios = sorted(temporadas[clave]) or [0]
         carta = {
-            "id": f"{pid}-{franquicia}-{ec.CODIGO_EPOCA[epoca]}",
-            # ID oficial para la foto; sin cruce, un número negativo único (no pide nada al CDN).
-            "nbaPlayerId": nba_id if nba_id else -(abs(hash(pid)) % 10_000_000) - 1,
+            "id": card_id,
+            "nbaPlayerId": nba_id,
             "nombre": nombres[pid],
             "franquicia": franquicia,
             "equipo": identidades[clave].most_common(1)[0][0],
             "epoca": epoca,
-            "tier": tier,
+            "tier": "b",  # se define después de la media (tier_v2)
             "posiciones": pos,
             # Arquetipo de sexto hombre: premiados o suplentes con minutos de rotación fuerte.
             "rol": ec.rol_de(pos[0], p, clave in sexto or (p["suplente"] and t["MIN"] / t["GP"] >= 22)),
             "dorsal": 0,  # el dataset no trae dorsales; se cargan en ajustes_cartas.json
             "stats": ec.stats_de(t),
+            "temporadas": [anios[0], anios[-1]],
             "fotos": fotos.get(pid, ["n", "b", "w"] if nba_id else ["b", "w"]),
             "_perfil": p,
             "_puntos": pts,
             "_eficiencia": eficiencia(t),
+            "_impacto": d[0] / d[1] if d and d[1] > 0 else None,
+            "_gp": t["GP"],
+            "_mpg": t["MIN"] / t["GP"],
+            "_tasa_premios": pts / max(1, len(temporadas[clave])),
         }
         if estimadas[clave]:
             carta["estimadas"] = sorted(estimadas[clave])
@@ -362,6 +492,8 @@ def main():
 
     ec.asignar_iq(cartas)
     asignar_media(cartas)
+    for c in cartas:
+        c["tier"] = tier_v2(c)
     ajustes = json.loads(ec.AJUSTES.read_text(encoding="utf-8")) if ec.AJUSTES.exists() else {}
     ec.aplicar_ajustes(cartas, ajustes)
     orden = {"sPlus": 0, "s": 1, "a": 2, "b": 3}

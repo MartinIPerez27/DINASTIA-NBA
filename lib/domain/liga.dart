@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'all_star.dart';
 import 'calendario.dart';
 import 'entities/entrenador.dart';
 import 'entities/franquicia.dart';
@@ -12,10 +13,13 @@ import 'entities/rival.dart';
 import 'entities/temporada.dart';
 import 'motor.dart';
 import 'playbook.dart';
+import 'versiones.dart';
 
 /// Temporada regular (GDD §7): rivales, calendario de 82 y simulación de los partidos de los demás.
 class Liga {
-  Liga(this.catalogo, this.franquicias, {Random? azar}) : _azar = azar ?? Random();
+  Liga(this.catalogo, this.franquicias, {Random? azar}) : _azar = azar ?? Random() {
+    registrarVersiones(catalogo);
+  }
 
   final List<Jugador> catalogo;
   final List<Franquicia> franquicias;
@@ -148,7 +152,7 @@ class Liga {
   Plantel plantelDe(Rival r) {
     var p = const Plantel();
     for (final e in r.cartaIds.entries) {
-      p = p.asignar(_porId[e.value]!, e.key);
+      p = p.asignar(cartaOReemplazo(_porId, catalogo, e.value, e.key, p), e.key);
     }
     return p;
   }
@@ -360,7 +364,9 @@ class Liga {
         else
           p,
     ];
-    return cambios ? t.copyWith(calendario: calendario, lineas: lineas, forma: forma, lesiones: lesiones) : t;
+    return cambios
+        ? _conAllStar(t.copyWith(calendario: calendario, lineas: lineas, forma: forma, lesiones: lesiones))
+        : t;
   }
 
   /// Registra el partido del usuario ya jugado (en vivo o simulado) y suma las estadísticas.
@@ -376,7 +382,15 @@ class Liga {
     final calendario = [
       for (final p in t.calendario) p.id == partido.id ? p.conResultado(m.parcialesLocal, m.parcialesVisitante) : p,
     ];
-    return t.copyWith(calendario: calendario, lineas: lineas, forma: forma, lesiones: lesiones);
+    return _conAllStar(t.copyWith(calendario: calendario, lineas: lineas, forma: forma, lesiones: lesiones));
+  }
+
+  /// Al cruzar la mitad de la temporada se juega el All-Star y queda guardado en la partida: así es
+  /// el mismo aunque se cierre la app y sigan cambiando las estadísticas.
+  Temporada _conAllStar(Temporada t) {
+    if (t.allStar != null || t.calendario.isEmpty) return t;
+    final a = jugarAllStar(t, this);
+    return a == null ? t : t.copyWith(allStar: a);
   }
 
   /// Lesiones: los lesionados de los dos equipos se pierden este partido (uno menos); y cada uno que
@@ -686,4 +700,35 @@ class Premio {
   final String jugadorId;
   final String franquiciaId;
   final double valor;
+}
+
+/// La carta [id] del catálogo o, si ya no existe (una partida guardada con un catálogo anterior),
+/// un reemplazo que pueda jugar en [puesto]: de la misma franquicia y época, si no de la misma
+/// franquicia, si no cualquiera; siempre el de más media que no esté ya en [actual]. Así una
+/// partida vieja nunca se rompe por una carta que se quitó.
+Jugador cartaOReemplazo(
+  Map<String, Jugador> porId,
+  Iterable<Jugador> catalogo,
+  String id,
+  Posicion puesto,
+  Plantel actual,
+) {
+  if (porId[id] case final j?) return j;
+  final partes = id.split('-');
+  final franquicia = partes.length >= 3 ? partes[partes.length - 2] : '';
+  final epoca = partes.length >= 3 ? partes.last : '';
+  final ocupados = {for (final j in actual.jugadores) j.nbaPlayerId};
+  bool sirve(Jugador j) => j.puedeJugarEn(puesto) && !ocupados.contains(j.nbaPlayerId);
+  for (final filtro in <bool Function(Jugador)>[
+    (j) => j.franquiciaId == franquicia && j.id.endsWith('-$epoca'),
+    (j) => j.franquiciaId == franquicia,
+    (_) => true,
+  ]) {
+    Jugador? mejor;
+    for (final j in catalogo) {
+      if (filtro(j) && sirve(j) && (mejor == null || j.media > mejor.media)) mejor = j;
+    }
+    if (mejor != null) return mejor;
+  }
+  throw StateError('El catálogo no tiene a nadie para $puesto.');
 }

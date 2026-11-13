@@ -234,15 +234,16 @@ class MedidorQuimica extends StatelessWidget {
             ),
           ),
           Positioned(
-            left: (marca - 2).clamp(0, ancho - 4),
+            left: (marca - 3).clamp(0, ancho - 6),
             top: 0,
-            width: 4,
+            width: 6,
             height: alto + 6,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(2),
-                boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 2)],
+                // Panel mate (DESIGN.md): sin sombra, un borde del color del panel separa la marca.
+                border: Border.all(color: Theme.of(context).colorScheme.surfaceContainerLowest, width: 1.5),
               ),
             ),
           ),

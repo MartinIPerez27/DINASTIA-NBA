@@ -361,7 +361,7 @@ class _Salon extends StatelessWidget {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(j.nombre),
-                subtitle: Text('${e.value.$1} temporada${e.value.$1 == 1 ? '' : 's'} · ${j.epoca.etiqueta}'),
+                subtitle: Text('${e.value.$1} temporada${e.value.$1 == 1 ? '' : 's'} · ${j.tramoConEquipo}'),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

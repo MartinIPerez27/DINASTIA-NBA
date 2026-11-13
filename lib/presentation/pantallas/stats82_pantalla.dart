@@ -8,6 +8,7 @@ import '../../domain/liga.dart';
 import '../../domain/motor.dart';
 import '../../domain/premios.dart';
 import '../tema/tema_franquicia.dart';
+import '../widgets/texto_led.dart';
 import '../widgets/disposicion.dart';
 import '../widgets/escudo.dart';
 import '../widgets/jugador_avatar.dart';
@@ -229,9 +230,9 @@ class _Stats82PantallaState extends State<Stats82Pantalla> {
                             ),
                             for (final (i, c) in _columnas.indexed)
                               DataCell(
-                                Text(
+                                CeldaLed(
                                   c.texto(j, l),
-                                  style: i == _orden ? numeros.copyWith(color: esquema.primary) : numeros,
+                                  estilo: i == _orden ? numeros.copyWith(color: esquema.primary) : numeros,
                                 ),
                               ),
                           ],

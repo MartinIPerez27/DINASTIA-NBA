@@ -1435,7 +1435,9 @@ class _EstadisticasVivo extends StatelessWidget {
     final cabecera = tema.textTheme.labelSmall?.copyWith(color: esquema.onSurfaceVariant, letterSpacing: 0.5);
     Widget celda(String texto, {TextStyle? estilo, double ancho = 34}) => SizedBox(
       width: ancho,
-      child: Text(texto, textAlign: TextAlign.end, style: estilo),
+      child: estilo?.fontFamily == Fuentes.led
+          ? CeldaLed(texto, estilo: estilo!, textAlign: TextAlign.end)
+          : Text(texto, textAlign: TextAlign.end, style: estilo),
     );
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
@@ -1763,8 +1765,8 @@ class _PanelPartido extends StatelessWidget {
                     ],
                   ),
                   for (var i = 0; i < periodos; i++)
-                    Text(i < ps.length ? '${ps[i]}' : '–', textAlign: TextAlign.end, style: numeros),
-                  Text('${ps.fold(0, (a, b) => a + b)}', textAlign: TextAlign.end, style: numeros),
+                    CeldaLed(i < ps.length ? '${ps[i]}' : '–', textAlign: TextAlign.end, estilo: numeros),
+                  CeldaLed('${ps.fold(0, (a, b) => a + b)}', textAlign: TextAlign.end, estilo: numeros),
                 ],
               ),
           ],

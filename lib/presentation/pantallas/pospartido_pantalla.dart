@@ -239,7 +239,7 @@ class _Box extends StatelessWidget {
                   '${e.value.tlI}/${e.value.tlA}',
                   '${e.value.fal}',
                 ])
-                  DataCell(Text(v, style: numeros)),
+                  DataCell(CeldaLed(v, estilo: numeros)),
               ],
             ),
         ],
