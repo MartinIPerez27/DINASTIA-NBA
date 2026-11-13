@@ -8,6 +8,7 @@ import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/entities/posicion.dart';
 import '../tema/tema_franquicia.dart';
+import '../widgets/disposicion.dart';
 import '../widgets/carta_vertical.dart';
 import '../widgets/escudo.dart';
 import '../widgets/ficha_jugador.dart';
@@ -171,7 +172,7 @@ class _ReveladoCartasState extends State<ReveladoCartas> {
               const separacion = 10.0;
               final porAncho = (c.maxWidth - 2 * separacion) / 3;
               final porAlto = ((c.maxHeight - 190) / 2 - separacion) * proporcionCarta;
-              final ancho = min(min(porAncho, porAlto), 150.0);
+              final ancho = min(min(porAncho, porAlto), esTabletApaisada(context) ? 200.0 : 150.0);
               return Column(
                 children: [
                   Text(

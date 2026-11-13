@@ -8,6 +8,7 @@ import '../../domain/entities/temporada.dart';
 import '../../domain/playbook.dart';
 import '../draft/entrenadores.dart';
 import '../draft/quimica_panel.dart';
+import '../widgets/disposicion.dart';
 import '../widgets/texto_led.dart';
 import '../widgets/haptica.dart';
 
@@ -92,78 +93,177 @@ class _PlaybookPantallaState extends State<PlaybookPantalla> {
       appBar: AppBar(title: Text('Playbook de los ${franquicia.nombre}')),
       body: SafeArea(
         top: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Row(
+        child: esTabletApaisada(context)
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  SizedBox(
+                    width: 480,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: ChipEntrenador(entrenador: _entrenador, onTap: _cambiarEntrenador),
+                              ),
+                              const SizedBox(width: 8),
+                              PanelQuimica(
+                                jugadores: widget.temporada.plantel.jugadores.toList(),
+                                entrenador: _entrenador,
+                                compacto: true,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          child: _PanelRecomendacion(
+                            recomendacion: rec,
+                            motivosOfensiva: _motivos(rec.tactica.ofensiva.rasgos),
+                            motivosDefensiva: _motivos(rec.tactica.defensiva.rasgos),
+                            enUso: _tactica == rec.tactica,
+                            onUsar: () => _elegir(rec.tactica),
+                          ),
+                        ),
+                        const Spacer(),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          child: FilledButton(
+                            onPressed: () => widget.onConfirmar(
+                              widget.temporada.copyWith(
+                                tactica: _tactica,
+                                tacticaConfirmada: true,
+                                entrenadorId: _entrenador?.id,
+                              ),
+                            ),
+                            child: const Text('CONFIRMAR TÁCTICAS'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const VerticalDivider(width: 1),
                   Expanded(
-                    child: ChipEntrenador(entrenador: _entrenador, onTap: _cambiarEntrenador),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: SegmentedButton<_Lado>(
+                            segments: const [
+                              ButtonSegment(value: _Lado.ofensiva, label: Text('Ofensiva')),
+                              ButtonSegment(value: _Lado.defensiva, label: Text('Defensiva')),
+                            ],
+                            selected: {_lado},
+                            showSelectedIcon: false,
+                            onSelectionChanged: (s) => setState(() => _lado = s.first),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                            itemCount: opciones.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 8),
+                            itemBuilder: (_, i) {
+                              final o = opciones[i];
+                              return _OpcionSistema(
+                                nombre: o.nombre,
+                                descripcion: o.descripcion,
+                                afinidad: o.afinidad,
+                                motivos: o.motivos,
+                                elegida: o.elegida,
+                                recomendada: o.recomendada,
+                                onTap: o.elegir,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  PanelQuimica(
-                    jugadores: widget.temporada.plantel.jugadores.toList(),
-                    entrenador: _entrenador,
-                    compacto: true,
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: ChipEntrenador(entrenador: _entrenador, onTap: _cambiarEntrenador),
+                        ),
+                        const SizedBox(width: 8),
+                        PanelQuimica(
+                          jugadores: widget.temporada.plantel.jugadores.toList(),
+                          entrenador: _entrenador,
+                          compacto: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: _PanelRecomendacion(
+                      recomendacion: rec,
+                      motivosOfensiva: _motivos(rec.tactica.ofensiva.rasgos),
+                      motivosDefensiva: _motivos(rec.tactica.defensiva.rasgos),
+                      enUso: _tactica == rec.tactica,
+                      onUsar: () => _elegir(rec.tactica),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: SegmentedButton<_Lado>(
+                      segments: const [
+                        ButtonSegment(value: _Lado.ofensiva, label: Text('Ofensiva')),
+                        ButtonSegment(value: _Lado.defensiva, label: Text('Defensiva')),
+                      ],
+                      selected: {_lado},
+                      showSelectedIcon: false,
+                      onSelectionChanged: (s) => setState(() => _lado = s.first),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                      itemCount: opciones.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (_, i) {
+                        final o = opciones[i];
+                        return _OpcionSistema(
+                          nombre: o.nombre,
+                          descripcion: o.descripcion,
+                          afinidad: o.afinidad,
+                          motivos: o.motivos,
+                          elegida: o.elegida,
+                          recomendada: o.recomendada,
+                          onTap: o.elegir,
+                        );
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: FilledButton(
+                      onPressed: () => widget.onConfirmar(
+                        widget.temporada.copyWith(
+                          tactica: _tactica,
+                          tacticaConfirmada: true,
+                          entrenadorId: _entrenador?.id,
+                        ),
+                      ),
+                      child: const Text('CONFIRMAR TÁCTICAS'),
+                    ),
                   ),
                 ],
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: _PanelRecomendacion(
-                recomendacion: rec,
-                motivosOfensiva: _motivos(rec.tactica.ofensiva.rasgos),
-                motivosDefensiva: _motivos(rec.tactica.defensiva.rasgos),
-                enUso: _tactica == rec.tactica,
-                onUsar: () => _elegir(rec.tactica),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SegmentedButton<_Lado>(
-                segments: const [
-                  ButtonSegment(value: _Lado.ofensiva, label: Text('Ofensiva')),
-                  ButtonSegment(value: _Lado.defensiva, label: Text('Defensiva')),
-                ],
-                selected: {_lado},
-                showSelectedIcon: false,
-                onSelectionChanged: (s) => setState(() => _lado = s.first),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                itemCount: opciones.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (_, i) {
-                  final o = opciones[i];
-                  return _OpcionSistema(
-                    nombre: o.nombre,
-                    descripcion: o.descripcion,
-                    afinidad: o.afinidad,
-                    motivos: o.motivos,
-                    elegida: o.elegida,
-                    recomendada: o.recomendada,
-                    onTap: o.elegir,
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: FilledButton(
-                onPressed: () => widget.onConfirmar(
-                  widget.temporada.copyWith(tactica: _tactica, tacticaConfirmada: true, entrenadorId: _entrenador?.id),
-                ),
-                child: const Text('CONFIRMAR TÁCTICAS'),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -5,6 +5,7 @@ import '../../data/franquicias.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/entities/perfil.dart';
 import '../tema/tema_franquicia.dart';
+import '../widgets/disposicion.dart';
 import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
 
@@ -46,10 +47,13 @@ class PerfilPantalla extends StatelessWidget {
           valueListenable: perfilApp,
           builder: (context, perfil, _) => TabBarView(
             children: [
-              _Resumen(perfil: perfil),
-              _Vitrina(perfil: perfil),
-              _Logros(perfil: perfil),
-              _Salon(perfil: perfil, jugador: jugador),
+              AnchoMaximo(ancho: 900, child: _Resumen(perfil: perfil)),
+              AnchoMaximo(ancho: 900, child: _Vitrina(perfil: perfil)),
+              AnchoMaximo(ancho: 900, child: _Logros(perfil: perfil)),
+              AnchoMaximo(
+                ancho: 900,
+                child: _Salon(perfil: perfil, jugador: jugador),
+              ),
             ],
           ),
         ),

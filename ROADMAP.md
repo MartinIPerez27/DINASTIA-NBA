@@ -77,11 +77,11 @@ final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
 - [x] ✅ **Puntaje personal de entrenador** según resultados y dificultad.
 
 ## 5. Compartir
-- [ ] **Imagen para compartir** (plantel, récord, anillo).
-- [ ] **Código de reto** (un amigo juega tu mismo draft).
+- [x] ✅ **Imagen para compartir** (plantel, récord, anillo).
+- [x] ✅ **Código de reto** (un amigo juega tu mismo draft).
 
 ## 6. Calidad
-- [ ] **Tablet en serio**: diseño para pantalla grande (BMAX Power 11.4" 2K, apaisada): cancha y
+- [x] ✅ **Tablet en serio**: diseño para pantalla grande (BMAX Power 11.4" 2K, apaisada): cancha y
       paneles lado a lado, cartas más grandes, todo nítido a la resolución nativa.
 - [x] ✅ **Pruebas de balance automáticas**: temporadas simuladas que validan la dificultad en cada
       cambio del motor.

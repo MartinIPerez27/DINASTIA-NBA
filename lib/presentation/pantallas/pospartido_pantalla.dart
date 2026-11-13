@@ -7,6 +7,7 @@ import '../../domain/entities/jugador.dart';
 import '../../domain/motor.dart';
 import '../partido/repeticion.dart';
 import '../tema/tema_franquicia.dart';
+import '../widgets/disposicion.dart';
 import '../widgets/escudo.dart';
 import '../widgets/jugador_avatar.dart';
 import '../widgets/texto_led.dart';
@@ -61,128 +62,131 @@ class PospartidoPantalla extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(title: const Text('Resumen del partido')),
-        body: SafeArea(
-          top: false,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Escudo(identidadLocal, tamano: 44),
-                  const SizedBox(width: 12),
-                  TextoLed('${motor.puntosLocal}-${motor.puntosVisitante}', tamano: 40),
-                  const SizedBox(width: 12),
-                  Escudo(identidadVisitante, tamano: 44),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Container(
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  color: esquema.surfaceContainerLowest,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: esquema.primary, width: 1.5),
-                ),
-                child: Row(
+        body: AnchoMaximo(
+          ancho: 960,
+          child: SafeArea(
+            top: false,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    SizedBox(
-                      width: 130,
-                      height: 110,
-                      child: JugadorAvatar(
-                        jugador: jugadorFigura,
-                        franquicia: ganoLocal ? identidadLocal : identidadVisitante,
-                        recortar: true,
-                      ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'JUGADOR DEL PARTIDO',
-                              style: tema.textTheme.labelMedium?.copyWith(color: esquema.primary),
-                            ),
-                            Text(
-                              jugadorFigura.nombre,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontFamily: Fuentes.estadio,
-                                fontVariations: [FontVariation.weight(800)],
-                                fontSize: 22,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${linea.pts} PTS · ${linea.reb} REB · ${linea.ast} AST · ${linea.tcI}/${linea.tcA} TC',
-                              style: tema.textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    Escudo(identidadLocal, tamano: 44),
+                    const SizedBox(width: 12),
+                    TextoLed('${motor.puntosLocal}-${motor.puntosVisitante}', tamano: 40),
+                    const SizedBox(width: 12),
+                    Escudo(identidadVisitante, tamano: 44),
                   ],
                 ),
-              ),
-              if (destacadas.isNotEmpty) ...[
-                const SizedBox(height: 20),
-                Text('Las mejores jugadas', style: tema.textTheme.titleMedium),
-                const SizedBox(height: 6),
-                for (final (i, d) in destacadas.indexed)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      backgroundColor: esquema.surfaceContainerHighest,
-                      child: TextoLed('${i + 1}', tamano: 18),
-                    ),
-                    title: Text(d.frase, maxLines: 2, overflow: TextOverflow.ellipsis),
-                    subtitle: Text(
-                      '${d.cuarto > 4 ? 'Prórroga' : '${d.cuarto}.º cuarto'} · '
-                      '${d.reloj ~/ 60}:${(d.reloj % 60).floor().toString().padLeft(2, '0')}',
-                    ),
-                    trailing: const Icon(Icons.slow_motion_video),
-                    onTap: () => showDialog<void>(
-                      context: context,
-                      builder: (_) => Dialog(
-                        insetPadding: const EdgeInsets.all(16),
+                const SizedBox(height: 16),
+                Container(
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: esquema.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: esquema.primary, width: 1.5),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 130,
+                        height: 110,
+                        child: JugadorAvatar(
+                          jugador: jugadorFigura,
+                          franquicia: ganoLocal ? identidadLocal : identidadVisitante,
+                          recortar: true,
+                        ),
+                      ),
+                      Expanded(
                         child: Padding(
                           padding: const EdgeInsets.all(12),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 520),
-                            child: Repeticion(
-                              destacada: d,
-                              franquicia: franquiciaUsuario,
-                              equipaciones: equipaciones,
-                              jugadores: jugadores,
-                              usuarioLocal: usuarioLocal,
-                              escudo: escudo,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'JUGADOR DEL PARTIDO',
+                                style: tema.textTheme.labelMedium?.copyWith(color: esquema.primary),
+                              ),
+                              Text(
+                                jugadorFigura.nombre,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: Fuentes.estadio,
+                                  fontVariations: [FontVariation.weight(800)],
+                                  fontSize: 22,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${linea.pts} PTS · ${linea.reb} REB · ${linea.ast} AST · ${linea.tcI}/${linea.tcA} TC',
+                                style: tema.textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (destacadas.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text('Las mejores jugadas', style: tema.textTheme.titleMedium),
+                  const SizedBox(height: 6),
+                  for (final (i, d) in destacadas.indexed)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor: esquema.surfaceContainerHighest,
+                        child: TextoLed('${i + 1}', tamano: 18),
+                      ),
+                      title: Text(d.frase, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(
+                        '${d.cuarto > 4 ? 'Prórroga' : '${d.cuarto}.º cuarto'} · '
+                        '${d.reloj ~/ 60}:${(d.reloj % 60).floor().toString().padLeft(2, '0')}',
+                      ),
+                      trailing: const Icon(Icons.slow_motion_video),
+                      onTap: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => Dialog(
+                          insetPadding: const EdgeInsets.all(16),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 520),
+                              child: Repeticion(
+                                destacada: d,
+                                franquicia: franquiciaUsuario,
+                                equipaciones: equipaciones,
+                                jugadores: jugadores,
+                                usuarioLocal: usuarioLocal,
+                                escudo: escudo,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-              const SizedBox(height: 16),
-              TabBar(
-                tabs: [
-                  Tab(text: identidadLocal.nombre),
-                  Tab(text: identidadVisitante.nombre),
                 ],
-              ),
-              SizedBox(
-                height: 360,
-                child: TabBarView(
-                  children: [
-                    _Box(box: motor.boxLocal, jugadores: jugadores),
-                    _Box(box: motor.boxVisitante, jugadores: jugadores),
+                const SizedBox(height: 16),
+                TabBar(
+                  tabs: [
+                    Tab(text: identidadLocal.nombre),
+                    Tab(text: identidadVisitante.nombre),
                   ],
                 ),
-              ),
-            ],
+                SizedBox(
+                  height: 360,
+                  child: TabBarView(
+                    children: [
+                      _Box(box: motor.boxLocal, jugadores: jugadores),
+                      _Box(box: motor.boxVisitante, jugadores: jugadores),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

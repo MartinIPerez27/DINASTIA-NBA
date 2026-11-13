@@ -6,6 +6,7 @@ import '../../domain/entities/modo_juego.dart';
 import '../../domain/entities/posicion.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/modos/dinastia.dart';
+import '../compartir/tarjeta_compartir.dart';
 import '../widgets/carta_jugador.dart';
 import '../widgets/texto_led.dart';
 
@@ -267,7 +268,10 @@ class HistoriaDinastiaPantalla extends StatelessWidget {
     final titulos = estado.titulos + (temporada.campeonId == temporada.franquiciaUsuarioId ? 1 : 0);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Historia de la dinastía')),
+      appBar: AppBar(
+        title: const Text('Historia de la dinastía'),
+        actions: [BotonCompartir(temporada: temporada)],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
         children: [

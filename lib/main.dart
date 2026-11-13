@@ -14,6 +14,7 @@ import 'domain/entities/perfil.dart';
 import 'domain/entities/temporada.dart';
 import 'domain/liga.dart';
 import 'domain/progreso.dart';
+import 'domain/reto.dart';
 import 'presentation/modos/modos.dart';
 import 'presentation/pantallas/ajustes_pantalla.dart';
 import 'presentation/pantallas/album_pantalla.dart';
@@ -207,6 +208,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       case FaseTemporada.draft:
         pantalla = DraftPantalla(
           temporada: t,
+          azarPara: Reto.azarPara(t),
           onCambio: _guardarCambios,
           onCompleto: () => _abrirTemporada(_guardada!, reemplazar: true),
         );
@@ -230,7 +232,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   /// Con las tácticas confirmadas se arma la temporada (calendario y rivales) y se abre.
   Future<void> _confirmarTacticas(Temporada t) async {
     final liga = await _ligaLista();
-    final lista = t.calendario.isEmpty && t.modoJuego.usaTemporada ? liga.iniciar(t) : t;
+    final lista = t.calendario.isEmpty && t.modoJuego.usaTemporada ? Reto.ligaPara(liga, t).iniciar(t) : t;
     await _guardarCambios(lista);
     await _abrirTemporada(lista, reemplazar: true);
   }
@@ -276,6 +278,8 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       regla: regla.$1,
       epocaRegla: regla.$2,
       rerollsRestantes: Temporada.rerollsPorTemporada + perfilApp.value.fichasExtra,
+      // Semilla del draft y de la liga: con ella se puede retar a un amigo a jugar el mismo draft.
+      datosModo: Reto.datosNuevos(Temporada.rerollsPorTemporada + perfilApp.value.fichasExtra),
     );
     try {
       await widget.db?.guardarTemporada(t);

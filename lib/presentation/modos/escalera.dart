@@ -14,6 +14,7 @@ import '../../domain/misiones.dart';
 import '../../domain/modos/escalera.dart';
 import '../../domain/motor.dart';
 import '../../domain/premios.dart' show apellido;
+import '../compartir/tarjeta_compartir.dart';
 import '../pantallas/partido_pantalla.dart';
 import '../tema/tema_franquicia.dart';
 import '../widgets/elegir_modo.dart';
@@ -478,6 +479,12 @@ class _Final extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           FilledButton(onPressed: onSalir, child: const Text('VOLVER AL INICIO')),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => compartirPartida(context, temporada),
+            icon: const Icon(Icons.ios_share),
+            label: const Text('COMPARTIR'),
+          ),
         ],
       ),
     );

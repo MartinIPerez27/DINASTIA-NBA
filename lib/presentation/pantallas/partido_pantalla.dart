@@ -16,6 +16,7 @@ import '../partido/voz_relator.dart';
 import 'pospartido_pantalla.dart';
 import '../partido/sonido_partido.dart';
 import '../tema/tema_franquicia.dart';
+import '../widgets/disposicion.dart';
 import '../widgets/escudo.dart';
 import '../widgets/indicador_forma.dart';
 import '../widgets/texto_led.dart';
@@ -525,6 +526,52 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
 
   String _apellido(Jugador j) => apellido(j).toUpperCase();
 
+  /// Teléfono: cancha arriba, controles y panel abajo. Tablet apaisada: cancha a la izquierda (a
+  /// toda la altura) y controles + panel a la derecha, sin scroll.
+  Widget _disponer({required Widget cancha, required Widget controles, required Widget panel}) {
+    if (!esTabletApaisada(context)) {
+      return Column(
+        children: [
+          Expanded(child: cancha),
+          controles,
+          SizedBox(height: 236, child: panel),
+        ],
+      );
+    }
+    // La cancha escala por el ancho: angosta para que entre casi toda a lo alto (como en el
+    // teléfono). A la derecha, el panel elegido y, abajo, el partido (o el relato) siempre a la vista.
+    final abajo = _panel == _Panel.partido
+        ? _RelatoCompleto(lineas: _relato)
+        : _PanelPartido(
+            probabilidad: _probabilidad,
+            parciales: _parciales,
+            local: widget.identidadLocal,
+            visitante: widget.identidadVisitante,
+            usuarioLocal: widget.usuarioLocal,
+          );
+    return LayoutBuilder(
+      builder: (context, c) => Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(width: min(c.maxWidth * 0.5, c.maxHeight * 0.64), child: cancha),
+          const VerticalDivider(width: 1),
+          Expanded(
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
+                controles,
+                const SizedBox(height: 4),
+                Expanded(flex: 5, child: panel),
+                const Divider(height: 1),
+                Expanded(flex: 4, child: abajo),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final esquema = Theme.of(context).colorScheme;
@@ -558,252 +605,242 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
         body: SafeArea(
           child: Stack(
             children: [
-              Column(
-                children: [
-                  Expanded(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        GestureDetector(
-                          onTap: _final ? null : _alternarPausa,
-                          child: AnimatedBuilder(
-                            animation: _c,
-                            builder: (context, _) {
-                              final coreo = _coreo;
-                              if (coreo == null) {
-                                return CustomPaint(
-                                  painter: CanchaPartidoPainter(
-                                    franquicia: widget.franquiciaUsuario,
-                                    fichas: const [],
-                                    balon: const Offset(25, 47),
-                                    camaraY: _camara,
-                                    colorLed: Vestuario.led() ?? esquema.primary,
-                                    estilo: _estilo,
-                                    escudo: _escudo,
-                                    cartel: _cartel(null, 0),
+              _disponer(
+                cancha: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    GestureDetector(
+                      onTap: _final ? null : _alternarPausa,
+                      child: AnimatedBuilder(
+                        animation: _c,
+                        builder: (context, _) {
+                          final coreo = _coreo;
+                          if (coreo == null) {
+                            return CustomPaint(
+                              painter: CanchaPartidoPainter(
+                                franquicia: widget.franquiciaUsuario,
+                                fichas: const [],
+                                balon: const Offset(25, 47),
+                                camaraY: _camara,
+                                colorLed: Vestuario.led() ?? esquema.primary,
+                                estilo: _estilo,
+                                escudo: _escudo,
+                                cartel: _cartel(null, 0),
+                              ),
+                            );
+                          }
+                          final t = _c.value;
+                          final (balon, altura, poseedor) = coreo.balon(t);
+                          final e = coreo.evento;
+                          EfectoAro? efectoAro;
+                          if (e.puntos > 0 && e.tipo == TipoEvento.tiro && t >= coreo.momentoCanasta) {
+                            efectoAro = EfectoAro(
+                              arriba: coreo.haciaArriba,
+                              progreso: ((t - coreo.momentoCanasta) * coreo.duracion / 0.9).clamp(0, 1),
+                              adentro: true,
+                              fuerte: e.volcada,
+                            );
+                          } else if (coreo.momentoAro case final m? when t >= m) {
+                            efectoAro = EfectoAro(
+                              arriba: coreo.haciaArriba,
+                              progreso: ((t - m) * coreo.duracion / 0.7).clamp(0, 1),
+                              adentro: false,
+                            );
+                          }
+                          final estela = [
+                            if (coreo.enTiro(t))
+                              for (var k = 1; k <= 7; k++) coreo.balon(max(0, t - k * 0.012)).$1,
+                          ];
+                          return CustomPaint(
+                            painter: CanchaPartidoPainter(
+                              franquicia: widget.franquiciaUsuario,
+                              colorLed: Vestuario.led() ?? esquema.primary,
+                              estilo: _estilo,
+                              camaraY: _camara,
+                              camaraX: _camaraX,
+                              zoom: _zoom,
+                              escudo: _escudo,
+                              cartel: _cartel(coreo, t),
+                              tiempo: _tiempo,
+                              efectoAro: efectoAro,
+                              margenArriba: 78,
+                              margenAbajo: 50,
+                              balon: balon,
+                              alturaBalon: altura,
+                              estela: estela,
+                              tanto: e.puntos > 0 && t >= coreo.momentoCanasta
+                                  ? Tanto(
+                                      '+${e.puntos}',
+                                      coreo.aro,
+                                      ((t - coreo.momentoCanasta) / (1 - coreo.momentoCanasta + 0.0001)).clamp(0, 1),
+                                    )
+                                  : null,
+                              fichas: [
+                                for (final (id, p, local, opacidad) in _fichas(coreo, t))
+                                  Ficha(
+                                    posicion: p,
+                                    relleno: local == usuarioLocal ? colorPropio : colorRival,
+                                    texto: local == usuarioLocal ? _contraste(colorPropio) : textoRival,
+                                    ribete: local == usuarioLocal ? ribetePropio : ribeteDelRival,
+                                    energia: (energias[id] ?? 100) / 100,
+                                    etiqueta: todos[id]!.dorsal > 0 ? '${todos[id]!.dorsal}' : todos[id]!.iniciales,
+                                    conBalon: poseedor == id,
+                                    nombre: poseedor == id ? _apellido(todos[id]!) : null,
+                                    opacidad: opacidad,
                                   ),
-                                );
-                              }
-                              final t = _c.value;
-                              final (balon, altura, poseedor) = coreo.balon(t);
-                              final e = coreo.evento;
-                              EfectoAro? efectoAro;
-                              if (e.puntos > 0 && e.tipo == TipoEvento.tiro && t >= coreo.momentoCanasta) {
-                                efectoAro = EfectoAro(
-                                  arriba: coreo.haciaArriba,
-                                  progreso: ((t - coreo.momentoCanasta) * coreo.duracion / 0.9).clamp(0, 1),
-                                  adentro: true,
-                                  fuerte: e.volcada,
-                                );
-                              } else if (coreo.momentoAro case final m? when t >= m) {
-                                efectoAro = EfectoAro(
-                                  arriba: coreo.haciaArriba,
-                                  progreso: ((t - m) * coreo.duracion / 0.7).clamp(0, 1),
-                                  adentro: false,
-                                );
-                              }
-                              final estela = [
-                                if (coreo.enTiro(t))
-                                  for (var k = 1; k <= 7; k++) coreo.balon(max(0, t - k * 0.012)).$1,
-                              ];
-                              return CustomPaint(
-                                painter: CanchaPartidoPainter(
-                                  franquicia: widget.franquiciaUsuario,
-                                  colorLed: Vestuario.led() ?? esquema.primary,
-                                  estilo: _estilo,
-                                  camaraY: _camara,
-                                  camaraX: _camaraX,
-                                  zoom: _zoom,
-                                  escudo: _escudo,
-                                  cartel: _cartel(coreo, t),
-                                  tiempo: _tiempo,
-                                  efectoAro: efectoAro,
-                                  margenArriba: 78,
-                                  margenAbajo: 50,
-                                  balon: balon,
-                                  alturaBalon: altura,
-                                  estela: estela,
-                                  tanto: e.puntos > 0 && t >= coreo.momentoCanasta
-                                      ? Tanto(
-                                          '+${e.puntos}',
-                                          coreo.aro,
-                                          ((t - coreo.momentoCanasta) / (1 - coreo.momentoCanasta + 0.0001)).clamp(
-                                            0,
-                                            1,
-                                          ),
-                                        )
-                                      : null,
-                                  fichas: [
-                                    for (final (id, p, local, opacidad) in _fichas(coreo, t))
-                                      Ficha(
-                                        posicion: p,
-                                        relleno: local == usuarioLocal ? colorPropio : colorRival,
-                                        texto: local == usuarioLocal ? _contraste(colorPropio) : textoRival,
-                                        ribete: local == usuarioLocal ? ribetePropio : ribeteDelRival,
-                                        energia: (energias[id] ?? 100) / 100,
-                                        etiqueta: todos[id]!.dorsal > 0 ? '${todos[id]!.dorsal}' : todos[id]!.iniciales,
-                                        conBalon: poseedor == id,
-                                        nombre: poseedor == id ? _apellido(todos[id]!) : null,
-                                        opacidad: opacidad,
-                                      ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        Positioned(
-                          top: 8,
-                          left: 8,
-                          right: 8,
-                          child: AnimatedBuilder(
-                            animation: _c,
-                            builder: (context, _) {
-                              final reloj = _relojDesde + (_relojHasta - _relojDesde) * _c.value;
-                              final tipo = _coreo?.evento.tipo;
-                              final posesion =
-                                  tipo == TipoEvento.tiro || tipo == TipoEvento.perdida || tipo == TipoEvento.libres;
-                              return _MarcadorTV(
-                                local: widget.identidadLocal,
-                                visitante: widget.identidadVisitante,
-                                puntos: _marcador,
-                                cuarto: _cuarto,
-                                reloj: reloj,
-                                posesion: posesion ? max(0, _inicio24 - (_relojDesde - reloj)) : _ultimo24,
-                                faltas: _faltas,
-                                tiemposMuertos: _tiemposMuertos,
-                                clutch: _clutch,
-                                onSalir: _salir,
-                              );
-                            },
-                          ),
-                        ),
-                        if (banner != null) Center(child: _Banner(texto: banner)),
-                        if (_eligiendoJugada && !_final)
-                          Positioned.fill(
-                            child: _SelectorJugada(
-                              marcador: _marcador,
-                              usuarioLocal: usuarioLocal,
-                              reloj: _relojDesde,
-                              onElegir: _elegirJugada,
+                              ],
                             ),
-                          ),
-                        if (_relato.isNotEmpty)
-                          Positioned(left: 12, right: 12, bottom: 10, child: _Zocalo(texto: _relato.first)),
-                        if (_pausado && !_final)
-                          Positioned.fill(
-                            child: GestureDetector(
-                              onTap: _alternarPausa,
-                              child: ColoredBox(
-                                color: Colors.black.withValues(alpha: 0.45),
-                                child: Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const _Banner(texto: 'PAUSA'),
-                                      const SizedBox(height: 8),
-                                      Text('Tocá para seguir', style: TextStyle(color: esquema.onSurface)),
-                                    ],
-                                  ),
-                                ),
+                          );
+                        },
+                      ),
+                    ),
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      right: 8,
+                      child: AnimatedBuilder(
+                        animation: _c,
+                        builder: (context, _) {
+                          final reloj = _relojDesde + (_relojHasta - _relojDesde) * _c.value;
+                          final tipo = _coreo?.evento.tipo;
+                          final posesion =
+                              tipo == TipoEvento.tiro || tipo == TipoEvento.perdida || tipo == TipoEvento.libres;
+                          return _MarcadorTV(
+                            local: widget.identidadLocal,
+                            visitante: widget.identidadVisitante,
+                            puntos: _marcador,
+                            cuarto: _cuarto,
+                            reloj: reloj,
+                            posesion: posesion ? max(0, _inicio24 - (_relojDesde - reloj)) : _ultimo24,
+                            faltas: _faltas,
+                            tiemposMuertos: _tiemposMuertos,
+                            clutch: _clutch,
+                            onSalir: _salir,
+                          );
+                        },
+                      ),
+                    ),
+                    if (banner != null) Center(child: _Banner(texto: banner)),
+                    if (_eligiendoJugada && !_final)
+                      Positioned.fill(
+                        child: _SelectorJugada(
+                          marcador: _marcador,
+                          usuarioLocal: usuarioLocal,
+                          reloj: _relojDesde,
+                          onElegir: _elegirJugada,
+                        ),
+                      ),
+                    if (_relato.isNotEmpty)
+                      Positioned(left: 12, right: 12, bottom: 10, child: _Zocalo(texto: _relato.first)),
+                    if (_pausado && !_final)
+                      Positioned.fill(
+                        child: GestureDetector(
+                          onTap: _alternarPausa,
+                          child: ColoredBox(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const _Banner(texto: 'PAUSA'),
+                                  const SizedBox(height: 8),
+                                  Text('Tocá para seguir', style: TextStyle(color: esquema.onSurface)),
+                                ],
                               ),
                             ),
                           ),
-                      ],
-                    ),
-                  ),
-                  _Controles(
-                    pausado: _pausado,
-                    onPausa: _final ? null : _alternarPausa,
-                    silencio: _silencio,
-                    onSaltar: _final || _m.terminado ? null : (hastaClutch) => _saltar(hastaClutch: hastaClutch),
-                    puedeSaltarCuarto: _cuarto < 4,
-                    onSilencio: () {
-                      setState(() => _silencio = !_silencio);
-                      _sonido.silencio = _silencio;
-                    },
-                    velocidad: _velocidad,
-                    onVelocidad: _cambiarVelocidad,
-                    tiemposMuertos: _m.tiemposMuertos(usuarioLocal),
-                    onTiempoMuerto: _final
-                        ? null
-                        : () {
-                            if (_m.pedirTiempoMuerto(usuarioLocal)) Haptica.media();
-                            setState(() {});
-                          },
-                    acelerar: _acelerar,
-                    onAcelerar: (v) {
-                      _m.acelerarRitmo(usuarioLocal, v);
-                      setState(() => _acelerar = v);
-                    },
-                    presion: _presion,
-                    onPresion: (v) {
-                      _m.presionAlta(usuarioLocal, v);
-                      setState(() => _presion = v);
-                    },
-                  ),
-                  SizedBox(
-                    height: 236,
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: SegmentedButton<_Panel>(
-                            segments: const [
-                              ButtonSegment(value: _Panel.jugadores, label: Text('Equipo')),
-                              ButtonSegment(value: _Panel.tiros, label: Text('Tiros')),
-                              ButtonSegment(value: _Panel.partido, label: Text('Partido')),
-                              ButtonSegment(value: _Panel.relato, label: Text('Relato')),
-                            ],
-                            selected: {_panel},
-                            showSelectedIcon: false,
-                            onSelectionChanged: (s) => setState(() => _panel = s.first),
-                            style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                          ),
                         ),
-                        Expanded(
-                          child: switch (_panel) {
-                            _Panel.jugadores => _EstadisticasVivo(
-                              jugadores: [
-                                ..._m.enCancha(usuarioLocal),
-                                ?_m.enBanco(usuarioLocal),
-                                ..._m.reservas(usuarioLocal),
-                              ],
-                              enCancha: {for (final j in _m.enCancha(usuarioLocal)) j.id},
-                              box: _box,
-                              energia: _m.energias(usuarioLocal),
-                              forma: _m.forma,
-                              rotacionAuto: _m.esRotacionAutomatica(usuarioLocal),
-                              onRotacion: _final ? null : (v) => setState(() => _m.rotacionAutomatica(usuarioLocal, v)),
-                              minutosBanco: _m.nivelMinutosBanco(usuarioLocal),
-                              onMinutos: (v) => setState(() => _m.minutosDelBanco(usuarioLocal, v)),
-                              onSentar: _final
-                                  ? null
-                                  : (id) {
-                                      if (_m.cambiar(usuarioLocal, id)) Haptica.ligera();
-                                      setState(() {});
-                                    },
-                              pendiente: _m.cambioPendiente(usuarioLocal),
-                              expulsados: {
-                                for (final j in _jugadores.values)
-                                  if (_m.expulsado(j.id)) j.id,
-                              },
-                            ),
-                            _Panel.tiros => _MapaTiros(tiros: _tiros, box: _box),
-                            _Panel.partido => _PanelPartido(
-                              probabilidad: _probabilidad,
-                              parciales: _parciales,
-                              local: widget.identidadLocal,
-                              visitante: widget.identidadVisitante,
-                              usuarioLocal: usuarioLocal,
-                            ),
-                            _Panel.relato => _RelatoCompleto(lineas: _relato),
+                      ),
+                  ],
+                ),
+                controles: _Controles(
+                  pausado: _pausado,
+                  onPausa: _final ? null : _alternarPausa,
+                  silencio: _silencio,
+                  onSaltar: _final || _m.terminado ? null : (hastaClutch) => _saltar(hastaClutch: hastaClutch),
+                  puedeSaltarCuarto: _cuarto < 4,
+                  onSilencio: () {
+                    setState(() => _silencio = !_silencio);
+                    _sonido.silencio = _silencio;
+                  },
+                  velocidad: _velocidad,
+                  onVelocidad: _cambiarVelocidad,
+                  tiemposMuertos: _m.tiemposMuertos(usuarioLocal),
+                  onTiempoMuerto: _final
+                      ? null
+                      : () {
+                          if (_m.pedirTiempoMuerto(usuarioLocal)) Haptica.media();
+                          setState(() {});
+                        },
+                  acelerar: _acelerar,
+                  onAcelerar: (v) {
+                    _m.acelerarRitmo(usuarioLocal, v);
+                    setState(() => _acelerar = v);
+                  },
+                  presion: _presion,
+                  onPresion: (v) {
+                    _m.presionAlta(usuarioLocal, v);
+                    setState(() => _presion = v);
+                  },
+                ),
+                panel: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: SegmentedButton<_Panel>(
+                        segments: const [
+                          ButtonSegment(value: _Panel.jugadores, label: Text('Equipo')),
+                          ButtonSegment(value: _Panel.tiros, label: Text('Tiros')),
+                          ButtonSegment(value: _Panel.partido, label: Text('Partido')),
+                          ButtonSegment(value: _Panel.relato, label: Text('Relato')),
+                        ],
+                        selected: {_panel},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (s) => setState(() => _panel = s.first),
+                        style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                      ),
+                    ),
+                    Expanded(
+                      child: switch (_panel) {
+                        _Panel.jugadores => _EstadisticasVivo(
+                          jugadores: [
+                            ..._m.enCancha(usuarioLocal),
+                            ?_m.enBanco(usuarioLocal),
+                            ..._m.reservas(usuarioLocal),
+                          ],
+                          enCancha: {for (final j in _m.enCancha(usuarioLocal)) j.id},
+                          box: _box,
+                          energia: _m.energias(usuarioLocal),
+                          forma: _m.forma,
+                          rotacionAuto: _m.esRotacionAutomatica(usuarioLocal),
+                          onRotacion: _final ? null : (v) => setState(() => _m.rotacionAutomatica(usuarioLocal, v)),
+                          minutosBanco: _m.nivelMinutosBanco(usuarioLocal),
+                          onMinutos: (v) => setState(() => _m.minutosDelBanco(usuarioLocal, v)),
+                          onSentar: _final
+                              ? null
+                              : (id) {
+                                  if (_m.cambiar(usuarioLocal, id)) Haptica.ligera();
+                                  setState(() {});
+                                },
+                          pendiente: _m.cambioPendiente(usuarioLocal),
+                          expulsados: {
+                            for (final j in _jugadores.values)
+                              if (_m.expulsado(j.id)) j.id,
                           },
                         ),
-                      ],
+                        _Panel.tiros => _MapaTiros(tiros: _tiros, box: _box),
+                        _Panel.partido => _PanelPartido(
+                          probabilidad: _probabilidad,
+                          parciales: _parciales,
+                          local: widget.identidadLocal,
+                          visitante: widget.identidadVisitante,
+                          usuarioLocal: usuarioLocal,
+                        ),
+                        _Panel.relato => _RelatoCompleto(lineas: _relato),
+                      },
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               if (_final)
                 Positioned.fill(
@@ -888,25 +925,31 @@ class _MarcadorTV extends StatelessWidget {
             children: [
               Escudo(f, tamano: 28),
               const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  f.id,
-                  maxLines: 1,
-                  overflow: TextOverflow.clip,
-                  style: const TextStyle(
-                    fontFamily: Fuentes.estadio,
-                    fontVariations: [FontVariation.weight(800)],
-                    fontSize: 18,
-                    color: Colors.white,
-                    letterSpacing: 1,
+              // La sigla entera siempre (se achica si no entra, nunca se corta) y los puntos al borde.
+              Expanded(
+                flex: 3,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: derecha ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Text(
+                    f.id,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontFamily: Fuentes.estadio,
+                      fontVariations: [FontVariation.weight(800)],
+                      fontSize: 18,
+                      color: Colors.white,
+                      letterSpacing: 1,
+                    ),
                   ),
                 ),
               ),
-              const Spacer(),
-              Flexible(
+              const SizedBox(width: 4),
+              Expanded(
                 flex: 2,
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
+                  alignment: derecha ? Alignment.centerLeft : Alignment.centerRight,
                   child: TextoLed('$pts', tamano: 28, color: Colors.white),
                 ),
               ),
