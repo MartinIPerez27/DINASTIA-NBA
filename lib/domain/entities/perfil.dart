@@ -1,4 +1,5 @@
 import '../motor.dart';
+import 'metajuego.dart';
 
 /// Logros (GDD: metajuego). Cada uno da XP y monedas la primera vez.
 enum Logro {
@@ -21,7 +22,19 @@ enum Logro {
   tresTemporadas('Trayectoria', 'Terminá 3 temporadas.'),
   recordHistorico('Para la historia', 'Batí un récord de una temporada de la NBA.'),
   tresAllStars('Constelación', 'Tené 3 o más jugadores en el All-Star.'),
-  copaNba('Campeón de la Copa NBA', 'Ganá la Copa NBA de mitad de temporada.');
+  copaNba('Campeón de la Copa NBA', 'Ganá la Copa NBA de mitad de temporada.'),
+  rachaInfinita('Racha infinita', 'Ganá 15 partidos seguidos en la Racha infinita.'),
+  caminoAlAnillo('Camino al anillo', 'Superá los 10 escalones del Camino al anillo.'),
+  mejoresDeLaHistoria('El mejor de todos los tiempos', 'Ganale a los 10 mejores equipos de la historia.'),
+  mundial('Campeón del mundo', 'Ganá el Mundial de franquicias.'),
+  escenario('Otro final', 'Ganá un escenario histórico.'),
+  dinastia3('Dinastía', 'Ganá 3 títulos en una misma Dinastía (o Reescribí la historia).'),
+  revancha('Revancha', 'Eliminá en playoffs a una franquicia que antes te había eliminado.'),
+  campeonExtremo('Sobreviviente', 'Salí campeón en Extremo.'),
+  campeonSoloEntrenador('Pizarrón', 'Salí campeón en Solo entrenador.'),
+  campeonLeyendaUnica('Una leyenda alcanza', 'Salí campeón en Leyenda única.'),
+  campeonEspejo('Contra tu reflejo', 'Salí campeón en Modo espejo.'),
+  desafioCumplido('Desafío cumplido', 'Ganá 50 partidos o más en un Desafío del día.');
 
   const Logro(this.nombre, this.descripcion);
   final String nombre;
@@ -41,6 +54,10 @@ enum TipoTrofeo {
   allNba('Quinteto All-NBA'),
   allStar('All-Star'),
   record('Récord histórico'),
+  caminoAlAnillo('Camino al anillo'),
+  mejoresEquipos('Los mejores de la historia'),
+  mundial('Mundial de franquicias'),
+  escenario('Escenario histórico'),
   copa('Copa NBA');
 
   const TipoTrofeo(this.nombre);
@@ -158,6 +175,9 @@ class PerfilEntrenador {
     this.carrera = const {},
     this.temporadasCerradas = const {},
     this.coleccion = const {},
+    this.mejorRacha = 0,
+    this.desafiosDelDia = const {},
+    this.metajuego = const Metajuego(),
   });
 
   final int xp;
@@ -179,6 +199,15 @@ class PerfilEntrenador {
 
   /// Álbum: cartas que son tuyas (las que fichaste en un draft y las de los sobres de la tienda).
   final Set<String> coleccion;
+
+  /// Mejor Racha infinita (partidos ganados seguidos), para el Salón.
+  final int mejorRacha;
+
+  /// Desafío del día: fecha (aaaammdd) → victorias. Entra al empezar (con 0): uno por día.
+  final Map<String, int> desafiosDelDia;
+
+  /// Misiones, pase de temporada, cosméticos y rivalidades.
+  final Metajuego metajuego;
 
   /// XP total necesaria para llegar a un nivel: 0, 150, 450, 900, 1500…
   static int xpParaNivel(int nivel) => 75 * nivel * (nivel - 1);
@@ -211,6 +240,9 @@ class PerfilEntrenador {
     Map<String, (int, LineaEstadistica)>? carrera,
     Set<String>? temporadasCerradas,
     Set<String>? coleccion,
+    int? mejorRacha,
+    Map<String, int>? desafiosDelDia,
+    Metajuego? metajuego,
   }) => PerfilEntrenador(
     xp: xp ?? this.xp,
     monedas: monedas ?? this.monedas,
@@ -221,6 +253,9 @@ class PerfilEntrenador {
     carrera: carrera ?? this.carrera,
     temporadasCerradas: temporadasCerradas ?? this.temporadasCerradas,
     coleccion: coleccion ?? this.coleccion,
+    mejorRacha: mejorRacha ?? this.mejorRacha,
+    desafiosDelDia: desafiosDelDia ?? this.desafiosDelDia,
+    metajuego: metajuego ?? this.metajuego,
   );
 
   factory PerfilEntrenador.fromJson(Map<String, dynamic> j) => PerfilEntrenador(
@@ -244,6 +279,9 @@ class PerfilEntrenador {
     },
     temporadasCerradas: {...(j['cerradas'] as List? ?? const []).cast<String>()},
     coleccion: {...(j['coleccion'] as List? ?? const []).cast<String>()},
+    mejorRacha: j['mejorRacha'] as int? ?? 0,
+    desafiosDelDia: (j['desafiosDelDia'] as Map<String, dynamic>? ?? {}).map((k, v) => MapEntry(k, v as int)),
+    metajuego: Metajuego.fromJson(j['metajuego'] as Map<String, dynamic>? ?? const {}),
   );
 
   Map<String, dynamic> toJson() => {
@@ -258,5 +296,8 @@ class PerfilEntrenador {
     },
     'cerradas': temporadasCerradas.toList(),
     'coleccion': coleccion.toList(),
+    if (mejorRacha > 0) 'mejorRacha': mejorRacha,
+    if (desafiosDelDia.isNotEmpty) 'desafiosDelDia': desafiosDelDia,
+    'metajuego': metajuego.toJson(),
   };
 }

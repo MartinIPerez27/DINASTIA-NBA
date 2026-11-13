@@ -63,6 +63,33 @@ class Tanto {
   final double progreso; // 0–1
 }
 
+/// Estética de la cancha y la pelota (cosméticos del pase de temporada). La de fábrica es la de
+/// siempre: parquet moderno y pelota naranja.
+class EstiloCancha {
+  const EstiloCancha({
+    this.id = 'moderna',
+    this.superficie = SuperficieCancha.parquet,
+    this.madera = const Color(0xFFA2724A),
+    this.opacidadPintura = 1,
+    this.pelota = const [Color(0xFFE8792B)],
+    this.costura = const Color(0xFF3A1A08),
+  });
+
+  /// Para el caché del piso.
+  final String id;
+  final SuperficieCancha superficie;
+  final Color madera;
+
+  /// Pintura de la zona: 1 = nueva; menos, gastada.
+  final double opacidadPintura;
+
+  /// Un color (lisa) o varios (paneles, como la pelota ABA).
+  final List<Color> pelota;
+  final Color costura;
+}
+
+enum SuperficieCancha { parquet, cuadros, cemento }
+
 /// Transmisión 2D (GDD §6): cancha del usuario vista desde arriba con una cámara que sigue la jugada,
 /// 10 fichas, balón con estela y sombra según la altura, y la luz del estadio.
 class CanchaPartidoPainter extends CustomPainter {
@@ -83,7 +110,11 @@ class CanchaPartidoPainter extends CustomPainter {
     this.efectoAro,
     this.cartel = '',
     this.tiempo = 0,
+    this.estilo = const EstiloCancha(),
   });
+
+  /// Piso y pelota (cosméticos).
+  final EstiloCancha estilo;
 
   /// Centro horizontal de la toma (en pies) y acercamiento (1 = cancha de lado a lado).
   final double camaraX, zoom;
@@ -114,7 +145,7 @@ class CanchaPartidoPainter extends CustomPainter {
 
   /// El piso (madera, pintura, líneas, nombres, escudo) se dibuja una vez por franquicia y escala.
   ui.Picture _pisoCacheado(double pie) {
-    final clave = '${franquicia.id}-${pie.toStringAsFixed(2)}-${escudo != null}';
+    final clave = '${franquicia.id}-${pie.toStringAsFixed(2)}-${escudo != null}-${estilo.id}';
     return _piso[clave] ??= () {
       final grabador = ui.PictureRecorder();
       _dibujarPiso(Canvas(grabador), pie);
@@ -268,9 +299,9 @@ class CanchaPartidoPainter extends CustomPainter {
       rb * 0.85,
       Paint()..color = Colors.black.withValues(alpha: 0.3 * (1 - alturaBalon * 0.5)),
     );
-    canvas.drawCircle(b, rb, Paint()..color = const Color(0xFFE8792B));
+    _cueroPelota(canvas, b, rb);
     final costura = Paint()
-      ..color = const Color(0xFF3A1A08)
+      ..color = estilo.costura
       ..style = PaintingStyle.stroke
       ..strokeWidth = max(0.8, rb * 0.12);
     canvas.drawLine(b - Offset(rb, 0), b + Offset(rb, 0), costura);
@@ -280,10 +311,28 @@ class CanchaPartidoPainter extends CustomPainter {
       b,
       rb,
       Paint()
-        ..color = const Color(0xFF3A1A08)
+        ..color = estilo.costura
         ..style = PaintingStyle.stroke
         ..strokeWidth = max(0.8, rb * 0.1),
     );
+  }
+
+  /// Cuero liso o en paneles diagonales (la ABA: roja, blanca y azul).
+  void _cueroPelota(Canvas canvas, Offset b, double rb) {
+    final colores = estilo.pelota;
+    if (colores.length == 1) {
+      canvas.drawCircle(b, rb, Paint()..color = colores.first);
+      return;
+    }
+    canvas.save();
+    canvas.clipPath(Path()..addOval(Rect.fromCircle(center: b, radius: rb)));
+    canvas.translate(b.dx, b.dy);
+    canvas.rotate(-pi / 4);
+    final ancho = 2 * rb / colores.length;
+    for (final (i, c) in colores.indexed) {
+      canvas.drawRect(Rect.fromLTWH(-rb + i * ancho, -rb, ancho + 0.5, 2 * rb), Paint()..color = c);
+    }
+    canvas.restore();
   }
 
   /// Aro visto desde arriba: base acolchada detrás del fondo, brazo, tablero de vidrio con su
@@ -444,17 +493,20 @@ class CanchaPartidoPainter extends CustomPainter {
     final borde = hsl.withLightness((hsl.lightness * 0.7).clamp(0.08, 0.4)).toColor();
     canvas.drawRect(total, Paint()..color = borde);
 
-    // Madera con tablas, juntas y vetas.
+    // Madera con tablas, juntas y vetas (o el piso elegido en el vestuario).
     final cancha = Rect.fromPoints(p(0, 0), p(Cancha94.ancho, Cancha94.largo));
     canvas.save();
     canvas.clipRect(cancha);
-    const madera = Color(0xFFA2724A);
+    if (estilo.superficie != SuperficieCancha.parquet) {
+      _superficieEspecial(canvas, cancha, pie);
+    }
+    final madera = estilo.madera;
     final tabla = cancha.width / 30;
     final azar = Random(94);
     final veta = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.7;
-    for (var i = 0; i * tabla < cancha.width; i++) {
+    for (var i = 0; estilo.superficie == SuperficieCancha.parquet && i * tabla < cancha.width; i++) {
       final x = cancha.left + i * tabla;
       final tono = HSLColor.fromColor(madera);
       canvas.drawRect(
@@ -512,7 +564,7 @@ class CanchaPartidoPainter extends CustomPainter {
     for (final arriba in [true, false]) {
       double y(double d) => arriba ? d : Cancha94.largo - d;
       final zona = Rect.fromPoints(p(17, y(0)), p(33, y(19)));
-      canvas.drawRect(zona, Paint()..color = pintura);
+      canvas.drawRect(zona, Paint()..color = pintura.withValues(alpha: estilo.opacidadPintura));
       canvas.drawRect(zona, linea);
       canvas.drawCircle(p(25, y(19)), 6 * pie, linea);
       for (final d in [7.0, 10.5, 13.5, 16.5]) {
@@ -554,6 +606,54 @@ class CanchaPartidoPainter extends CustomPainter {
       nombre.paint(canvas, Offset(-nombre.width / 2, -nombre.height / 2));
       canvas.restore();
     }
+  }
+
+  /// Damero de parquet (tablas que cambian de sentido) o cemento de barrio con manchas.
+  void _superficieEspecial(Canvas canvas, Rect cancha, double pie) {
+    final azar = Random(70);
+    final tono = HSLColor.fromColor(estilo.madera);
+    if (estilo.superficie == SuperficieCancha.cuadros) {
+      final lado = 5 * pie;
+      final junta = Paint()
+        ..color = Colors.black.withValues(alpha: 0.22)
+        ..strokeWidth = 0.6;
+      for (var fila = 0; fila * lado < cancha.height; fila++) {
+        for (var col = 0; col * lado < cancha.width; col++) {
+          final r = Rect.fromLTWH(cancha.left + col * lado, cancha.top + fila * lado, lado, lado);
+          final par = (fila + col).isEven;
+          final luz = (tono.lightness + (par ? 0.04 : -0.04) + (azar.nextDouble() - 0.5) * 0.03).clamp(0.0, 1.0);
+          canvas.drawRect(r, Paint()..color = tono.withLightness(luz).toColor());
+          // Cuatro tablitas por cuadro, verticales u horizontales según el damero.
+          for (var k = 1; k < 4; k++) {
+            final d = lado * k / 4;
+            par
+                ? canvas.drawLine(Offset(r.left + d, r.top), Offset(r.left + d, r.bottom), junta)
+                : canvas.drawLine(Offset(r.left, r.top + d), Offset(r.right, r.top + d), junta);
+          }
+          canvas.drawRect(r, junta..style = PaintingStyle.stroke);
+          junta.style = PaintingStyle.fill;
+        }
+      }
+      return;
+    }
+    canvas.drawRect(cancha, Paint()..color = estilo.madera);
+    final mancha = Paint();
+    for (var k = 0; k < 260; k++) {
+      final c = Offset(
+        cancha.left + azar.nextDouble() * cancha.width,
+        cancha.top + azar.nextDouble() * cancha.height,
+      );
+      mancha.color = (azar.nextBool() ? Colors.black : Colors.white).withValues(alpha: 0.04 + azar.nextDouble() * 0.05);
+      canvas.drawCircle(c, pie * (0.3 + azar.nextDouble() * 1.6), mancha);
+    }
+    // Juntas de dilatación del cemento.
+    final junta = Paint()
+      ..color = Colors.black.withValues(alpha: 0.25)
+      ..strokeWidth = 0.8;
+    for (var y = cancha.top + 15 * pie; y < cancha.bottom; y += 15 * pie) {
+      canvas.drawLine(Offset(cancha.left, y), Offset(cancha.right, y), junta);
+    }
+    canvas.drawLine(Offset(cancha.center.dx, cancha.top), Offset(cancha.center.dx, cancha.bottom), junta);
   }
 
   @override

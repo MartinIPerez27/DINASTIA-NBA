@@ -19,6 +19,8 @@ import 'presentation/pantallas/ajustes_pantalla.dart';
 import 'presentation/pantallas/album_pantalla.dart';
 import 'presentation/pantallas/draft_pantalla.dart';
 import 'presentation/pantallas/inicio_pantalla.dart';
+import 'presentation/pantallas/misiones_pantalla.dart';
+import 'presentation/pantallas/vestuario_pantalla.dart';
 import 'presentation/pantallas/partidas_pantalla.dart';
 import 'presentation/pantallas/perfil_pantalla.dart';
 import 'presentation/pantallas/playbook_pantalla.dart';
@@ -121,7 +123,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
 
   Future<void> _abrirPerfil() async {
     final liga = await _ligaLista();
-    _navegador.currentState?.push(MaterialPageRoute<void>(builder: (_) => PerfilPantalla(jugador: liga.jugador)));
+    _navegador.currentState?.push(MaterialPageRoute<void>(builder: (_) => PerfilPantalla(jugador: liga.jugador, onVestuario: _abrirVestuario)));
   }
 
   Future<void> _abrirPartidas() async {
@@ -145,6 +147,19 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       if (mounted) setState(() => _guardada = ultima);
     }
   }
+
+  void _guardarPerfil(PerfilEntrenador p) {
+    perfilApp.value = p;
+    widget.db?.escribir('perfil', p.toJson()).ignore();
+  }
+
+  void _abrirMisiones() => _navegador.currentState?.push(
+    MaterialPageRoute<void>(builder: (_) => MisionesPantalla(franquicia: _enfocada, onPerfil: _guardarPerfil)),
+  );
+
+  void _abrirVestuario() => _navegador.currentState?.push(
+    MaterialPageRoute<void>(builder: (_) => VestuarioPantalla(franquicia: _enfocada, onPerfil: _guardarPerfil)),
+  );
 
   Future<void> _abrirAlbum() async {
     final liga = await _ligaLista();
@@ -293,6 +308,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       onAlbum: _abrirAlbum,
       onAjustes: _abrirAjustes,
       onModos: _abrirModos,
+      onMisiones: _abrirMisiones,
     ),
   );
 }

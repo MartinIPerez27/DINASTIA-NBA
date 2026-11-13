@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../data/estado_app.dart';
 import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/temporada.dart';
+import '../../domain/misiones.dart';
 import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
 import '../widgets/haptica.dart';
@@ -24,6 +25,7 @@ class InicioPantalla extends StatelessWidget {
     this.onAjustes,
     this.onAlbum,
     this.onModos,
+    this.onMisiones,
   });
 
   final List<Franquicia> franquicias;
@@ -41,6 +43,9 @@ class InicioPantalla extends StatelessWidget {
 
   /// Menú con el resto de los modos (desafíos, torneos, carrera, con amigos).
   final VoidCallback? onModos;
+
+  /// Misiones diarias y semanales, pase de temporada y vestuario.
+  final VoidCallback? onMisiones;
 
   void _enfocar(Franquicia f) {
     if (f == enfocada) return;
@@ -65,7 +70,13 @@ class InicioPantalla extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _BarraCarrera(onPerfil: onPerfil, onPartidas: onPartidas, onAjustes: onAjustes, onAlbum: onAlbum),
+                    _BarraCarrera(
+                      onPerfil: onPerfil,
+                      onPartidas: onPartidas,
+                      onAjustes: onAjustes,
+                      onAlbum: onAlbum,
+                      onMisiones: onMisiones,
+                    ),
                     const SizedBox(height: 8),
                     const _Encabezado(),
                     const SizedBox(height: 16),
@@ -126,9 +137,10 @@ class _BarraCarrera extends StatelessWidget {
     required this.onPartidas,
     required this.onAjustes,
     required this.onAlbum,
+    this.onMisiones,
   });
 
-  final VoidCallback? onPerfil, onPartidas, onAjustes, onAlbum;
+  final VoidCallback? onPerfil, onPartidas, onAjustes, onAlbum, onMisiones;
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +150,12 @@ class _BarraCarrera extends StatelessWidget {
       valueListenable: perfilApp,
       builder: (context, perfil, _) => Row(
         children: [
-          Semantics(
+          // En teléfonos angostos la píldora se achica apenas antes que tapar los íconos.
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Semantics(
             button: true,
             label: 'Tu carrera: nivel ${perfil.nivel}, ${perfil.monedas} monedas',
             child: ExcludeSemantics(
@@ -181,7 +198,18 @@ class _BarraCarrera extends StatelessWidget {
               ),
             ),
           ),
-          const Spacer(),
+            ),
+          ),
+          if (onMisiones != null)
+            IconButton(
+              onPressed: onMisiones,
+              icon: Badge(
+                isLabelVisible: Misiones.hayParaReclamar(perfil),
+                smallSize: 8,
+                child: const Icon(Icons.flag_outlined),
+              ),
+              tooltip: 'Misiones y pase',
+            ),
           IconButton(
             onPressed: onPartidas,
             icon: const Icon(Icons.folder_open_outlined),

@@ -4,6 +4,7 @@ import 'calendario.dart';
 import 'entities/entrenador.dart';
 import 'entities/franquicia.dart';
 import 'entities/jugador.dart';
+import 'entities/modo_juego.dart';
 import 'entities/partido.dart';
 import 'entities/plantel.dart';
 import 'entities/posicion.dart';
@@ -23,9 +24,10 @@ class Liga {
   late final Map<String, Jugador> _porId = {for (final j in catalogo) j.id: j};
 
   /// Prepara la temporada: calendario oficial y los 29 rivales (mitad históricos, mitad de época).
-  Temporada iniciar(Temporada t) {
+  /// [excluidos]: personas que tampoco pueden estar en los rivales (p. ej. tu plantel en el Modo espejo).
+  Temporada iniciar(Temporada t, {Set<int> excluidos = const {}}) {
     if (!t.plantel.completo || !t.tacticaConfirmada) throw StateError('Faltan el plantel o las tácticas.');
-    final propios = {for (final j in t.plantel.jugadores) j.nbaPlayerId};
+    final propios = {for (final j in t.plantel.jugadores) j.nbaPlayerId, ...excluidos};
     return t.copyWith(
       calendario: generarCalendario(franquicias, _azar),
       rivales: {
@@ -339,7 +341,7 @@ class Liga {
             final m = motor(t, p, lesiones: lesiones)..simularTodo();
             _sumarBox(lineas, m);
             _actualizarForma(forma, m);
-            _actualizarLesiones(lesiones, p, m, equipoDe);
+            _actualizarLesiones(lesiones, p, m, equipoDe, extremo: t.modoJuego == ModoJuego.extremo);
             return p.conResultado(m.parcialesLocal, m.parcialesVisitante);
           }()
         else
@@ -355,7 +357,9 @@ class Liga {
     final forma = Map.of(t.forma);
     _actualizarForma(forma, m);
     final lesiones = Map.of(t.lesiones);
-    if (partido.jornada > 0) _actualizarLesiones(lesiones, partido, m, equipos(t));
+    if (partido.jornada > 0) {
+      _actualizarLesiones(lesiones, partido, m, equipos(t), extremo: t.modoJuego == ModoJuego.extremo);
+    }
     final calendario = [
       for (final p in t.calendario) p.id == partido.id ? p.conResultado(m.parcialesLocal, m.parcialesVisitante) : p,
     ];
@@ -364,7 +368,14 @@ class Liga {
 
   /// Lesiones: los lesionados de los dos equipos se pierden este partido (uno menos); y cada uno que
   /// jugó tiene una chance chica de lesionarse (casi siempre poco tiempo; a veces, semanas).
-  void _actualizarLesiones(Map<String, int> lesiones, Partido p, MotorPartido m, Map<String, String> equipoDe) {
+  /// En Extremo ([extremo]) son el doble de probables y duran 50 % más.
+  void _actualizarLesiones(
+    Map<String, int> lesiones,
+    Partido p,
+    MotorPartido m,
+    Map<String, String> equipoDe, {
+    bool extremo = false,
+  }) {
     String? equipo(String id) => equipoDe[id] ?? _porId[id]?.franquiciaId;
     for (final id in lesiones.keys.toList()) {
       final f = equipo(id);
@@ -377,9 +388,11 @@ class Liga {
       }
     }
     for (final e in [...m.boxLocal.entries, ...m.boxVisitante.entries]) {
-      if (e.value.seg < 60 || lesiones.containsKey(e.key) || _azar.nextDouble() >= probabilidadLesion) continue;
+      final chance = probabilidadLesion * (extremo ? 2 : 1);
+      if (e.value.seg < 60 || lesiones.containsKey(e.key) || _azar.nextDouble() >= chance) continue;
       final r = _azar.nextDouble();
-      lesiones[e.key] = r < 0.6 ? 1 + _azar.nextInt(3) : (r < 0.9 ? 4 + _azar.nextInt(7) : 11 + _azar.nextInt(15));
+      final dias = r < 0.6 ? 1 + _azar.nextInt(3) : (r < 0.9 ? 4 + _azar.nextInt(7) : 11 + _azar.nextInt(15));
+      lesiones[e.key] = extremo ? (dias * 1.5).ceil() : dias;
     }
   }
 

@@ -8,6 +8,7 @@ import '../../domain/entities/jugador.dart';
 import '../../domain/motor.dart';
 import 'cancha_partido.dart';
 import 'coreografia.dart';
+import '../tema/vestuario.dart';
 import '../../domain/premios.dart' show apellido;
 
 /// Colores de las dos camisetas del partido (relleno, número y ribete).
@@ -163,7 +164,8 @@ class _RepeticionState extends State<Repeticion> with SingleTickerProviderStateM
                   size: Size.infinite,
                   painter: CanchaPartidoPainter(
                     franquicia: widget.franquicia,
-                    colorLed: esquema.primary,
+                    colorLed: Vestuario.led() ?? esquema.primary,
+                    estilo: Vestuario.cancha(),
                     camaraY: coreo.foco(t),
                     camaraX: Cancha94.ancho / 2 + (balon.dx - Cancha94.ancho / 2) * 0.7,
                     zoom: min(1.35, coreo.zoom(t) + 0.12),

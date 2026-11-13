@@ -3,10 +3,17 @@ import 'dart:math';
 import 'all_star.dart';
 import 'entities/perfil.dart';
 import 'entities/temporada.dart';
+import 'entities/metajuego.dart';
 import 'liga.dart';
+import 'misiones.dart';
+import 'modos/amigos.dart';
+import 'modos/dinastia.dart';
+import 'modos/escalera.dart';
+import 'modos/progreso_escalera.dart';
 import 'historicos.dart';
 import 'motor.dart';
 import 'premios.dart';
+import 'variantes.dart';
 
 /// Algo que el jugador ganó y conviene mostrarle (XP, logro, nivel, trofeo).
 class Novedad {
@@ -22,12 +29,16 @@ class Novedad {
 /// Progreso del entrenador (metajuego): compara la temporada antes y después de un cambio y
 /// reparte XP, monedas, puntaje, logros, trofeos e historial. Puro: no guarda nada.
 class Progreso {
-  Progreso(this.liga);
+  Progreso(this.liga, {this.reloj});
 
   final Liga liga;
 
+  /// Reloj para las misiones (las de hoy y las de esta semana); por defecto, el del sistema.
+  final DateTime Function()? reloj;
+
   static const _xpVictoria = 30, _xpDerrota = 10, _xpVictoriaPlayoff = 50, _xpDerrotaPlayoff = 15;
   static const _xpLogro = 100, _monedasLogro = 50;
+  static const _xpRevancha = 150, _monedasRevancha = 75;
 
   static double _multiplicador(Dificultad d) => switch (d) {
     Dificultad.normal => 1,
@@ -37,12 +48,15 @@ class Progreso {
 
   (PerfilEntrenador, List<Novedad>) aplicar(PerfilEntrenador perfil, Temporada? antes, Temporada despues) {
     if (antes == null || antes.id != despues.id) return (perfil, const []);
+    // Entre amigos (draft en grupo, duelo): sin récords ni títulos para tu carrera; solo un poco de
+    // XP por jugarla entera.
+    if (PartidaAmigos.esModoDeAmigos(despues.modoJuego)) return _amigos(perfil, antes, despues);
     final novedades = <Novedad>[];
     final nivelAntes = perfil.nivel;
     var p = perfil;
     // Álbum: lo que fichás en el draft queda en tu colección.
     final nuevas = {for (final j in despues.plantel.jugadores) j.id}.difference(p.coleccion);
-    if (nuevas.isNotEmpty) p = p.copyWith(coleccion: {...p.coleccion, ...nuevas});
+    if (nuevas.isNotEmpty && sumaAlAlbum(despues)) p = p.copyWith(coleccion: {...p.coleccion, ...nuevas});
     final mult = _multiplicador(despues.dificultad);
     final usuario = despues.franquiciaUsuarioId;
 
@@ -126,6 +140,8 @@ class Progreso {
       if (propias.every((s) => _victorias(s, usuario).$2 == 0)) lograr(Logro.invictoPlayoffs);
       if (despues.dificultad == Dificultad.dificil) lograr(Logro.campeonDificil);
       if (despues.dificultad == Dificultad.leyenda) lograr(Logro.campeonLeyenda);
+      // Dinastía: 3 títulos en la misma carrera (los anteriores más este).
+      if (CarreraDinastia.esCarrera(despues) && EstadoDinastia.de(despues).titulos + 1 >= 3) lograr(Logro.dinastia3);
     }
     // All-Star: 3 o más convocados tuyos.
     if (!logros.containsKey(Logro.tresAllStars)) {
@@ -145,7 +161,15 @@ class Progreso {
       );
       novedades.add(Novedad('Trofeo: ${TipoTrofeo.copa.nombre}', destacada: true));
     }
+    // Modos de escalera (Racha infinita, Camino al anillo, mejores equipos, Mundial, escenarios).
+    if (ProgresoEscalera.entre(antes, despues) case final pe?) {
+      p = premiarEscalera(p, pe, despues, mult, novedades);
+      logrosDeEscalera(pe, despues).forEach(lograr);
+    }
+    // Variantes (Extremo, Solo entrenador, Leyenda única, Espejo, Desafío del día).
+    logrosDeVariante(antes, despues).forEach(lograr);
     p = p.copyWith(logros: logros);
+    p = premiarVariante(p, antes, despues, novedades);
 
     // Cierre de temporada: Salón de la Fama, vitrina y carrera de cada carta.
     if (despues.campeonId != null && !p.temporadasCerradas.contains(despues.id)) {
@@ -153,6 +177,35 @@ class Progreso {
       if (p.historial.length >= 3) {
         lograr(Logro.tresTemporadas);
         p = p.copyWith(logros: logros);
+      }
+    }
+
+    // Misiones, pase de temporada y rivalidades ("Revancha").
+    final sumas = Misiones.diferencias(antes, despues);
+    Misiones.cobrarPendientes().forEach((k, v) => sumas[k] = (sumas[k] ?? 0) + v);
+    final (meta, revanchas) = Rivalidades.registrar(
+      Misiones.avanzar(Misiones.alDia(p.metajuego, reloj?.call() ?? DateTime.now()), sumas),
+      antes,
+      despues,
+      numero: p.historial.length + (p.temporadasCerradas.contains(despues.id) ? 0 : 1),
+    );
+    final puntosJuego = ganados * PaseTemporada.puntosVictoria + perdidos * PaseTemporada.puntosDerrota;
+    p = p.copyWith(metajuego: meta.copyWith(puntosPase: meta.puntosPase + puntosJuego));
+    for (final id in revanchas) {
+      final nombre = liga.franquicias.where((f) => f.id == id).firstOrNull?.nombreCompleto ?? id;
+      novedades.add(Novedad('¡Revancha cumplida!', detalle: 'Eliminaste a $nombre', destacada: true));
+      p = p.copyWith(
+        xp: p.xp + _xpRevancha,
+        monedas: p.monedas + _monedasRevancha,
+        metajuego: p.metajuego.copyWith(puntosPase: p.metajuego.puntosPase + 200),
+      );
+      lograr(Logro.revancha);
+      p = p.copyWith(logros: logros);
+    }
+    for (final m in p.metajuego.misiones) {
+      final antesM = perfil.metajuego.misiones.where((x) => x.id == m.id).firstOrNull;
+      if (m.cumplida && !m.reclamada && !(antesM?.cumplida ?? false)) {
+        novedades.add(Novedad('Misión cumplida', detalle: '${m.texto}: cobrala en Misiones'));
       }
     }
 
@@ -164,12 +217,29 @@ class Progreso {
       novedades.add(
         Novedad(
           '¡Nivel ${p.nivel}!',
-          detalle: nuevas.isEmpty ? null : 'Nueva ventaja: ${nuevas.join(' · ')}',
+          detalle: [
+            if (nuevas.isNotEmpty) 'Nueva ventaja: ${nuevas.join(' · ')}',
+            for (final c in Cosmetico.values)
+              if (c.nivelEntrenador != null && c.nivelEntrenador! > nivelAntes && c.nivelEntrenador! <= p.nivel)
+                'Nuevo en el vestuario: ${c.nombre}',
+          ].join(' · ').ifEmptyNull,
           destacada: true,
         ),
       );
     }
     return (p, novedades);
+  }
+
+  static const xpPartidaAmigos = 40;
+
+  (PerfilEntrenador, List<Novedad>) _amigos(PerfilEntrenador perfil, Temporada antes, Temporada despues) {
+    final termino = PartidaAmigos.de(despues)?.fase == FaseAmigos.terminada;
+    final yaTerminada = PartidaAmigos.de(antes)?.fase == FaseAmigos.terminada;
+    if (!termino || yaTerminada) return (perfil, const []);
+    return (
+      perfil.copyWith(xp: perfil.xp + xpPartidaAmigos),
+      const [Novedad('+$xpPartidaAmigos XP · partida entre amigos')],
+    );
   }
 
   PerfilEntrenador _cerrar(PerfilEntrenador p, Temporada t, List<Novedad> novedades) {
@@ -313,4 +383,8 @@ class Progreso {
     final esperado = 1 / (1 + pow(10, (fuerza - puntaje) / 400));
     return (puntaje + 20 * ((gano ? 1 : 0) - esperado)).round();
   }
+}
+
+extension on String {
+  String? get ifEmptyNull => isEmpty ? null : this;
 }

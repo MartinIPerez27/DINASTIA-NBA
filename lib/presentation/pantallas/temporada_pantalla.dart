@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../data/estado_app.dart';
 import '../../data/franquicias.dart';
 import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/partido.dart';
@@ -10,6 +11,7 @@ import '../../domain/entities/rival.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/copa.dart';
 import '../../domain/liga.dart';
+import '../../domain/misiones.dart';
 import '../../domain/mercado.dart';
 import '../../domain/motor.dart';
 import '../temporada/clima_temporada.dart';
@@ -35,7 +37,11 @@ class TemporadaPantalla extends StatefulWidget {
     required this.liga,
     required this.onCambio,
     this.onPlayoffs,
+    this.acciones = const [],
   });
+
+  /// Botones extra en la barra (p. ej. la historia de la dinastía).
+  final List<Widget> acciones;
 
   final Temporada temporada;
   final Liga liga;
@@ -209,6 +215,7 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
             tooltip: 'STATS 82',
           ),
           IconButton(onPressed: _abrirPlaybook, icon: const Icon(Icons.tune), tooltip: 'Tácticas'),
+          ...widget.acciones,
         ],
       ),
       body: SafeArea(
@@ -252,7 +259,9 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
                             : proximo.localId;
                         final (v, d, partidos) = _t.historialContra(rivalId);
                         final (backToBack, gira) = _liga.desgaste(_t, proximo, _t.franquiciaUsuarioId);
+                        final revancha = Rivalidades.contexto(perfilApp.value, _t, rivalId);
                         return [
+                          if (revancha != null) 'REVANCHA · $revancha',
                           if (v + d > 0) 'Serie de la temporada: $v-$d' else 'Primer cruce de ${partidos.length}',
                           if (backToBack) 'Back-to-back',
                           if (gira >= 3) 'Gira: $gira.º seguido de visitante',
@@ -665,7 +674,7 @@ class _ProximoPartido extends StatelessWidget {
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
-                                  color: c.startsWith('Back') || c.startsWith('Gira')
+                                  color: c.startsWith('Back') || c.startsWith('Gira') || c.startsWith('REVANCHA')
                                       ? esquema.error
                                       : esquema.outlineVariant,
                                 ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../tema/tema_franquicia.dart';
+import '../tema/vestuario.dart';
 
 /// Texto en puntos LED. Detrás, los mismos dígitos en "8" quedan apagados, como en un tablero real.
 class TextoLed extends StatelessWidget {
@@ -12,7 +13,8 @@ class TextoLed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final encendido = color ?? Theme.of(context).colorScheme.primary;
+    // Sin color pedido: el tema de LED del vestuario o, de fábrica, el color de la franquicia.
+    final encendido = color ?? Vestuario.led() ?? Theme.of(context).colorScheme.primary;
     final estilo = TextStyle(
       fontFamily: Fuentes.led,
       fontSize: tamano,
