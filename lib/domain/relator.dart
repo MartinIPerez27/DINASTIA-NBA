@@ -20,6 +20,7 @@ class Relator {
     final quien = _apellido(jugadores[e.jugadorId]);
     final asistente = _apellido(jugadores[e.asistenteId]);
     final defensor = _apellido(jugadores[e.defensorId]);
+    final participante = _apellido(jugadores[e.participanteId]);
     final rebote = _apellido(jugadores[e.reboteId]);
     final diferencia = e.marcadorLocal - e.marcadorVisitante;
     final cambioDeMando = _ultimaDiferencia != 0 && diferencia != 0 && diferencia.sign != _ultimaDiferencia.sign;
@@ -28,6 +29,23 @@ class Relator {
     _ultimaDiferencia = diferencia;
 
     final base = switch (e.tipo) {
+      TipoEvento.tiro when e.convertido && e.desdeLejos => _uno([
+        '¡NO PUEDE SER! ¡$quien desde la otra mitad, SOBRE LA CHICHARRA!',
+        '¡DESDE SU CASA! ¡$quien la tiró de todo el largo y entró con la chicharra!',
+      ]),
+      TipoEvento.tiro when e.desdeLejos => _uno([
+        'Se termina el cuarto: $quien la tira desde la otra mitad… no.',
+        'Lanzamiento desesperado de $quien con la chicharra: ni cerca.',
+        '$quien prueba desde lejísimos sobre la bocina: afuera.',
+      ]),
+      TipoEvento.tiro when e.convertido && e.interferencia => _uno([
+        '¡Interferencia de $defensor! La tocó bajando: los dos puntos son de $quien.',
+        'Tapón ilegal de $defensor, la pelota ya bajaba: canasta para $quien.',
+      ]),
+      TipoEvento.tiro when e.convertido && e.chicharra => _uno([
+        '¡SOBRE LA CHICHARRA! $quien ${e.triple ? 'la clavó de tres' : 'la metió'} con el reloj en cero.',
+        '¡Con la bocina! $quien cierra el cuarto con ${e.triple ? 'un triple' : 'un doble'}.',
+      ]),
       TipoEvento.tiro when e.convertido && e.alleyOop => _uno([
         '¡ALLEY-OOP! $asistente la tiró al cielo y $quien la bajó con todo.',
         '¡Qué conexión! Pase alto de $asistente y $quien la colgó del aro.',
@@ -53,9 +71,15 @@ class Relator {
         '$quien la deja suave contra el tablero.',
         '$quien, de media distancia: dos más.',
       ]),
+      TipoEvento.tiro when e.taponado && e.reboteOfensivo => _uno([
+        '¡TAPÓN de $defensor a $quien! Pero la recupera $rebote: sigue el ataque.',
+        '¡Le pusieron una tapa a $quien! $rebote la rescata y siguen con la pelota.',
+      ]),
       TipoEvento.tiro when e.taponado => _uno([
         '¡TAPÓN de $defensor! ¡Ahí no, $quien!',
         '¡Se la mandó a la tribuna! Tapa $defensor.',
+        '¡Qué tapa, señores! $defensor le dijo que no a $quien.',
+        '¡Rechazo de $defensor! $quien se comió la tapa.',
       ]),
       TipoEvento.tiro when e.reboteOfensivo => _uno([
         'La erró $quien pero $rebote pelea el rebote ofensivo: segunda chance.',
@@ -77,10 +101,61 @@ class Relator {
         '¡Manotazo de $defensor! Le sacó la pelota a $quien.',
         '¡Lectura perfecta de $defensor, que corta el pase!',
       ]),
-      TipoEvento.perdida => _uno([
-        'Pérdida de $quien: la pelota se fue afuera.',
-        'Error no forzado de $quien. Cambio de posesión.',
-        'Pasos de $quien, cobra el árbitro.',
+      TipoEvento.perdida => switch (e.perdida) {
+        TipoPerdida.carga => _uno([
+          '¡Falta en ataque de $quien! $participante plantó los pies y recibió la carga.',
+          '¡Carga! $quien se lo llevó puesto a $participante: pelota para el rival.',
+          '$participante se quedó parado y aguantó el impacto: falta en ataque de $quien.',
+        ]),
+        TipoPerdida.veinticuatro => _uno([
+          '¡Violación de 24 segundos! No encontraron el tiro.',
+          'Suena la bocina de posesión: se les fueron los 24 segundos.',
+        ]),
+        TipoPerdida.tresSegundos => _uno([
+          'Tres segundos en la zona: $quien se quedó plantado en la pintura.',
+          'Cobran tres segundos a $quien. Pelota para el otro lado.',
+        ]),
+        TipoPerdida.campoAtras => _uno([
+          '¡Campo atrás! $quien volvió a su mitad con la pelota.',
+          '$quien cruzó la mitad y se le escapó para atrás: campo atrás.',
+        ]),
+        TipoPerdida.pasos => _uno(['Pasos de $quien, cobra el árbitro.', '$quien arrancó sin picar: ¡caminó!']),
+        TipoPerdida.dobles => _uno([
+          'Doble dribbling de $quien. Error de principiante.',
+          '$quien volvió a picar después de agarrarla: dobles.',
+        ]),
+        _ => _uno([
+          'Pérdida de $quien: la pelota se fue afuera.',
+          'Error no forzado de $quien: se le fue por el costado.',
+          'Pase de $quien a la tribuna. Cambio de posesión.',
+        ]),
+      },
+      TipoEvento.falta => switch (e.falta) {
+        TipoFalta.tecnica => _uno([
+          '¡Técnica para $defensor! Protestó de más. $quien ${_libresTexto(e)}',
+          'Se calentó $defensor y el árbitro le cobró técnica. $quien ${_libresTexto(e)}',
+        ]),
+        TipoFalta.flagrante => _uno([
+          '¡FLAGRANTE de $defensor! Le pegó fuerte a $quien. ${_libresTexto(e)} y la pelota sigue siendo de ellos.',
+          '¡Durísimo $defensor! Falta flagrante sobre $quien: ${_libresTexto(e)} y posesión.',
+        ]),
+        TipoFalta.intencional => _uno([
+          'Falta intencional de $defensor: la manda a la línea a propósito. $quien ${_libresTexto(e)}',
+          'Paran el reloj: $defensor hace falta enseguida para mandar a $quien a la línea. ${_libresTexto(e)}',
+        ]),
+        TipoFalta.bonus => _uno([
+          '¡Están en bonus! Falta de $defensor y $quien va a la línea: ${_libresTexto(e)}',
+          'Quinta falta del equipo en el cuarto: libres para $quien. ${_libresTexto(e)}',
+        ]),
+        _ => _uno([
+          'Falta de $defensor sobre $quien. Saque lateral.',
+          'Le cobran falta a $defensor por meter la mano. Siguen atacando.',
+          'Falta en la marca de $defensor: saque desde el costado.',
+        ]),
+      },
+      TipoEvento.salto => _uno([
+        'Pelota retenida entre $quien y $defensor: salto entre dos… ¡la gana ${e.convertido ? quien : defensor}!',
+        '¡Se la disputan $quien y $defensor! Salto entre dos y se queda con ella ${e.convertido ? quien : defensor}.',
       ]),
       TipoEvento.cambio => e.texto,
       TipoEvento.tiempoMuerto => _uno(['Tiempo muerto. A acomodar las ideas.', 'Pide minuto el entrenador.']),
@@ -92,8 +167,14 @@ class Relator {
     };
 
     final remate = StringBuffer(base);
-    if (e.expulsadoId != null) remate.write(' ¡Sexta falta de ${_apellido(jugadores[e.expulsadoId])}: afuera!');
-    if (e.puntos > 0 && e.tipo != TipoEvento.libres) {
+    if (e.expulsadoId case final id?) {
+      remate.write(
+        e.falta == TipoFalta.tecnica
+            ? ' ¡Segunda técnica de ${_apellido(jugadores[id])}: expulsado!'
+            : ' ¡Sexta falta de ${_apellido(jugadores[id])}: afuera!',
+      );
+    }
+    if (e.puntos > 0 && e.tipo != TipoEvento.libres && e.tipo != TipoEvento.falta) {
       if (cambioDeMando) {
         remate.write(_uno([' ¡Y lo da vuelta!', ' ¡Pasan al frente!']));
       } else if (empata) {
@@ -105,4 +186,13 @@ class Relator {
     if (e.texto.contains('Sangre fría')) remate.write(' ¡Sangre fría, eh!');
     return remate.toString();
   }
+
+  /// "mete 2 de 2", "falla el libre"…
+  String _libresTexto(EventoPartido e) => e.libres == 1
+      ? (e.puntos == 1 ? 'Adentro el libre.' : 'Falla el libre.')
+      : e.puntos == e.libres
+      ? 'Mete ${e.puntos} de ${e.libres}.'
+      : e.puntos == 0
+      ? '¡Falla los ${e.libres}!'
+      : 'Mete ${e.puntos} de ${e.libres}.';
 }

@@ -35,7 +35,12 @@ void main() {
     while (!m.terminado) {
       final e = m.siguiente();
       final ataca = switch (e.tipo) {
-        TipoEvento.tiro || TipoEvento.libres || TipoEvento.perdida || TipoEvento.cambio => e.local,
+        TipoEvento.tiro ||
+        TipoEvento.libres ||
+        TipoEvento.perdida ||
+        TipoEvento.falta ||
+        TipoEvento.salto ||
+        TipoEvento.cambio => e.local,
         _ => true,
       };
       cuarto = e.tipo == TipoEvento.finCuarto ? e.cuarto - 1 : e.cuarto;

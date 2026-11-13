@@ -52,6 +52,11 @@ class Destacada {
     if (e.taponado) v += 3;
     if (e.tipo == TipoEvento.perdida && e.defensorId != null) v += 2;
     if (e.contraataque && e.convertido) v += 1;
+    if (e.chicharra && e.convertido) v += e.desdeLejos ? 8 : 4;
+    if (e.perdida == TipoPerdida.carga) v += 3;
+    if (e.falta == TipoFalta.flagrante) v += 3;
+    if (e.interferencia) v += 2;
+    if (e.taponado && e.reboteOfensivo) v -= 1;
     if (clutch && e.puntos > 0) v += 3;
     return v;
   }
@@ -147,6 +152,7 @@ class _RepeticionState extends State<Repeticion> with SingleTickerProviderStateM
                   );
                 }
                 Ficha ficha(Jugador j, bool local, Offset p, double opacidad) {
+                  final salto = coreo.salto(j.id, t);
                   final propio = local == widget.usuarioLocal;
                   return Ficha(
                     posicion: p,
@@ -157,6 +163,7 @@ class _RepeticionState extends State<Repeticion> with SingleTickerProviderStateM
                     conBalon: poseedor == j.id,
                     nombre: poseedor == j.id ? _apellido(j) : null,
                     opacidad: opacidad,
+                    salto: salto,
                   );
                 }
 

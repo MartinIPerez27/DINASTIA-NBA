@@ -23,9 +23,13 @@ class Ficha {
     this.opacidad = 1,
     this.ribete,
     this.energia = 1,
+    this.salto = 0,
   });
 
   final Offset posicion; // en pies
+
+  /// Cuánto está saltando (0 = en el piso, 1 = en lo más alto): la ficha crece y su sombra se aleja.
+  final double salto;
   final Color relleno;
   final Color texto;
   final String etiqueta;
@@ -165,7 +169,11 @@ class CanchaPartidoPainter extends CustomPainter {
       arribaMin,
       max(arribaMin, Cancha94.largo + Cancha94.borde + margenAbajo / escala - alto),
     );
-    final izquierda = (camaraX - ancho / 2).clamp(-Cancha94.borde, Cancha94.ancho + Cancha94.borde - ancho);
+    // max(): sin zoom la cancha entra justa y el redondeo no puede dejar el tope por debajo del piso.
+    final izquierda = (camaraX - ancho / 2).clamp(
+      -Cancha94.borde,
+      max(-Cancha94.borde, Cancha94.ancho + Cancha94.borde - ancho),
+    );
     canvas.save();
     canvas.clipRect(Offset.zero & size);
     canvas.scale(zoom);
@@ -175,15 +183,18 @@ class CanchaPartidoPainter extends CustomPainter {
     _carteles(canvas, pie);
 
     // Fichas.
-    final radio = 2.1 * pie;
-    // El que tiene la pelota siempre arriba de los demás.
-    for (final f in [...fichas.where((f) => !f.conBalon), ...fichas.where((f) => f.conBalon)]) {
+    final radioBase = 2.1 * pie;
+    // Los que saltan, arriba de todo (y el que tiene la pelota arriba de los que no saltan).
+    int capa(Ficha f) => f.salto > 0 ? 2 : (f.conBalon ? 1 : 0);
+    for (final f in [...fichas]..sort((a, b) => capa(a).compareTo(capa(b)))) {
       final c = p(f.posicion);
       final a = f.opacidad;
+      final salto = f.salto.clamp(0.0, 1.0);
+      final radio = radioBase * (1 + 0.3 * salto);
       canvas.drawCircle(
-        c + Offset(radio * 0.12, radio * 0.22),
-        radio,
-        Paint()..color = Colors.black.withValues(alpha: 0.35 * a),
+        c + Offset(radioBase * (0.12 + 0.55 * salto), radioBase * (0.22 + 0.9 * salto)),
+        radioBase * (1 - 0.15 * salto),
+        Paint()..color = Colors.black.withValues(alpha: (0.35 - 0.12 * salto) * a),
       );
       canvas.drawCircle(c, radio, Paint()..color = f.relleno.withValues(alpha: a));
       // Camiseta: ribete del segundo color en el borde, como el cuello y las sisas.
@@ -639,10 +650,7 @@ class CanchaPartidoPainter extends CustomPainter {
     canvas.drawRect(cancha, Paint()..color = estilo.madera);
     final mancha = Paint();
     for (var k = 0; k < 260; k++) {
-      final c = Offset(
-        cancha.left + azar.nextDouble() * cancha.width,
-        cancha.top + azar.nextDouble() * cancha.height,
-      );
+      final c = Offset(cancha.left + azar.nextDouble() * cancha.width, cancha.top + azar.nextDouble() * cancha.height);
       mancha.color = (azar.nextBool() ? Colors.black : Colors.white).withValues(alpha: 0.04 + azar.nextDouble() * 0.05);
       canvas.drawCircle(c, pie * (0.3 + azar.nextDouble() * 1.6), mancha);
     }

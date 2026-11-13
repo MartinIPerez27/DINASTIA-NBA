@@ -86,13 +86,24 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   var _silencio = !ajustesApp.value.sonido;
   var _zoom = 1.0, _camaraX = Cancha94.ancho / 2, _tiempo = 0.0;
   var _ultimoPique = -1;
-  var _sonoAro = false, _sonoSilbato = false;
+  var _sonoAro = false, _sonoSilbato = false, _sonoTapon = false;
   ui.Image? _escudo;
 
   // Marcador ampliado (foto al final de cada jugada, sin adelantar nada).
   var _faltas = (0, 0), _tiemposMuertos = (5, 5);
   var _clutch = false;
   var _inicio24 = 24.0, _ultimo24 = 24.0;
+
+  /// La jugada anterior cortó el juego sin cambiar la posesión (saque lateral, técnica, salto ganado).
+  var _sigueLaPosesion = false;
+
+  /// Jugadas con la pelota en juego (corre el reloj de 24).
+  static bool _esPosesion(TipoEvento tipo) =>
+      tipo == TipoEvento.tiro ||
+      tipo == TipoEvento.perdida ||
+      tipo == TipoEvento.libres ||
+      tipo == TipoEvento.falta ||
+      tipo == TipoEvento.salto;
 
   // Paneles: mapa de tiros, probabilidad de ganar y parciales.
   final _tiros = <_Tiro>[];
@@ -229,7 +240,12 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     }
     final e = _m.siguiente();
     final ataca = switch (e.tipo) {
-      TipoEvento.tiro || TipoEvento.libres || TipoEvento.perdida || TipoEvento.cambio => e.local,
+      TipoEvento.tiro ||
+      TipoEvento.libres ||
+      TipoEvento.perdida ||
+      TipoEvento.falta ||
+      TipoEvento.salto ||
+      TipoEvento.cambio => e.local,
       _ => widget.usuarioLocal,
     };
     if (e.cuarto != _cuarto) _relojDesde = e.cuarto > 4 ? 300 : 720;
@@ -237,8 +253,9 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     _relojHasta = e.tipo == TipoEvento.finCuarto ? 0 : e.reloj;
     final saliente = e.tipo == TipoEvento.cambio ? _jugadores[e.saleId] : null;
     _atacaLocal = ataca;
-    final posesion = e.tipo == TipoEvento.tiro || e.tipo == TipoEvento.perdida || e.tipo == TipoEvento.libres;
-    if (posesion) _inicio24 = _segundaOportunidad ? 14 : 24;
+    final posesion = _esPosesion(e.tipo);
+    // Tras un saque lateral (o una técnica) sigue la misma posesión: el de 24 no vuelve a cero.
+    if (posesion) _inicio24 = _segundaOportunidad ? 14 : (_sigueLaPosesion ? max(14, _ultimo24) : 24);
     switch (e.tipo) {
       case TipoEvento.finCuarto || TipoEvento.finPartido:
         _sonido.chicharra();
@@ -250,6 +267,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     if (posesion && !e.local && (_m.momentoClutch || Random().nextDouble() < 0.05)) _sonido.canto();
     _ultimoPique = -1;
     _sonoAro = false;
+    _sonoTapon = false;
     _sonoSilbato = false;
     _coreo = Coreografia(
       evento: e,
@@ -288,6 +306,11 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     if (!_sonoAro && golpe != null && t >= golpe) {
       _sonoAro = true;
       _sonido.aro();
+    }
+    final tapa = coreo.momentoTapon;
+    if (!_sonoTapon && tapa != null && t >= tapa) {
+      _sonoTapon = true;
+      _sonido.golpe();
     }
     if (!_sonoSilbato && silbato != null && t >= silbato) {
       _sonoSilbato = true;
@@ -337,9 +360,10 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
       transcurrido,
       e.tipo == TipoEvento.finPartido ? (diferencia > 0 ? 1.0 : 0.0) : _probabilidadGanar(diferencia, transcurrido),
     ));
-    if (e.tipo == TipoEvento.tiro || e.tipo == TipoEvento.perdida || e.tipo == TipoEvento.libres) {
-      _ultimo24 = max(0, _inicio24 - (_relojDesde - _relojHasta));
-    }
+    if (_esPosesion(e.tipo)) _ultimo24 = max(0, _inicio24 - (_relojDesde - _relojHasta));
+    _sigueLaPosesion =
+        (e.tipo == TipoEvento.falta && (e.falta == TipoFalta.personal || e.falta == TipoFalta.tecnica)) ||
+        (e.tipo == TipoEvento.salto && e.convertido);
     setState(() {
       _marcador = (e.marcadorLocal, e.marcadorVisitante);
       _faltas = (_m.faltas(true), _m.faltas(false));
@@ -518,9 +542,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     final e = coreo.evento;
     if (e.puntos > 0 && e.triple && t >= coreo.momentoCanasta) return '¡TRIPLE!';
     if (_clutch) return 'CLUTCH';
-    if (e.tipo == TipoEvento.tiro || e.tipo == TipoEvento.perdida || e.tipo == TipoEvento.libres) {
-      if (e.local != widget.usuarioLocal) return 'DE-FEN-SA';
-    }
+    if (_esPosesion(e.tipo) && e.local != widget.usuarioLocal) return 'DE-FEN-SA';
     return '$nombre · DINASTÍA 82-0';
   }
 
@@ -588,7 +610,18 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
         for (final j in [..._m.enCancha(local), ?_m.enBanco(local), ..._m.reservas(local)]) j.id: j,
       },
     };
-    final banner = switch (_coreo?.evento.tipo) {
+    final evento = _coreo?.evento;
+    final banner = switch (evento?.tipo) {
+      TipoEvento.falta => switch (evento!.falta) {
+        TipoFalta.tecnica => 'FALTA TÉCNICA',
+        TipoFalta.flagrante => 'FALTA FLAGRANTE',
+        TipoFalta.intencional => 'FALTA INTENCIONAL',
+        TipoFalta.bonus => 'EN BONUS · 2 LIBRES',
+        _ => 'FALTA · SAQUE LATERAL',
+      },
+      TipoEvento.salto => 'SALTO ENTRE DOS',
+      TipoEvento.perdida when evento!.perdida?.silbato ?? false => evento.perdida!.nombre.toUpperCase(),
+      TipoEvento.tiro when evento!.interferencia => 'INTERFERENCIA',
       TipoEvento.tiempoMuerto => 'TIEMPO MUERTO',
       TipoEvento.finCuarto => _coreo!.evento.texto.toUpperCase(),
       TipoEvento.cambio => 'CAMBIO · ENTRA ${_apellido(todos[_coreo!.evento.entraId]!)}',
@@ -687,6 +720,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                                     conBalon: poseedor == id,
                                     nombre: poseedor == id ? _apellido(todos[id]!) : null,
                                     opacidad: opacidad,
+                                    salto: coreo.salto(id, t),
                                   ),
                               ],
                             ),
@@ -703,8 +737,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                         builder: (context, _) {
                           final reloj = _relojDesde + (_relojHasta - _relojDesde) * _c.value;
                           final tipo = _coreo?.evento.tipo;
-                          final posesion =
-                              tipo == TipoEvento.tiro || tipo == TipoEvento.perdida || tipo == TipoEvento.libres;
+                          final posesion = tipo != null && _esPosesion(tipo);
                           return _MarcadorTV(
                             local: widget.identidadLocal,
                             visitante: widget.identidadVisitante,

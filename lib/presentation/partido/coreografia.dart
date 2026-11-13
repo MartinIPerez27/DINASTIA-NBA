@@ -121,13 +121,30 @@ class Coreografia {
   final _velocidades = <Offset>[];
   final _relevos = <String, (double, _Ruta)>{}; // defensores que dejan la marca (robo, rebote, tapón)
   final _tramos = <_Tramo>[];
-  double _inicioTiro = -1, _finTiro = -1, _canasta = -1, _golpeAro = -1;
+  double _inicioTiro = -1, _finTiro = -1, _canasta = -1, _golpeAro = -1, _tapon = -1;
 
   /// Desde dónde se tiró (para el mapa de tiros); null si no hubo tiro de campo.
   Offset? puntoTiro;
 
   /// Momento (en segundos a x1) en que suena el silbato (falta o infracción); null si no suena.
   double? _silbato;
+
+  /// Desde qué segundo la defensa se acomoda en los carriles de los libres (-1: no hay libres).
+  double _desdeCarriles = -1;
+
+  /// Saltos de la jugada: (jugador, desde, hasta) en segundos (tapón, volcada, salto entre dos…).
+  final _saltos = <(String, double, double)>[];
+
+  /// Cuánto está saltando [id] en el instante t (0 = en el piso, 1 = en lo más alto).
+  double salto(String id, double t) {
+    final s = t * duracion;
+    var altura = 0.0;
+    for (final (quien, s0, s1) in _saltos) {
+      if (quien != id || s < s0 || s > s1) continue;
+      altura = max(altura, sin(pi * (s - s0) / (s1 - s0)));
+    }
+    return altura;
+  }
 
   /// Momento (0–1) del silbato, o null.
   double? get momentoSilbato => _silbato == null ? null : _silbato! / duracion;
@@ -175,7 +192,7 @@ class Coreografia {
 
   Offset _destinoDefensa(int i, double s) {
     if (_pausa) return _banco(i, false);
-    if (evento.tipo == TipoEvento.libres) return _p(_carrilDefensa[i % _carrilDefensa.length]);
+    if (_desdeCarriles >= 0 && s >= _desdeCarriles - 0.6) return _p(_carrilDefensa[i % _carrilDefensa.length]);
     final marca = _rutas[atacantes[min(i, atacantes.length - 1)].id]!.en(s);
     return marca + _unidad(aro - marca) * 4.4;
   }
@@ -248,6 +265,8 @@ class Coreografia {
   void _armar(Offset balonDesde, String? poseedorDesde, bool segundaOportunidad) {
     final e = evento;
     switch (e.tipo) {
+      case TipoEvento.tiro when e.desdeLejos:
+        _lanzamientoLargo(balonDesde, poseedorDesde);
       case TipoEvento.tiro:
         var (s, conductor) = _ponerEnJuego(balonDesde, poseedorDesde, rapido: e.contraataque || segundaOportunidad);
         if (e.contraataque) {
@@ -265,6 +284,10 @@ class Coreografia {
         _libres(balonDesde, poseedorDesde);
       case TipoEvento.perdida:
         _perdida(balonDesde, poseedorDesde);
+      case TipoEvento.falta:
+        _falta(balonDesde, poseedorDesde);
+      case TipoEvento.salto:
+        _saltoEntreDos(balonDesde, poseedorDesde);
       case TipoEvento.cambio:
         final destino = desde[e.saleId] ?? _p(_formacion[atacantes.indexWhere((j) => j.id == e.entraId)]);
         _rutas[e.entraId]?.mover(0.1, 1.5, destino);
@@ -426,20 +449,45 @@ class Coreografia {
     _inicioTiro = s;
     puntoTiro = punto;
     if (e.taponado && e.defensorId != null) {
-      _relevar(e.defensorId!, s - 0.45).mover(s - 0.45, s + 0.1, punto + _unidad(aro - punto) * 2.2);
-      final desvio = punto + _unidad(aro - punto) * 2.5;
-      _finTiro = s + 0.22;
-      _tramos.add(_Tramo.vuelo(s, _finTiro, punto, desvio, 0.35, de: tirador));
-      _rebote(_finTiro, desvio);
+      // Tapón: el defensor salta al tiro y la manda lejos, hacia un costado.
+      final tapa = s + 0.24;
+      final cerca = punto + _unidad(aro - punto) * 1.4;
+      _relevar(e.defensorId!, s - 0.5).mover(s - 0.5, tapa - 0.04, punto + _unidad(aro - punto) * 2.4);
+      _saltos
+        ..add((e.defensorId!, tapa - 0.32, tapa + 0.3))
+        ..add((tirador, s - 0.08, s + 0.34));
+      _tramos.add(_Tramo.vuelo(s, tapa, punto, cerca, 0.6, de: tirador));
+      final haciaAro = aro - punto;
+      final costado = _unidad(Offset(-haciaAro.dy, haciaAro.dx)) * (_azar.nextBool() ? 1 : -1);
+      final lejos = cerca + costado * (6 + _azar.nextDouble() * 5) - _unidad(haciaAro) * (3 + _azar.nextDouble() * 4);
+      final desvio = Offset(lejos.dx.clamp(1.5, Cancha94.ancho - 1.5), lejos.dy.clamp(1.5, Cancha94.largo - 1.5));
+      _finTiro = tapa;
+      _tapon = tapa;
+      final cae = tapa + 0.5;
+      _tramos.add(_Tramo.vuelo(tapa, cae, cerca, desvio, 0.45));
+      _rebote(cae, desvio, lugar: desvio);
       return;
     }
     if (e.volcada) {
       // Volcada: la pelota baja de golpe al aro.
       _finTiro = s + 0.22;
       _tramos.add(_Tramo.vuelo(s, _finTiro, punto, aro, 0.35, de: tirador));
+      _saltos.add((tirador, s - 0.2, _finTiro + 0.18));
+    } else if (distancia > 40) {
+      // Desde la otra mitad: una parábola larguísima.
+      _finTiro = s + 1.7;
+      _tramos.add(_Tramo.vuelo(s, _finTiro, punto, aro, 1.6, de: tirador));
+      _saltos.add((tirador, s - 0.15, s + 0.3));
     } else {
       _finTiro = s + (distancia > 20 ? 1.0 : (distancia < 6 ? 0.55 : 0.8));
       _tramos.add(_Tramo.vuelo(s, _finTiro, punto, aro, 1, de: tirador));
+      _saltos.add((tirador, s - 0.15, s + 0.25));
+    }
+    if (e.interferencia && e.defensorId != null) {
+      // Interferencia: el defensor salta y la toca cuando ya bajaba; silbato y vale.
+      _relevar(e.defensorId!, s).mover(s, _finTiro - 0.08, aro + _unidad(punto - aro) * 1.3);
+      _saltos.add((e.defensorId!, _finTiro - 0.36, _finTiro + 0.2));
+      _silbato = _finTiro;
     }
     if (e.convertido || e.reboteId == null) {
       _canasta = _finTiro;
@@ -451,10 +499,10 @@ class Coreografia {
     }
   }
 
-  void _rebote(double s, Offset desdeBalon) {
+  void _rebote(double s, Offset desdeBalon, {Offset? lugar}) {
     final e = evento;
     final quien = e.reboteId;
-    final lugar = aro + Offset((_azar.nextDouble() * 2 - 1) * 7, (haciaArriba ? 1 : -1) * (4 + _azar.nextDouble() * 6));
+    lugar ??= aro + Offset((_azar.nextDouble() * 2 - 1) * 7, (haciaArriba ? 1 : -1) * (4 + _azar.nextDouble() * 6));
     if (quien == null) {
       _tramos.add(_Tramo.vuelo(s, s + 0.5, desdeBalon, lugar, 0.2));
       return;
@@ -465,64 +513,251 @@ class Coreografia {
     _tramos.add(_Tramo.lleva(atrapa, atrapa + 0.4, quien));
   }
 
-  void _libres(Offset balon, String? poseedor) {
+  /// Tiros libres (los que diga el evento; 2 si no lo dice) desde el segundo [desde].
+  void _libres(Offset balon, String? poseedor, {double desde = 0}) {
     final e = evento;
+    final cantidad = e.libres > 0 ? e.libres : 2;
+    _desdeCarriles = desde;
+    _olvidarMarcas();
     final tirador = e.jugadorId!;
     final linea = _p(_lineaLibres);
-    final llega = _ruta(tirador, 0).mover(0, 0.6 + (_ruta(tirador, 0).en(0) - linea).distance / 14, linea);
+    final ruta = _ruta(tirador, desde);
+    final llega = ruta.mover(desde, desde + 0.6 + (ruta.en(desde) - linea).distance / 14, linea);
     var k = 0;
     for (final j in atacantes) {
       if (j.id == tirador) continue;
-      _rutas[j.id]!.mover(0.2, llega, _p(_carrilAtaque[k++ % _carrilAtaque.length]));
+      _rutas[j.id]!.mover(desde + 0.2, llega, _p(_carrilAtaque[k++ % _carrilAtaque.length]));
     }
-    final inicio = poseedor != null && _rutas.containsKey(poseedor) ? _en(poseedor, 0) : balon;
-    _tramos.add(_Tramo.vuelo(0, llega * 0.6, inicio, linea, 0.12, de: inicio == balon ? null : poseedor, a: tirador));
-    _tramos.add(_Tramo.lleva(llega * 0.6, llega + 0.5, tirador));
+    final recibe = desde + (llega - desde) * 0.6;
+    if (poseedor == tirador) {
+      _tramos.add(_Tramo.lleva(desde, llega + 0.5, tirador));
+    } else {
+      final enMano = poseedor != null && (_rutas.containsKey(poseedor) || _relevos.containsKey(poseedor));
+      final inicio = enMano ? _mano(poseedor, desde) : balon;
+      _tramos.add(_Tramo.vuelo(desde, recibe, inicio, linea, 0.12, de: enMano ? poseedor : null, a: tirador));
+      _tramos.add(_Tramo.lleva(recibe, llega + 0.5, tirador));
+    }
     var s = llega + 0.5;
     _inicioTiro = s;
-    _tramos.add(_Tramo.vuelo(s, s + 0.8, linea, aro, 0.8, de: tirador));
-    _tramos.add(_Tramo.vuelo(s + 0.8, s + 1.3, aro, linea, 0.12, a: tirador));
-    _tramos.add(_Tramo.lleva(s + 1.3, s + 1.8, tirador));
-    s += 1.8;
+    for (var i = 0; i < cantidad - 1; i++) {
+      _tramos.add(_Tramo.vuelo(s, s + 0.8, linea, aro, 0.8, de: tirador));
+      _tramos.add(_Tramo.vuelo(s + 0.8, s + 1.3, aro, linea, 0.12, a: tirador));
+      _tramos.add(_Tramo.lleva(s + 1.3, s + 1.8, tirador));
+      s += 1.8;
+    }
     _tramos.add(_Tramo.vuelo(s, s + 0.8, linea, aro, 0.8, de: tirador));
     _canasta = _finTiro = s + 0.8;
     _tramos.add(_Tramo.vuelo(_finTiro, _finTiro + 0.35, aro, aro + Offset(0, haciaArriba ? -1.5 : 1.5), 0));
   }
 
-  /// Pérdida: robo al pase, manotazo en el dribbling, pase afuera o infracción (pasos / falta en ataque).
+  /// Falta sin tiro: el que recibe la falta tiene la pelota, llega el infractor, silbato y saque
+  /// lateral (o libres).
+  void _falta(Offset balon, String? poseedor) {
+    final e = evento;
+    final rapida = e.falta == TipoFalta.intencional || e.falta == TipoFalta.tecnica;
+    var (s, conductor) = _ponerEnJuego(balon, poseedor, rapido: rapida);
+    // Con libres la falta llega en la subida (si no, la jugada se haría eterna); sin libres, en el
+    // ataque armado.
+    if (e.falta == TipoFalta.personal) (s, conductor) = _subir(s, conductor);
+    final recibe = e.jugadorId!;
+    if (e.falta != TipoFalta.tecnica && conductor != recibe && _rutas.containsKey(recibe)) {
+      _tramos.add(_Tramo.lleva(s, s + 0.35, conductor));
+      final destino = _rutas[recibe]!.en(s + 0.35) + Offset(_azar.nextDouble() * 4 - 2, 0);
+      s = _pasar(s + 0.35, conductor, recibe, destino);
+      conductor = recibe;
+    }
+    final contacto = s + (e.falta == TipoFalta.intencional ? 0.35 : 0.75);
+    final infractor = e.defensorId;
+    if (e.falta != TipoFalta.tecnica && infractor != null) {
+      final punto = _en(conductor, contacto);
+      _relevar(infractor, s).mover(s, contacto, punto + _unidad(aro - punto) * 1.7);
+    }
+    _tramos.add(_Tramo.lleva(s, contacto, conductor));
+    _silbato = contacto;
+    if (e.falta == TipoFalta.personal) {
+      // Saque lateral: el que la tenía va hasta el costado y espera con la pelota.
+      final donde = _en(conductor, contacto);
+      final lateral = Offset(donde.dx < Cancha94.ancho / 2 ? -0.6 : Cancha94.ancho + 0.6, donde.dy);
+      final llega = _rutas[conductor]!.mover(contacto + 0.35, contacto + 1.3, lateral);
+      _tramos.add(_Tramo.lleva(contacto, llega + 0.6, conductor));
+      return;
+    }
+    _tramos.add(_Tramo.lleva(contacto, contacto + 0.45, conductor));
+    // El infractor también se va a su carril para los libres.
+    if (infractor != null && _relevos.containsKey(infractor)) {
+      final i = defensores.indexWhere((j) => j.id == infractor);
+      _relevos[infractor]!.$2.mover(
+        contacto + 0.5,
+        contacto + 2.2,
+        _p(_carrilDefensa[max(0, i) % _carrilDefensa.length]),
+      );
+    }
+    _libres(balon, conductor, desde: contacto + 0.45);
+  }
+
+  /// Pelota retenida: los dos van al círculo central, salto entre dos y la toca para un compañero.
+  void _saltoEntreDos(Offset balon, String? poseedor) {
+    final e = evento;
+    const centro = Offset(Cancha94.ancho / 2, Cancha94.largo / 2);
+    final atacante = e.jugadorId!, defensor = e.defensorId!;
+    final lado = haciaArriba ? 1.0 : -1.0;
+    _silbato = 0.25;
+    final enMano = poseedor != null && _rutas.containsKey(poseedor);
+    final llegaA = _ruta(atacante, 0.3).mover(0.3, 1.6, centro + Offset(0, 2.4 * lado));
+    final llegaD = _relevar(defensor, 0.3).mover(0.3, 1.6, centro - Offset(0, 2.4 * lado));
+    final otros = [
+      for (final j in atacantes)
+        if (j.id != atacante) j.id,
+    ];
+    const alrededor = [Offset(-9, -5), Offset(9, -5), Offset(-9, 6), Offset(9, 6)];
+    for (final (k, id) in otros.indexed) {
+      _rutas[id]!.mover(0.4, 2.2, centro + alrededor[k % alrededor.length] * lado);
+    }
+    final listo = max(llegaA, llegaD) + 0.35;
+    if (enMano) _tramos.add(_Tramo.lleva(0, 0.3, poseedor));
+    final desde = enMano ? _mano(poseedor, 0.3) : balon;
+    _tramos.add(_Tramo.vuelo(enMano ? 0.3 : 0, 1.0, desde, centro, 0.15, de: enMano ? poseedor : null));
+    _tramos.add(_Tramo.quieta(1.0, listo, centro));
+    // El árbitro la tira para arriba; los dos saltan y uno la toca.
+    final toque = listo + 0.55;
+    _tramos.add(_Tramo.vuelo(listo, toque, centro, centro, 1.1));
+    _saltos
+      ..add((atacante, toque - 0.4, toque + 0.25))
+      ..add((defensor, toque - 0.38, toque + 0.25));
+    final String receptor;
+    final Offset destino;
+    if (e.convertido) {
+      receptor = otros[_azar.nextInt(otros.length)];
+      destino = _rutas[receptor]!.en(toque + 0.5);
+    } else {
+      final companeros = [
+        for (final j in defensores)
+          if (j.id != defensor) j.id,
+      ];
+      receptor = companeros[_azar.nextInt(companeros.length)];
+      destino = centro + Offset(_azar.nextDouble() * 12 - 6, -lado * (5 + _azar.nextDouble() * 3));
+      _relevar(receptor, toque - 0.6).mover(toque - 0.6, toque + 0.5, destino);
+    }
+    final atrapa = toque + max(0.5, _vuelo(centro, destino));
+    _tramos.add(_Tramo.vuelo(toque, atrapa, centro, destino, 0.3, a: receptor));
+    _tramos.add(_Tramo.lleva(atrapa, atrapa + 0.6, receptor));
+  }
+
+  /// Lanzamiento desesperado con la chicharra, desde más allá de la mitad de la cancha.
+  void _lanzamientoLargo(Offset balon, String? poseedor) {
+    final e = evento;
+    final tirador = e.jugadorId!;
+    var (s, conductor) = _ponerEnJuego(balon, poseedor, rapido: true);
+    final punto = _p(Offset(Cancha94.ancho / 2 + _azar.nextDouble() * 14 - 7, 52 + _azar.nextDouble() * 9));
+    if (conductor != tirador) {
+      _tramos.add(_Tramo.lleva(s, s + 0.25, conductor));
+      s = _pasar(s + 0.25, conductor, tirador, punto);
+    } else {
+      final llega = _rutas[tirador]!.mover(s, s + 0.6, punto);
+      _tramos.add(_Tramo.lleva(s, llega, tirador));
+      s = llega;
+    }
+    _tramos.add(_Tramo.lleva(s, s + 0.2, tirador));
+    _tirar(s + 0.2, _en(tirador, s + 0.2), tirador);
+  }
+
+  /// Pérdida: robo al pase o manotazo, pelota afuera, o infracción con silbato (pasos, dobles, falta en
+  /// ataque, 24 segundos, 3 segundos, campo atrás).
   void _perdida(Offset balon, String? poseedor) {
     final e = evento;
+    final tipo = e.perdida ?? (e.defensorId != null ? TipoPerdida.robo : TipoPerdida.afuera);
     var (s, conductor) = _ponerEnJuego(balon, poseedor, rapido: false);
-    (s, conductor) = _subir(s, conductor);
+    if (tipo != TipoPerdida.campoAtras) (s, conductor) = _subir(s, conductor);
     final ladron = e.defensorId;
     final otroAro = Cancha94.aro(!haciaArriba);
-    if (ladron != null && _azar.nextBool()) {
-      // Robo al pase: el defensor lee la línea y la corta.
-      final receptor = atacantes[1 + _azar.nextInt(atacantes.length - 1)].id;
-      final destino = _rutas[receptor]!.en(s + 0.6);
-      final origen = _en(conductor, s + 0.4);
-      _tramos.add(_Tramo.lleva(s, s + 0.4, conductor));
-      final corte = Offset.lerp(origen, destino, 0.55)!;
-      final atrapa = _escapar(ladron, s + 0.1, s + 0.4 + _vuelo(origen, corte), corte, otroAro);
-      _tramos.add(_Tramo.vuelo(s + 0.4, atrapa, origen, corte, 0.12, de: conductor, a: ladron));
-    } else if (ladron != null) {
-      // Manotazo: le roba el dribbling al conductor.
-      final punto = _en(conductor, s + 0.6);
-      final atrapa = _escapar(ladron, s, s + 0.6, punto + _unidad(otroAro - punto) * 1.5, otroAro);
-      _tramos.add(_Tramo.lleva(s, atrapa - 0.15, conductor));
-      _tramos.add(_Tramo.vuelo(atrapa - 0.15, atrapa, punto, punto, 0.05, de: conductor, a: ladron));
-    } else if (_azar.nextBool()) {
-      // Pase que se va afuera.
-      final origen = _en(conductor, s + 0.4);
-      final afuera = Offset(origen.dx < 25 ? -2.0 : Cancha94.ancho + 2, origen.dy + (haciaArriba ? -6 : 6));
-      _tramos.add(_Tramo.lleva(s, s + 0.4, conductor));
-      _tramos.add(_Tramo.vuelo(s + 0.4, s + 1.1, origen, afuera, 0.25, de: conductor));
-      _tramos.add(_Tramo.quieta(s + 1.1, s + 1.6, afuera));
-    } else {
-      // Infracción: silbato, la pelota queda muerta donde estaba.
-      _silbato = s + 0.7;
-      _tramos.add(_Tramo.lleva(s, s + 0.7, conductor));
-      _tramos.add(_Tramo.quieta(s + 0.7, s + 1.5, _en(conductor, s + 0.7)));
+    void muerta(double desde, String quien) {
+      _silbato = desde;
+      _tramos.add(_Tramo.quieta(desde, desde + 0.9, _mano(quien, desde)));
+    }
+
+    switch (tipo) {
+      case TipoPerdida.robo when ladron != null && _azar.nextBool():
+        // Robo al pase: el defensor lee la línea y la corta.
+        final receptor = atacantes[1 + _azar.nextInt(atacantes.length - 1)].id;
+        final destino = _rutas[receptor]!.en(s + 0.6);
+        final origen = _en(conductor, s + 0.4);
+        _tramos.add(_Tramo.lleva(s, s + 0.4, conductor));
+        final corte = Offset.lerp(origen, destino, 0.55)!;
+        final atrapa = _escapar(ladron, s + 0.1, s + 0.4 + _vuelo(origen, corte), corte, otroAro);
+        _tramos.add(_Tramo.vuelo(s + 0.4, atrapa, origen, corte, 0.12, de: conductor, a: ladron));
+      case TipoPerdida.robo when ladron != null:
+        // Manotazo: le roba el dribbling al conductor.
+        final punto = _en(conductor, s + 0.6);
+        final atrapa = _escapar(ladron, s, s + 0.6, punto + _unidad(otroAro - punto) * 1.5, otroAro);
+        _tramos.add(_Tramo.lleva(s, atrapa - 0.15, conductor));
+        _tramos.add(_Tramo.vuelo(atrapa - 0.15, atrapa, punto, punto, 0.05, de: conductor, a: ladron));
+      case TipoPerdida.robo || TipoPerdida.afuera:
+        // Pase (o dribbling) que se va afuera.
+        final origen = _en(conductor, s + 0.4);
+        final afuera = Offset(origen.dx < 25 ? -2.0 : Cancha94.ancho + 2, origen.dy + (haciaArriba ? -6 : 6));
+        _tramos.add(_Tramo.lleva(s, s + 0.4, conductor));
+        _tramos.add(_Tramo.vuelo(s + 0.4, s + 1.1, origen, afuera, 0.25, de: conductor));
+        _tramos.add(_Tramo.quieta(s + 1.1, s + 1.6, afuera));
+      case TipoPerdida.carga:
+        // Penetración: el defensor se planta en el camino y recibe el choque; silbato.
+        final origen = _en(conductor, s);
+        final destino = _p(Offset(25 + _azar.nextDouble() * 8 - 4, 8.5));
+        final ida = _unidad(destino - origen);
+        final choque = destino - ida * 3.4;
+        final plantado = destino - ida * 1.4;
+        final quien = e.participanteId;
+        if (quien != null) _relevar(quien, s).mover(s, s + 0.45, plantado);
+        final llega = _rutas[conductor]!.mover(s + 0.1, s + 0.95, choque);
+        if (quien != null) _relevos[quien]!.$2.mover(llega, llega + 0.3, plantado + ida * 1.6);
+        _tramos.add(_Tramo.lleva(s, llega, conductor));
+        muerta(llega, conductor);
+      case TipoPerdida.pasos || TipoPerdida.dobles:
+        // Arranca hacia el aro y el árbitro lo frena.
+        final origen = _en(conductor, s);
+        final llega = _rutas[conductor]!.mover(s, s + 0.7, origen + _unidad(aro - origen) * 6);
+        _tramos.add(_Tramo.lleva(s, llega, conductor));
+        muerta(llega, conductor);
+      case TipoPerdida.tresSegundos:
+        // Un interno se queda plantado en la pintura mientras la pelota está arriba.
+        final grande = e.jugadorId != null && _rutas.containsKey(e.jugadorId) ? e.jugadorId! : atacantes.last.id;
+        final pintura = _p(Offset(25 + _azar.nextDouble() * 6 - 3, 9));
+        if (grande != conductor) {
+          _rutas[grande]!.mover(s, s + 0.9, pintura);
+          _tramos.add(_Tramo.lleva(s, s + 2.4, conductor));
+          muerta(s + 2.4, conductor);
+        } else {
+          final llega = _rutas[grande]!.mover(s, s + 0.9, pintura);
+          _tramos.add(_Tramo.lleva(s, llega + 1.4, conductor));
+          muerta(llega + 1.4, conductor);
+        }
+      case TipoPerdida.campoAtras:
+        // Cruza la mitad y vuelve a su campo con la pelota.
+        final origen = _en(conductor, s);
+        final x = origen.dx.clamp(12.0, 38.0);
+        final mitad = Cancha94.largo / 2;
+        final adelante = Offset(x, mitad + (haciaArriba ? -3.0 : 3.0));
+        final atras = Offset(x + 2, mitad + (haciaArriba ? 2.5 : -2.5));
+        final cruza = _rutas[conductor]!.mover(s, s + 0.8, adelante);
+        final vuelve = _rutas[conductor]!.mover(cruza + 0.2, cruza + 0.9, atras);
+        _tramos.add(_Tramo.lleva(s, vuelve, conductor));
+        muerta(vuelve, conductor);
+      case TipoPerdida.veinticuatro:
+        // La pelota circula sin encontrar el tiro hasta que suena la bocina de posesión.
+        var t = s;
+        var quien = conductor;
+        for (var k = 0; k < 3; k++) {
+          final opciones = [
+            for (final j in atacantes)
+              if (j.id != quien) j.id,
+          ];
+          final receptor = opciones[_azar.nextInt(opciones.length)];
+          final espera = max(t + 0.5 + _azar.nextDouble() * 0.4, _rutas[receptor]!.ultimo - 0.2);
+          _tramos.add(_Tramo.lleva(t, espera, quien));
+          t = _pasar(espera, quien, receptor, _rutas[receptor]!.en(espera));
+          quien = receptor;
+        }
+        _tramos.add(_Tramo.lleva(t, t + 1.0, quien));
+        muerta(t + 1.0, quien);
     }
   }
 
@@ -575,6 +810,9 @@ class Coreografia {
 
   /// Momento (0–1) en que la pelota pega en el aro y sale (tiro errado), o null.
   double? get momentoAro => _golpeAro < 0 ? null : _golpeAro / duracion;
+
+  /// Momento (0–1) del manotazo del tapón, o null.
+  double? get momentoTapon => _tapon < 0 ? null : _tapon / duracion;
 
   /// Cuenta de piques del dribbling hasta t (cambia en cada pique; -1 si nadie la tiene).
   int pique(double t) {
