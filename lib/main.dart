@@ -9,10 +9,12 @@ import 'data/franquicias.dart';
 import 'domain/draft.dart';
 import 'domain/entities/ajustes.dart';
 import 'domain/entities/franquicia.dart';
+import 'domain/entities/modo_juego.dart';
 import 'domain/entities/perfil.dart';
 import 'domain/entities/temporada.dart';
 import 'domain/liga.dart';
 import 'domain/progreso.dart';
+import 'presentation/modos/modos.dart';
 import 'presentation/pantallas/ajustes_pantalla.dart';
 import 'presentation/pantallas/album_pantalla.dart';
 import 'presentation/pantallas/draft_pantalla.dart';
@@ -68,6 +70,29 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
 
   /// Una sola liga para toda la app (el catálogo se carga una vez).
   Future<Liga> _ligaLista() async => _liga ??= Liga(await cargarCatalogo(), franquicias);
+
+  late final _modos = ContextoModos(
+    liga: _ligaLista,
+    db: widget.db,
+    navegador: _navegador,
+    guardar: _guardarCambios,
+    abrirTemporada: _abrirTemporada,
+  );
+
+  void _abrirModos() => _navegador.currentState?.push(
+    MaterialPageRoute<void>(
+      builder: (c) => ModosPantalla(
+        onElegir: (m) {
+          Navigator.of(c).pop();
+          if (m == ModoJuego.clasico) {
+            _dirigir(_enfocada);
+          } else {
+            iniciarModo(m, _enfocada, _modos);
+          }
+        },
+      ),
+    ),
+  );
 
   @override
   void initState() {
@@ -149,6 +174,20 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       _guardada = t;
     });
     final Widget pantalla;
+    final propia = await pantallaDeModo(t, _modos);
+    if (propia != null) {
+      pantalla = propia;
+    } else {
+      pantalla = await _pantallaClasica(t);
+    }
+    final ruta = MaterialPageRoute<void>(builder: (_) => pantalla);
+    final navegador = _navegador.currentState!;
+    reemplazar ? navegador.pushReplacement(ruta) : navegador.push(ruta);
+  }
+
+  /// Draft → tácticas → temporada → playoffs, según la fase de la partida.
+  Future<Widget> _pantallaClasica(Temporada t) async {
+    final Widget pantalla;
     switch (t.fase) {
       case FaseTemporada.draft:
         pantalla = DraftPantalla(
@@ -170,9 +209,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
         final liga = await _ligaLista();
         pantalla = PlayoffsPantalla(temporada: t, liga: liga, onCambio: _guardarCambios);
     }
-    final ruta = MaterialPageRoute<void>(builder: (_) => pantalla);
-    final navegador = _navegador.currentState!;
-    reemplazar ? navegador.pushReplacement(ruta) : navegador.push(ruta);
+    return pantalla;
   }
 
   /// Con las tácticas confirmadas se arma la temporada (calendario y rivales) y se abre.
@@ -255,6 +292,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       onPartidas: _abrirPartidas,
       onAlbum: _abrirAlbum,
       onAjustes: _abrirAjustes,
+      onModos: _abrirModos,
     ),
   );
 }

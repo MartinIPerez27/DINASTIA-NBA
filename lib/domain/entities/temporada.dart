@@ -1,5 +1,6 @@
 import 'franquicia.dart';
 import 'jugador.dart';
+import 'modo_juego.dart';
 import 'partido.dart';
 import 'plantel.dart';
 import '../motor.dart';
@@ -181,6 +182,8 @@ class Temporada {
     this.lesiones = const {},
     this.pases = const [],
     this.copa = const [],
+    this.modoJuego = ModoJuego.clasico,
+    this.datosModo = const {},
   });
 
   static const rerollsPorTemporada = 3;
@@ -243,6 +246,13 @@ class Temporada {
 
   /// Copa NBA de mitad de temporada (cuartos, semis y final a partido único).
   final List<SeriePlayoff> copa;
+
+  /// A qué modo pertenece esta partida (el clásico es la temporada de 82).
+  final ModoJuego modoJuego;
+
+  /// Estado propio del modo (escalera de rivales, temporadas de la dinastía, jugadores del grupo…),
+  /// en JSON: cada modo lo lee y lo escribe con su propia clase.
+  final Map<String, dynamic> datosModo;
 
   /// Ganador de Las Finales (null mientras se juegan).
   String? get campeonId {
@@ -374,6 +384,7 @@ class Temporada {
     Map<String, int>? lesiones,
     List<Pase>? pases,
     List<SeriePlayoff>? copa,
+    Map<String, dynamic>? datosModo,
   }) => Temporada(
     id: id,
     franquiciaUsuarioId: franquiciaUsuarioId,
@@ -399,6 +410,8 @@ class Temporada {
     lesiones: lesiones ?? this.lesiones,
     pases: pases ?? this.pases,
     copa: copa ?? this.copa,
+    modoJuego: modoJuego,
+    datosModo: datosModo ?? this.datosModo,
   );
 
   Temporada conTirada(Tirada? nueva) => _con(tirada: nueva, oferta: oferta);
@@ -430,6 +443,8 @@ class Temporada {
     lesiones: lesiones,
     pases: pases,
     copa: copa,
+    modoJuego: modoJuego,
+    datosModo: datosModo,
   );
 
   factory Temporada.fromJson(Map<String, dynamic> j) => Temporada(
@@ -471,6 +486,8 @@ class Temporada {
     lesiones: (j['lesiones'] as Map<String, dynamic>? ?? {}).map((k, v) => MapEntry(k, v as int)),
     pases: [for (final x in j['pases'] as List? ?? const []) Pase.fromJson(x as Map<String, dynamic>)],
     copa: [for (final x in j['copa'] as List? ?? const []) SeriePlayoff.fromJson(x as Map<String, dynamic>)],
+    modoJuego: ModoJuego.values.asNameMap()[j['modoJuego']] ?? ModoJuego.clasico,
+    datosModo: (j['datosModo'] as Map<String, dynamic>?) ?? const {},
   );
 
   Map<String, dynamic> toJson() => {
@@ -494,6 +511,8 @@ class Temporada {
     if (lesiones.isNotEmpty) 'lesiones': lesiones,
     if (pases.isNotEmpty) 'pases': [for (final p in pases) p.toJson()],
     if (copa.isNotEmpty) 'copa': [for (final c in copa) c.toJson()],
+    if (modoJuego != ModoJuego.clasico) 'modoJuego': modoJuego.name,
+    if (datosModo.isNotEmpty) 'datosModo': datosModo,
     if (oferta != null) 'oferta': oferta!.toJson(),
     if (rivales.isNotEmpty) 'rivales': {for (final e in rivales.entries) e.key: e.value.toJson()},
     if (lineas.isNotEmpty) 'lineas': {for (final e in lineas.entries) e.key: e.value.toJson()},

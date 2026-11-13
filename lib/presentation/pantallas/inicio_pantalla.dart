@@ -23,6 +23,7 @@ class InicioPantalla extends StatelessWidget {
     this.onPartidas,
     this.onAjustes,
     this.onAlbum,
+    this.onModos,
   });
 
   final List<Franquicia> franquicias;
@@ -37,6 +38,9 @@ class InicioPantalla extends StatelessWidget {
 
   /// Álbum de cartas y tienda de sobres.
   final VoidCallback? onAlbum;
+
+  /// Menú con el resto de los modos (desafíos, torneos, carrera, con amigos).
+  final VoidCallback? onModos;
 
   void _enfocar(Franquicia f) {
     if (f == enfocada) return;
@@ -98,6 +102,12 @@ class InicioPantalla extends StatelessWidget {
                       onPressed: () => onDirigir(enfocada),
                       child: Text('Dirigir a los ${enfocada.nombre}'.toUpperCase()),
                     ),
+                    if (onModos != null)
+                      TextButton.icon(
+                        onPressed: onModos,
+                        icon: const Icon(Icons.grid_view_rounded),
+                        label: const Text('OTROS MODOS DE JUEGO'),
+                      ),
                   ],
                 ),
               ),
