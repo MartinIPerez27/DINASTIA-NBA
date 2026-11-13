@@ -144,7 +144,9 @@ def perfil_de(t):
     """Producción por 36 minutos y tasas de tiro: describe el estilo, no el volumen."""
     minutos, fga = t["MIN"] or 1, t["FGA"] or 1
     p = {k.lower(): t[k] * 36 / minutos for k in ("PTS", "REB", "OREB", "AST", "STL", "BLK")}
-    p["tres"] = t["FG3A"] / fga
+    p["tres"] = t["FG3A"] / fga  # proporción de tiros que son triples (no es el % de acierto)
+    p["pct3"] = t["FG3M"] / t["FG3A"] if t["FG3A"] >= 30 else 0.0  # % de triples (con muestra mínima)
+    p["dbpm"] = None  # impacto defensivo (Box Plus/Minus), si la fuente lo trae
     p["libres"] = t["FTA"] / fga
     p["ts"] = t["PTS"] / (2 * (t["FGA"] + 0.44 * t["FTA"])) if t["FGA"] else 0.0
     p["ast_per"] = t["AST"] / t["TOV"] if t["TOV"] else None
@@ -173,8 +175,12 @@ def rol_de(posicion, p, sexto_hombre):
         if p["ast"] >= 5:
             return "directorSegundaUnidad"
         return "microondas" if p["pts"] >= 20 else "inyeccionEnergia"
+    defensa = p["stl"] + p["blk"]  # por 36 minutos
+    dbpm = p.get("dbpm")
+    defensor = dbpm is None or dbpm >= 0.8  # sin dato de impacto, alcanza con los números
+    tirador = p["tres"] >= 0.33 and p.get("pct3", 0) >= 0.355
     if posicion == "BASE":
-        if p["stl"] >= 2 and p["pts"] < 18:
+        if p["stl"] >= 2 and p["pts"] < 18 and defensor:
             return "baseDefensivo"
         if p["tres"] >= 0.35:
             return "anotadorExterior"
@@ -182,23 +188,33 @@ def rol_de(posicion, p, sexto_hombre):
             return "penetradorAtletico"
         return "organizadorPuro" if p["ast"] >= 7 else "penetradorAtletico"
     if posicion == "ESCOLTA":
-        if p["pts"] < 15 and (p["stl"] >= 1.8 or p["tres"] >= 0.45):
+        if p["pts"] < 15 and tirador and (p["stl"] >= 1.2 or (dbpm or -1) >= 0):
+            return "especialista3D"
+        if p["pts"] < 15 and p["stl"] >= 1.8 and defensor:
             return "especialista3D"
         if p["ast"] >= 6:
             return "escoltaGenerador"
-        if p["tres"] >= 0.4 and p["libres"] < 0.25:
-            return "tiradorPantallas"
-        return "superestrellaAclarados" if p["pts"] >= 20 else "tiradorPantallas"
+        if p["pts"] >= 20 and not (p["tres"] >= 0.4 and p["libres"] < 0.25):
+            return "superestrellaAclarados"
+        return "tiradorPantallas"
     if posicion == "ALERO":
         if p["reb"] >= 11:
             return "fuerzaBruta"  # alero de pura energía en la pintura (Rodman en Detroit)
         if p["ast"] >= 5.5:
             return "controladorTotal"
-        if p["stl"] + p["blk"] >= 2.6 and p["pts"] < 17:
-            return "cerrojoDefensivo"
         if p["pts"] >= 22:
             return "anotadorTresNiveles"
-        return "aleroCortador" if p["reb"] >= 7 or p["oreb"] >= 2.2 or p["libres"] >= 0.3 else "cerrojoDefensivo"
+        if defensa >= 2.6 and p["pts"] < 17 and defensor:
+            return "cerrojoDefensivo"
+        if tirador and (defensa >= 1.6 or (dbpm or 0) >= 0.5):
+            return "especialista3D"
+        if tirador:
+            return "tiradorPantallas"
+        if p["pts"] >= 19:
+            return "anotadorTresNiveles"
+        if defensa >= 2.2 and dbpm is not None and dbpm >= 1.5:
+            return "cerrojoDefensivo"
+        return "aleroCortador"  # por defecto: el alero que corre, corta y va al rebote
     if posicion == "ALA-PÍVOT":
         if p["ast"] >= 4.5:
             return "distribuidorInterior"

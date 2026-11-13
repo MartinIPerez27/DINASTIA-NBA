@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../data/estado_app.dart';
 import '../../data/franquicias.dart';
 import '../../domain/entities/temporada.dart';
+import '../../domain/version_catalogo.dart';
 import '../../domain/reto.dart';
 import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
@@ -116,6 +117,15 @@ class _IngresarCodigoRetoState extends State<IngresarCodigoReto> {
   }
 }
 
+/// Aviso si el reto se armó con otra versión de las cartas (o con un código anterior al versionado),
+/// o null si es el mismo catálogo.
+String? avisoCatalogo(CodigoReto codigo, {int? versionActual}) =>
+    switch (codigo.mismoCatalogo(versionActual ?? versionCatalogo)) {
+      false => 'Este reto se armó con otra versión de las cartas: el draft puede no ser idéntico.',
+      null when codigo.version == null => 'Código de una versión anterior de la app: el draft puede no ser idéntico.',
+      _ => null,
+    };
+
 /// "Reto de un amigo: Bulls, Ruleta, Normal — superá 64-18".
 class VistaPreviaReto extends StatelessWidget {
   const VistaPreviaReto({super.key, required this.codigo});
@@ -156,6 +166,10 @@ class VistaPreviaReto extends StatelessWidget {
                       ? 'Todavía no terminó su temporada: comparen récords al final.'
                       : 'Superá su ${codigo.marca}${codigo.campeon ? ' (y salió campeón)' : ''}.',
                 ),
+                if (avisoCatalogo(codigo) case final aviso?) ...[
+                  const SizedBox(height: 6),
+                  Text(aviso, style: tema.textTheme.bodySmall?.copyWith(color: esquema.error)),
+                ],
               ],
             ),
           ),

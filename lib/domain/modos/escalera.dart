@@ -871,7 +871,7 @@ class ModosEscalera {
 
   /// Franquicias de los últimos 3 rivales.
   Set<String> _recientes(List<Cruce> previos) => {
-    for (final c in previos.reversed.take(3)) _porId[c.rival.cartaIds.values.first]!.franquiciaId,
+    for (final c in previos.reversed.take(3)) ?_porId[c.rival.cartaIds.values.first]?.franquiciaId,
   };
 
   Cruce _cruceCamino(Temporada t, int i, Set<int> propios) {
@@ -943,7 +943,7 @@ class ModosEscalera {
     return _avanzarMundial(e, t);
   }
 
-  Iterable<int> _nbaIds(RivalEscalera r) => r.cartaIds.values.map((id) => _porId[id]!.nbaPlayerId);
+  Iterable<int> _nbaIds(RivalEscalera r) => [for (final id in r.cartaIds.values) ?_porId[id]?.nbaPlayerId];
 
   /// Posición de cada siembra en el cuadro (0-index): 1 vs 32, 16 vs 17, 8 vs 25…
   static List<int> _ordenLlaves(int n) {
@@ -1030,7 +1030,7 @@ class ModosEscalera {
   Plantel plantelDe(RivalEscalera r) {
     var p = const Plantel();
     for (final e in r.cartaIds.entries) {
-      p = p.asignar(_porId[e.value]!, e.key);
+      p = p.asignar(cartaOReemplazo(_porId, liga.catalogo, e.value, e.key, p), e.key);
     }
     return p;
   }

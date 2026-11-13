@@ -3,6 +3,7 @@ import 'jugador.dart';
 import 'modo_juego.dart';
 import 'partido.dart';
 import 'plantel.dart';
+import '../all_star.dart';
 import '../motor.dart';
 import 'oferta.dart';
 import 'rival.dart';
@@ -106,7 +107,7 @@ class SeriePlayoff {
 
 /// Qué tan fuertes son los rivales (se elige al empezar la partida).
 enum Dificultad {
-  normal('Normal', 'Rivales a la altura de un buen draft: con un gran plantel, el 82-0 está a tiro.', 79),
+  normal('Normal', 'Rivales a la altura de un buen draft: con un gran plantel, el 82-0 está a tiro.', 78),
   dificil('Difícil', 'Rivales con muchas figuras. Cada victoria cuesta.', 84),
   leyenda('Leyenda', 'Cada rival es lo mejor de su historia o de su época. El 82-0 es una hazaña.', null);
 
@@ -184,6 +185,8 @@ class Temporada {
     this.copa = const [],
     this.modoJuego = ModoJuego.clasico,
     this.datosModo = const {},
+    this.allStar,
+    this.versionCatalogo,
   });
 
   static const rerollsPorTemporada = 3;
@@ -246,6 +249,13 @@ class Temporada {
 
   /// Copa NBA de mitad de temporada (cuartos, semis y final a partido único).
   final List<SeriePlayoff> copa;
+
+  /// Fin de semana All-Star, jugado al cruzar la mitad de la temporada (queda fijo para siempre).
+  final AllStar? allStar;
+
+  /// Versión del catálogo de cartas con que se creó la partida (hash del JSON; ver
+  /// `version_catalogo.dart`). Null en partidas anteriores al versionado.
+  final int? versionCatalogo;
 
   /// A qué modo pertenece esta partida (el clásico es la temporada de 82).
   final ModoJuego modoJuego;
@@ -385,6 +395,8 @@ class Temporada {
     List<Pase>? pases,
     List<SeriePlayoff>? copa,
     Map<String, dynamic>? datosModo,
+    AllStar? allStar,
+    int? versionCatalogo,
   }) => Temporada(
     id: id,
     franquiciaUsuarioId: franquiciaUsuarioId,
@@ -412,6 +424,8 @@ class Temporada {
     copa: copa ?? this.copa,
     modoJuego: modoJuego,
     datosModo: datosModo ?? this.datosModo,
+    allStar: allStar ?? this.allStar,
+    versionCatalogo: versionCatalogo ?? this.versionCatalogo,
   );
 
   Temporada conTirada(Tirada? nueva) => _con(tirada: nueva, oferta: oferta);
@@ -445,6 +459,8 @@ class Temporada {
     copa: copa,
     modoJuego: modoJuego,
     datosModo: datosModo,
+    allStar: allStar,
+    versionCatalogo: versionCatalogo,
   );
 
   factory Temporada.fromJson(Map<String, dynamic> j) => Temporada(
@@ -488,6 +504,8 @@ class Temporada {
     copa: [for (final x in j['copa'] as List? ?? const []) SeriePlayoff.fromJson(x as Map<String, dynamic>)],
     modoJuego: ModoJuego.values.asNameMap()[j['modoJuego']] ?? ModoJuego.clasico,
     datosModo: (j['datosModo'] as Map<String, dynamic>?) ?? const {},
+    allStar: j['allStar'] == null ? null : AllStar.fromJson(j['allStar'] as Map<String, dynamic>),
+    versionCatalogo: j['versionCatalogo'] as int?,
   );
 
   Map<String, dynamic> toJson() => {
@@ -513,6 +531,8 @@ class Temporada {
     if (copa.isNotEmpty) 'copa': [for (final c in copa) c.toJson()],
     if (modoJuego != ModoJuego.clasico) 'modoJuego': modoJuego.name,
     if (datosModo.isNotEmpty) 'datosModo': datosModo,
+    if (allStar != null) 'allStar': allStar!.toJson(),
+    if (versionCatalogo != null) 'versionCatalogo': versionCatalogo,
     if (oferta != null) 'oferta': oferta!.toJson(),
     if (rivales.isNotEmpty) 'rivales': {for (final e in rivales.entries) e.key: e.value.toJson()},
     if (lineas.isNotEmpty) 'lineas': {for (final e in lineas.entries) e.key: e.value.toJson()},

@@ -155,7 +155,8 @@ class Variantes {
     if (ids == null) return null;
     var p = const Plantel();
     for (final e in ids.entries) {
-      p = p.asignar(_porId[e.value as String]!, Posicion.values.byName(e.key));
+      final puesto = Posicion.values.byName(e.key);
+      p = p.asignar(cartaOReemplazo(_porId, catalogo, e.value as String, puesto, p), puesto);
     }
     return p;
   }
@@ -176,9 +177,20 @@ class Variantes {
   /// Días pares de la semilla, ruleta; impares, cartas.
   static ModoDraft modoDelDia(DateTime d) => semilla(d).isEven ? ModoDraft.ruleta : ModoDraft.cartas;
 
+  /// Semilla del azar de la partida: la fecha y, en el Desafío del día, la versión del catálogo con
+  /// que se creó. Así el día es el mismo para todos los que tienen las mismas cartas, y una
+  /// actualización a mitad del día no mezcla tiradas de dos catálogos (la partida sigue con su
+  /// versión sellada; una partida nueva del día siguiente toma la nueva). Sin versión (partidas
+  /// viejas), solo la fecha, como antes.
+  static int? semillaDeAzar(Temporada t) {
+    final base = t.datosModo['semilla'] as int?;
+    if (base == null || t.modoJuego != ModoJuego.desafioDelDia || t.versionCatalogo == null) return base;
+    return base ^ (t.versionCatalogo! & 0xffff);
+  }
+
   /// Azar del draft del día, estable para cada elección (abrir y cerrar la app no cambia lo que sale).
   static Random azarDraftDelDia(Temporada t) =>
-      Random((t.datosModo['semilla'] as int? ?? 0) * 31 + t.plantel.jugadores.length * 7919 + t.rerollsRestantes);
+      Random((semillaDeAzar(t) ?? 0) * 31 + t.plantel.jugadores.length * 7919 + t.rerollsRestantes);
 
   // ── Extremo ──
 
@@ -199,7 +211,7 @@ class Variantes {
     if (t.calendario.isNotEmpty) return t;
     final tuyo = plantelTuyo(t);
     final excluidos = {for (final j in tuyo?.jugadores ?? const <Jugador>[]) j.nbaPlayerId};
-    final semilla = t.datosModo['semilla'] as int?;
+    final semilla = semillaDeAzar(t);
     final motor = semilla == null ? liga : Liga(liga.catalogo, liga.franquicias, azar: Random(semilla));
     var nueva = motor.iniciar(t, excluidos: excluidos);
     if (t.modoJuego == ModoJuego.espejo && tuyo != null) {

@@ -244,8 +244,20 @@ class TarjetaCompartir extends StatelessWidget {
                                   ),
                                 ),
                                 Expanded(
-                                  child: Text(
-                                    j.nombre,
+                                  child: Text.rich(
+                                    TextSpan(
+                                      children: [
+                                        TextSpan(text: j.nombre),
+                                        TextSpan(
+                                          text: '  ${j.tramoConEquipo}',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w400,
+                                            color: esquema.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),

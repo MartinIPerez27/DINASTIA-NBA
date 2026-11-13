@@ -11,6 +11,7 @@ import 'package:dinastia_nba/presentation/pantallas/playoffs_pantalla.dart';
 import 'package:dinastia_nba/presentation/tema/tema_franquicia.dart';
 import 'package:dinastia_nba/presentation/widgets/jugador_avatar.dart';
 import 'package:flutter/material.dart';
+import 'package:dinastia_nba/presentation/widgets/texto_led.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -73,7 +74,7 @@ void main() {
       final fila = find.byType(DataRow).evaluate();
       final tabla = tester.widget<DataTable>(find.byType(DataTable));
       expect(fila, isEmpty); // DataRow no es un widget: se lee de la tabla
-      return double.parse((tabla.rows.first.cells[3].child as Text).data!);
+      return double.parse((tabla.rows.first.cells[3].child as CeldaLed).texto);
     }
 
     final antes = primeraPpp();

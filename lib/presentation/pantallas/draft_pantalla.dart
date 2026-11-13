@@ -94,7 +94,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
   }
 
   Draft _crearDraft(List<Jugador> catalogo) {
-    if (CartaVertical.versiones.isEmpty) CartaVertical.versiones = calcularVersiones(catalogo);
+    registrarVersiones(catalogo);
     return Draft(catalogo, azar: widget.azar, azarPara: widget.azarPara, coleccion: perfilApp.value.coleccion);
   }
 

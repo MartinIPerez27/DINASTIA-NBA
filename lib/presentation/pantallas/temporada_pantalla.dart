@@ -464,8 +464,8 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
               ),
               subtitle: Text(
                 _t.lesiones.containsKey(j.id)
-                    ? '${p.etiqueta} · ${_lesion(j.id)}'
-                    : '${p.etiqueta} · $pj PJ · ${l == null || l.tcA == 0 ? '-' : (100 * l.tcI / l.tcA).toStringAsFixed(1)} %TC',
+                    ? '${p.etiqueta} · ${j.tramoConEquipo} · ${_lesion(j.id)}'
+                    : '${p.etiqueta} · ${j.tramoConEquipo} · $pj PJ · ${l == null || l.tcA == 0 ? '-' : (100 * l.tcI / l.tcA).toStringAsFixed(1)} %TC',
                 style: _t.lesiones.containsKey(j.id) ? TextStyle(color: tema.colorScheme.error) : null,
               ),
               trailing: Row(
@@ -523,8 +523,9 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
           title: Text(j.nombre),
           subtitle: Text(
             _t.lesiones.containsKey(j.id)
-                ? 'SUPLENTE · ${_lesion(j.id)}'
-                : 'SUPLENTE · ${j.posiciones.map((x) => x.etiqueta).join(' / ')} · ${_t.lineas[j.id]?.pj ?? 0} PJ',
+                ? 'SUPLENTE · ${j.tramoConEquipo} · ${_lesion(j.id)}'
+                : 'SUPLENTE · ${j.posiciones.map((x) => x.etiqueta).join(' / ')} · ${j.tramoConEquipo} · '
+                      '${_t.lineas[j.id]?.pj ?? 0} PJ',
           ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,

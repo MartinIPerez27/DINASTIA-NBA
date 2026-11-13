@@ -34,7 +34,7 @@ class CartaJugador extends StatelessWidget {
       onLongPress: () => mostrarFichaJugador(context, jugador),
       label:
           '${jugador.nombre}, ${jugador.posiciones.map((p) => p.etiqueta).join(' o ')}, '
-          '${franquicia.nombre} ${jugador.epoca.etiqueta}, ${jugador.tier.etiqueta}, '
+          '${franquicia.nombre} ${jugador.tramo}, ${jugador.tier.etiqueta}, '
           '${s.ppp} puntos, ${s.rpp} rebotes, ${s.app} asistencias, IQ ${s.iq}',
       child: ExcludeSemantics(
         child: Material(
@@ -92,7 +92,7 @@ class CartaJugador extends StatelessWidget {
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  '${jugador.posiciones.first.etiqueta} · ${jugador.epoca.etiqueta}',
+                                  '${jugador.posiciones.first.etiqueta} · ${jugador.tramoConEquipo}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: tema.textTheme.labelSmall?.copyWith(color: esquema.onSurfaceVariant),

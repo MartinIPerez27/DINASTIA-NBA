@@ -92,8 +92,9 @@ void main() {
   });
 
   test('All-Star: después de la mitad, 12 por conferencia balanceados, determinista', () {
-    olvidarAllStars();
     expect(allStarDe(inicio, liga), isNull);
+    expect(inicio.allStar, isNull);
+    expect(mitad.allStar, isNotNull, reason: 'se juega y se guarda al cruzar la mitad');
     final a = allStarDe(mitad, liga)!;
     for (final lado in [a.este, a.oeste]) {
       expect(lado, hasLength(12));
@@ -104,9 +105,24 @@ void main() {
     }
     expect(a.puntosEste, isNot(a.puntosOeste));
     expect([...a.este, ...a.oeste], contains(a.mvp));
-    olvidarAllStars();
-    final b = allStarDe(mitad, liga)!;
-    expect((b.puntosEste, b.puntosOeste, b.mvp.id), (a.puntosEste, a.puntosOeste, a.mvp.id));
+    // Determinista: jugarlo dos veces con las mismas estadísticas da lo mismo.
+    final b1 = jugarAllStar(mitad, liga)!, b2 = jugarAllStar(mitad, liga)!;
+    expect((b2.puntosEste, b2.puntosOeste, b2.mvp.id), (b1.puntosEste, b1.puntosOeste, b1.mvp.id));
+  });
+
+  test('All-Star guardado: no cambia aunque sigan los partidos ni al cerrar y abrir la app', () {
+    final a = mitad.allStar!;
+    expect(identical(fin.allStar, a) || fin.allStar!.mvp.id == a.mvp.id, isTrue);
+    expect((fin.allStar!.puntosEste, fin.allStar!.puntosOeste), (a.puntosEste, a.puntosOeste));
+    final copia = Temporada.fromJson(fin.toJson());
+    final c = allStarDe(copia, liga)!;
+    expect((c.puntosEste, c.puntosOeste, c.mvp.id), (a.puntosEste, a.puntosOeste, a.mvp.id));
+    expect([for (final j in c.este) j.id], [for (final j in a.este) j.id]);
+    expect(c.lineaMvp.pts, a.lineaMvp.pts);
+    // Una partida guardada antes de esto (sin All-Star) lo arma al vuelo y lo guarda en el próximo partido.
+    final vieja = Temporada.fromJson({...fin.toJson()}..remove('allStar'));
+    expect(vieja.allStar, isNull);
+    expect(allStarDe(vieja, liga), isNotNull);
   });
 
   test('cerrar la temporada reparte los premios nuevos a tus jugadores', () {

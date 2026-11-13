@@ -7,6 +7,7 @@ import 'data/db_local.dart';
 import 'data/estado_app.dart';
 import 'data/franquicias.dart';
 import 'domain/draft.dart';
+import 'domain/version_catalogo.dart';
 import 'domain/entities/ajustes.dart';
 import 'domain/entities/franquicia.dart';
 import 'domain/entities/modo_juego.dart';
@@ -240,6 +241,17 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   /// Cada paso del draft se guarda al instante (cerrar la app no regala tiradas).
   Future<void> _guardarCambios(Temporada t) async {
     final antes = _guardada;
+    // Versión del catálogo: una partida nueva se sella con la de ahora; las pantallas que no la
+    // conocen heredan la que ya tenía guardada (las partidas anteriores al versionado quedan sin).
+    if (t.versionCatalogo == null) {
+      final misma = antes != null && antes.id == t.id;
+      if (misma && antes.versionCatalogo != null) {
+        t = t.copyWith(versionCatalogo: antes.versionCatalogo);
+      } else if (!misma || (t.calendario.isEmpty && !t.tacticaConfirmada)) {
+        // Partida nueva, o todavía en el draft (las cartas que salgan son las de este catálogo).
+        if (_liga != null && versionCatalogo != 0) t = t.copyWith(versionCatalogo: versionCatalogo);
+      }
+    }
     setState(() => _guardada = t);
     // Metajuego: XP, monedas, puntaje, logros, trofeos e historial por lo que acaba de pasar.
     if (_liga case final liga?) {
@@ -280,6 +292,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
       rerollsRestantes: Temporada.rerollsPorTemporada + perfilApp.value.fichasExtra,
       // Semilla del draft y de la liga: con ella se puede retar a un amigo a jugar el mismo draft.
       datosModo: Reto.datosNuevos(Temporada.rerollsPorTemporada + perfilApp.value.fichasExtra),
+      versionCatalogo: versionCatalogo == 0 ? null : versionCatalogo,
     );
     try {
       await widget.db?.guardarTemporada(t);

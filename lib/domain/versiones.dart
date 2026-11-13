@@ -38,3 +38,16 @@ Map<String, VersionCarta> calcularVersiones(Iterable<Jugador> catalogo) {
   }
   return versiones;
 }
+
+/// Versiones del catálogo cargado: se calculan una sola vez, al cargar el catálogo o al crear la Liga,
+/// para que NOVATO / PRIME / VETERANO se vean en cualquier pantalla (álbum, temporada, mercado…).
+Map<String, VersionCarta> versionesCatalogo = const {};
+
+/// Calcula [versionesCatalogo] si todavía no se calculó para este catálogo.
+void registrarVersiones(List<Jugador> catalogo) {
+  if (identical(catalogo, _catalogoRegistrado)) return;
+  _catalogoRegistrado = catalogo;
+  versionesCatalogo = calcularVersiones(catalogo);
+}
+
+List<Jugador>? _catalogoRegistrado;

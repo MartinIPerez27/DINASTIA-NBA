@@ -224,7 +224,10 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('0-0'), findsOneWidget);
       expect(find.text(Reto.codigoDe(t)!.codificar()), findsOneWidget);
-      expect(find.text(t.plantel.jugadores.first.nombre), findsOneWidget);
+      final primero = t.plantel.jugadores.first;
+      // Nombre y tramo ("Michael Jordan  CHI 1985–93"): cada carta dice qué etapa es.
+      expect(find.textContaining(primero.nombre, findRichText: true), findsOneWidget);
+      expect(find.textContaining(primero.tramoConEquipo, findRichText: true), findsWidgets);
       expect(find.text('DINASTÍA NBA (82-0)'), findsOneWidget);
     });
 

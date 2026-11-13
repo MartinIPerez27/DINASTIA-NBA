@@ -527,24 +527,7 @@ class CarreraDinastia {
   /// más abajo y crece con los años.
   int mediaNovato(Temporada t, Jugador j) => t.modoJuego == ModoJuego.reescribi ? max(65, j.media - 6) : j.media;
 
-  static Jugador _conMedia(Jugador j, int media) => media == j.media
-      ? j
-      : Jugador(
-          id: j.id,
-          nbaPlayerId: j.nbaPlayerId,
-          nombre: j.nombre,
-          franquiciaId: j.franquiciaId,
-          epoca: j.epoca,
-          tier: j.tier,
-          posiciones: j.posiciones,
-          rol: j.rol,
-          dorsal: j.dorsal,
-          stats: j.stats,
-          media: media,
-          equipo: j.equipo,
-          fotos: j.fotos,
-          estimadas: j.estimadas,
-        );
+  static Jugador _conMedia(Jugador j, int media) => media == j.media ? j : j.conMedia(media);
 
   String _despedida(Jugador j, int edad, int temporadas, Random azar) {
     final a = apellido(j);

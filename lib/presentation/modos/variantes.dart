@@ -8,6 +8,7 @@ import '../../domain/entities/modo_juego.dart';
 import '../../domain/entities/plantel.dart';
 import '../../domain/entities/posicion.dart';
 import '../../domain/entities/temporada.dart';
+import '../../domain/version_catalogo.dart';
 import '../../domain/variantes.dart';
 import '../pantallas/draft_pantalla.dart';
 import '../pantallas/playbook_pantalla.dart';
@@ -423,6 +424,8 @@ Future<void> _desafioDelDia(ContextoModos c) async {
       modo: modo,
       modoJuego: ModoJuego.desafioDelDia,
       datosModo: {'semilla': semilla},
+      // Sellada desde el arranque: las tiradas del día se siembran con fecha + versión de las cartas.
+      versionCatalogo: versionCatalogo == 0 ? null : versionCatalogo,
     ),
   );
 }

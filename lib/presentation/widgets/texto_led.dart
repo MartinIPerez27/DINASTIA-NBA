@@ -38,3 +38,47 @@ class TextoLed extends StatelessWidget {
     );
   }
 }
+
+/// Celda numérica de tabla (box score, stats) en puntos LED, con su dígito fantasma apagado detrás
+/// como [TextoLed], pero con el estilo de la tabla (tamaño, color, alineación).
+class CeldaLed extends StatelessWidget {
+  const CeldaLed(this.texto, {super.key, required this.estilo, this.textAlign});
+
+  final String texto;
+  final TextStyle estilo;
+  final TextAlign? textAlign;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = estilo.color ?? DefaultTextStyle.of(context).style.color ?? Colors.white;
+    final base = estilo.copyWith(
+      fontFamily: Fuentes.led,
+      fontVariations: const [FontVariation.weight(800)],
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    return Semantics(
+      label: texto,
+      child: ExcludeSemantics(
+        child: Stack(
+          alignment: switch (textAlign) {
+            TextAlign.end || TextAlign.right => AlignmentDirectional.centerEnd,
+            TextAlign.center => AlignmentDirectional.center,
+            _ => AlignmentDirectional.centerStart,
+          },
+          children: [
+            Text(
+              texto.replaceAll(RegExp(r'[0-9]'), '8'),
+              textAlign: textAlign,
+              style: base.copyWith(color: color.withValues(alpha: 0.12)),
+            ),
+            Text(
+              texto,
+              textAlign: textAlign,
+              style: base.copyWith(color: color),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
