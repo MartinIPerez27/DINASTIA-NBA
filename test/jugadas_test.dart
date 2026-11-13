@@ -242,5 +242,6 @@ void main() {
       }
     }
     expect(vistos, containsAll(['personal', 'bonus', 'robo', 'afuera', 'carga', 'tiro', 'libres']));
-  });
+    // 6 partidos completos de coreografía: con toda la suite en paralelo puede pasar los 30 s por defecto.
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }
