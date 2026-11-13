@@ -11,6 +11,7 @@ import '../../data/estado_app.dart';
 import '../../data/franquicias.dart';
 import '../../domain/entities/ajustes.dart';
 import '../../domain/entities/perfil.dart';
+import '../../domain/entities/modo_juego.dart';
 import '../../domain/entities/temporada.dart';
 import '../widgets/escudo.dart';
 import '../widgets/texto_led.dart';
@@ -306,6 +307,7 @@ class _FilaPartida extends StatelessWidget {
     final r = t.registroUsuario;
     final campeon = t.campeonId;
     final detalle = [
+      if (t.modoJuego != ModoJuego.clasico) t.modoJuego.nombre.toUpperCase(),
       _fase(t),
       if (campeon != null)
         campeon == t.franquiciaUsuarioId ? '¡Campeón!' : 'Campeón: ${franquiciaPorId(campeon).nombre}',
