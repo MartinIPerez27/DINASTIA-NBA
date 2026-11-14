@@ -179,6 +179,9 @@ class _Vitrina extends StatelessWidget {
     TipoTrofeo.mejoresEquipos => Icons.workspace_premium_outlined,
     TipoTrofeo.mundial => Icons.public,
     TipoTrofeo.escenario => Icons.theaters,
+    TipoTrofeo.divisiones => Icons.leaderboard,
+    TipoTrofeo.conquista => Icons.map,
+    TipoTrofeo.torneoPropio => Icons.account_tree,
   };
 
   @override

@@ -71,7 +71,7 @@ void main() {
           final peor = enCancha.reduce((a, b) => a.stats.pctTl <= b.stats.pctTl ? a : b);
           if (jugadores[e.jugadorId]!.stats.pctTl > peor.stats.pctTl) fallasIntencional.add('no fue al peor tirador');
           final ventaja = e.local ? antes.$1 - antes.$2 : antes.$2 - antes.$1;
-          if (antes.$3 < 4 || antes.$4 > 35 || ventaja < 3 || ventaja > 8) {
+          if (antes.$3 < 4 || antes.$4 > 35 || ventaja < 1 || ventaja > 8) {
             fallasIntencional.add('cuarto ${antes.$3}, reloj ${antes.$4}, ventaja $ventaja');
           }
         }
@@ -118,7 +118,7 @@ void main() {
     }
   });
 
-  test('falta intencional: solo en el final, del que pierde de 3 a 8, al peor tirador de libres', () {
+  test('falta intencional: solo en el final, del que pierde de 1 a 8 (de 1 a 2 con menos de 24 s), al peor tirador de libres', () {
     expect(intencionales, isNotEmpty);
     expect(fallasIntencional, isEmpty);
     for (final e in intencionales) {

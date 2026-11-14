@@ -64,4 +64,12 @@ List<Logro> logrosDeEscalera(ProgresoEscalera pe, Temporada t) => [
 /// En los escenarios, Leyenda única y Solo entrenador el plantel te lo dan (no lo fichaste): no
 /// entra al álbum.
 bool sumaAlAlbum(Temporada t) =>
-    !const {ModoJuego.escenario, ModoJuego.leyendaUnica, ModoJuego.soloEntrenador}.contains(t.modoJuego);
+    !const {
+      ModoJuego.escenario,
+      ModoJuego.leyendaUnica,
+      ModoJuego.soloEntrenador,
+      // Torneos por época: los equipos (y los reclutas del guantelete) te los da el modo.
+      ModoJuego.guantelete,
+      ModoJuego.camadas,
+      ModoJuego.universidades,
+    }.contains(t.modoJuego);

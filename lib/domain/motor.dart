@@ -7,6 +7,7 @@ import 'entities/posicion.dart';
 import 'entities/tactica.dart';
 import 'playbook.dart';
 import 'quimica.dart';
+import 'modificadores.dart';
 
 /// Línea de box score (por partido o acumulada en la temporada).
 class LineaEstadistica {
@@ -72,6 +73,7 @@ class EquipoPartido {
     this.forma = const {},
     this.energiaInicial = 100,
     this.reserva = const [],
+    this.modificadores = ModificadoresEquipo.neutros,
   });
 
   final String identidadId;
@@ -87,6 +89,9 @@ class EquipoPartido {
 
   /// Suplentes del banco largo (además del Sexto Hombre): entran cuando alguien está fundido.
   final List<Jugador> reserva;
+
+  /// Retoques del modo (insignias del Camino al anillo); neutros en un partido clásico.
+  final ModificadoresEquipo modificadores;
 }
 
 enum TipoEvento { tiro, libres, perdida, falta, salto, cambio, tiempoMuerto, finCuarto, finPartido }
@@ -307,6 +312,8 @@ class _Lado {
   /// Media de la carta con su forma del momento.
   int media(Jugador j) => j.media + (equipo.forma[j.id] ?? 0);
 
+  ModificadoresEquipo get mods => equipo.modificadores;
+
   /// Orden del entrenador: un gran técnico baja las pérdidas (hasta −6 %).
   double get ordenEntrenador => 1 - ((equipo.entrenador?.nivel ?? 80) - 80) / 320;
   final enCancha = <Jugador>[];
@@ -350,6 +357,34 @@ class MotorPartido {
       _v = _Lado(visitante),
       _azar = azar ?? Random() {
     _ataqueLocal = _azar.nextBool(); // salto inicial
+  }
+
+  /// Arranca el partido en un momento dado (Momentos clutch: el final de un partido real).
+  /// Llamar antes de la primera jugada. Los puntos previos se reparten en los cuartos ya jugados
+  /// (las estadísticas individuales cuentan desde acá) y los titulares arrancan con [energia]
+  /// (es el final del partido: ya vienen cansados).
+  void arrancarEn({
+    required int cuarto,
+    required double reloj,
+    required int puntosLocal,
+    required int puntosVisitante,
+    required bool ataqueLocal,
+    int faltasLocal = 0,
+    int faltasVisitante = 0,
+    double energia = 75,
+  }) {
+    this.cuarto = cuarto;
+    this.reloj = reloj;
+    _ataqueLocal = ataqueLocal;
+    for (final (lado, puntos, faltas) in [(_l, puntosLocal, faltasLocal), (_v, puntosVisitante, faltasVisitante)]) {
+      lado.parciales
+        ..clear()
+        ..addAll([for (var k = 0; k < cuarto; k++) puntos ~/ cuarto + (k < puntos % cuarto ? 1 : 0)]);
+      lado.faltas = faltas;
+      for (final j in lado.enCancha) {
+        lado.energia[j.id] = energia;
+      }
+    }
   }
 
   final _Lado _l, _v;
@@ -642,8 +677,10 @@ class MotorPartido {
     final diferencia = ataque.puntos - defensa.puntos;
     final finalPartido = cuarto >= 4 && reloj <= 60;
 
-    // Final: el que pierde por poco frena el reloj con una falta al peor tirador de libres.
-    if (cuarto >= 4 && reloj <= 35 && diferencia >= 3 && diferencia <= min(8, 3 + reloj / 5)) {
+    // Final: el que pierde por poco frena el reloj con una falta al peor tirador de libres. Abajo por
+    // 1 o 2 con menos de 24 segundos (ya no hay reloj de posesión que lo salve), también.
+    final faltaPorPoco = diferencia >= 1 && diferencia <= 2 && reloj <= 24 && reloj > 1.5;
+    if (cuarto >= 4 && reloj <= 35 && (faltaPorPoco || (diferencia >= 3 && diferencia <= min(8, 3 + reloj / 5)))) {
       return _faltaIntencional(ataque, defensa);
     }
 
@@ -678,6 +715,7 @@ class MotorPartido {
                 ataque.ofensivo.perdidas *
                 ataque.ordenEntrenador *
                 defensa.defensivo.robos *
+                defensa.mods.robosFactor *
                 (defensa.presion ? 1.3 : 1) *
                 (1 - (ataque.equipo.plantel.jugadores.map((j) => j.stats.iq).reduce(max) - 75) / 400))
             .clamp(0.09, 0.3);
@@ -861,7 +899,7 @@ class MotorPartido {
     if (tipo == TipoPerdida.robo) {
       ladron = _elegir(defensa.enCancha, (j) => j.stats.robP + 0.3);
       defensa.box[ladron.id]!.rob++;
-      _contraataque = _azar.nextDouble() < 0.45 * defensa.ofensivo.contraataque;
+      _contraataque = _azar.nextDouble() < 0.45 * defensa.ofensivo.contraataque * defensa.mods.contraataqueFactor;
     }
     if (tipo == TipoPerdida.carga) {
       // La falta en ataque es personal y del equipo (sin libres).
@@ -916,7 +954,12 @@ class MotorPartido {
     final Jugador tirador;
     final bool triple;
     Jugador? asistente;
-    switch (desdeLejos ? null : jugada) {
+    // Abajo por 3 en el final, la máquina busca el triple del empate; abajo por 4 a 9 con menos de 40
+    // segundos, también (de a dos no alcanza).
+    final abajo = defensa.puntos - ataque.puntos;
+    final porElTriple =
+        jugada == null && cuarto >= 4 && ((abajo == 3 && reloj <= 24) || (abajo >= 4 && abajo <= 9 && reloj <= 40));
+    switch (desdeLejos ? null : (porElTriple ? JugadaClave.triple : jugada)) {
       case JugadaClave.aislamiento:
         tirador = ataque.enCancha.reduce((a, b) => ataque.media(a) >= ataque.media(b) ? a : b);
         triple = _azar.nextDouble() < _tasaTriples(tirador) * 0.6;
@@ -975,6 +1018,12 @@ class MotorPartido {
     p -= _media(defensa.enCancha, (j) => j.stats.robP + j.stats.tapP) / 60;
     if (contraataque) p += 0.14;
     if (asistente != null) p += 0.02;
+    // Retoques del modo (neutros en un partido clásico).
+    p += (triple ? ataque.mods.tripleExtra : ataque.mods.interiorExtra - defensa.mods.interiorRival) +
+        ataque.mods.quimicaExtra +
+        (asistente != null ? ataque.mods.asistidoExtra : 0) +
+        (clutch ? ataque.mods.clutchExtra : 0) +
+        (cuarto >= 4 && tirador == estrella ? ataque.mods.estrellaCuartoFinal : 0);
     if (ataque == _l) p += _localia;
     if (ataque.racha >= 8) p += 0.02;
     final energia = ataque.energia[tirador.id]!;
@@ -1096,14 +1145,16 @@ class MotorPartido {
                   max(1.0, defensa.enCancha.fold(0.0, (a, j) => a + j.stats.rpp)) *
                   0.26)
               .clamp(0.15, 0.38);
-    final ofensivo = _azar.nextDouble() < rebOf;
+    final ofensivo = _azar.nextDouble() < rebOf * ataque.mods.reboteOfensivoFactor;
     final reboteador = _elegir(ofensivo ? ataque.enCancha : defensa.enCancha, (j) => j.stats.rpp + 0.5);
     (ofensivo ? ataque : defensa).box[reboteador.id]!.reb++;
     if (ofensivo) {
       _restoPosesion = 14;
     } else {
       _cambiarPosesion();
-      _contraataque = _azar.nextDouble() < 0.12 * defensa.ofensivo.contraataque + (defensa.acelerar ? 0.08 : 0);
+      _contraataque =
+          _azar.nextDouble() <
+          0.12 * defensa.ofensivo.contraataque * defensa.mods.contraataqueFactor + (defensa.acelerar ? 0.08 : 0);
     }
     final texto = StringBuffer(
       desdeLejos
@@ -1183,7 +1234,15 @@ class MotorPartido {
       final aguante = 36 / max(j.stats.minP, 20);
       lado.energia[j.id] = max(
         0,
-        lado.energia[j.id]! - segundos / 60 * 1.9 * aguante * (lado.ofensivo.fatiga + extra) * lado.defensivo.fatiga,
+        lado.energia[j.id]! -
+            segundos /
+                60 *
+                1.9 *
+                aguante *
+                (lado.ofensivo.fatiga + extra) *
+                lado.defensivo.fatiga *
+                lado.mods.fatigaFactor *
+                (identical(lado, _l) ? _v : _l).mods.fatigaRivalFactor,
       );
       lado.box[j.id]!.seg += segundos;
     }

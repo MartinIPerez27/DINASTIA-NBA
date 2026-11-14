@@ -1,10 +1,12 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../../data/estado_app.dart';
 import '../../data/franquicias.dart';
 import '../../domain/draft.dart';
 import '../../domain/entities/franquicia.dart';
-import '../../domain/entities/jugador.dart' show Epoca;
+import '../../domain/entities/jugador.dart';
 import '../../domain/entities/modo_juego.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/liga.dart';
@@ -49,6 +51,14 @@ Future<void> iniciarCarrera(ModoJuego m, Franquicia enfocada, ContextoModos c) a
       modoJuego: ModoJuego.dinastia,
       datosModo: CarreraDinastia.datosIniciales(id),
     );
+  } else if (m == ModoJuego.figuraFranquicia) {
+    final carrera = CarreraDinastia(await c.liga());
+    if (!contexto.mounted) return;
+    final figura = await elegirFigura(contexto, carrera.candidatosFigura(Random(int.parse(id) & 0x7fffffff)));
+    if (figura == null || !contexto.mounted) return;
+    final dificultad = await elegirDificultad(contexto);
+    if (dificultad == null) return;
+    t = carrera.nuevaFigura(id: id, franquiciaId: enfocada.id, figura: figura, dificultad: dificultad, rerolls: rerolls);
   } else {
     final carrera = CarreraDinastia(await c.liga());
     if (!contexto.mounted) return;
@@ -61,6 +71,42 @@ Future<void> iniciarCarrera(ModoJuego m, Franquicia enfocada, ContextoModos c) a
   await c.guardar(t);
   await c.abrirTemporada(t);
 }
+
+/// Figura franquicia: elegí el joven alrededor del que vas a armar todo.
+Future<Jugador?> elegirFigura(BuildContext context, List<Jugador> candidatos) => showModalBottomSheet<Jugador>(
+  context: context,
+  showDragHandle: true,
+  useSafeArea: true,
+  isScrollControlled: true,
+  builder: (context) {
+    final tema = Theme.of(context);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('ELEGÍ TU FIGURA', style: tema.textTheme.headlineSmall),
+          const SizedBox(height: 4),
+          Text(
+            'Arranca con 20 años en un equipo flojo. Crece cada temporada según cómo juegue y los premios que '
+            'gane; después de los 31 empieza a bajar. No se retira antes de los 35.',
+            style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 8),
+          for (final j in candidatos)
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+              leading: SizedBox(width: 48, child: Center(child: TextoLed('${j.media}', tamano: 20))),
+              title: Text(j.nombre),
+              subtitle: Text('${j.posiciones.map((p) => p.etiqueta).join(' / ')} · ${j.rol.etiqueta} · ${j.tramoConEquipo}'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).pop(j),
+            ),
+        ],
+      ),
+    );
+  },
+);
 
 /// Reescribí la historia: ¿en qué década arrancás? Muestra las figuras de cada plantel.
 Future<Epoca?> elegirDecada(BuildContext context, Franquicia f, CarreraDinastia carrera) {

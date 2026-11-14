@@ -89,3 +89,35 @@ class CatalogoV2Test(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BiografiasTest(unittest.TestCase):
+    def test_draft_universidad_y_nacimiento(self):
+        carreras = [
+            {"player_id": "jordami01", "colleges": "UNC", "birth_date": "1963-02-17"},
+            {"player_id": "nowitdi01", "colleges": "NA", "birth_date": "1978-06-19"},
+            {"player_id": "traspa01", "colleges": "Weber State, Utah", "birth_date": "NA"},
+        ]
+        drafts = [
+            {"season": "1984", "lg": "NBA", "overall_pick": "3", "player_id": "jordami01"},
+            {"season": "1985", "lg": "NBA", "overall_pick": "77", "player_id": "sabonar01"},
+            {"season": "1986", "lg": "NBA", "overall_pick": "24", "player_id": "sabonar01"},
+            {"season": "1990", "lg": "NBA", "overall_pick": "NA", "player_id": "NA"},
+        ]
+        bio = cb.biografias(carreras, drafts)
+        self.assertEqual(bio["jordami01"], {"draft": [1984, 3], "universidad": "North Carolina", "nacimiento": 1963})
+        self.assertEqual(bio["nowitdi01"], {"draft": None, "universidad": None, "nacimiento": 1978})
+        self.assertEqual(bio["traspa01"]["universidad"], "Utah")  # la de egreso
+        self.assertIsNone(bio["traspa01"]["nacimiento"])
+        self.assertEqual(bio["sabonar01"]["draft"], [1986, 24])  # el último draft en el que lo eligieron
+
+
+class UniversidadesTest(unittest.TestCase):
+    def test_nombres_canonicos(self):
+        self.assertEqual(cb.universidad_canonica("UNC"), "North Carolina")
+        self.assertEqual(cb.universidad_canonica("UConn"), "Connecticut")
+        self.assertEqual(cb.universidad_canonica("Ball State University"), "Ball State")
+        self.assertEqual(cb.universidad_canonica("University of Dayton"), "Dayton")
+        self.assertEqual(cb.universidad_canonica("California University of Pennslyvania"),
+                         "California University of Pennsylvania")
+        self.assertEqual(cb.universidad_canonica("  Duke "), "Duke")

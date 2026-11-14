@@ -86,3 +86,12 @@ final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
 - [x] ✅ **Pruebas de balance automáticas**: temporadas simuladas que validan la dificultad en cada
       cambio del motor.
 - [x] ✅ **Ajustes y tutorial** (velocidad por defecto, sonido, vibración; bienvenida la primera vez).
+
+## 7. Modos v3 ✅
+- [x] ✅ Historia: Temporada real, ¿Qué hubiera pasado si…?, Momentos clutch.
+- [x] ✅ Torneos: Guantelete de las décadas, Batalla de camadas, Torneo de universidades.
+- [x] ✅ Armado: Tope salarial, Desafíos de armado (SBC), Liga de 8 contra la IA, Adiviná la carta.
+- [x] ✅ Carrera: Figura franquicia, Mi carrera (estilo MyCareer), Modo universitario.
+- [x] ✅ Competitivo: Divisiones, Conquista, Creador de torneos, Fantasy NBA.
+- [x] ✅ Evoluciones de cartas (solo modos que usan el álbum) y Perfil perfecto (acertijos de lógica).
+- [x] ✅ Insignias acumulables en Camino al anillo.

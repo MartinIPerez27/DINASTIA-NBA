@@ -41,10 +41,23 @@ class TemporadaPantalla extends StatefulWidget {
     required this.onCambio,
     this.onPlayoffs,
     this.acciones = const [],
+    this.cabeceraBuilder,
+    this.ajustar,
+    this.modoJugador = false,
   });
 
   /// Botones extra en la barra (p. ej. la historia de la dinastía).
   final List<Widget> acciones;
+
+  /// Tarjeta propia del modo arriba del próximo partido (p. ej. tu jugador en Mi carrera). Recibe la
+  /// temporada actual y la función con la que cambiarla (guarda y refresca esta pantalla).
+  final Widget Function(BuildContext context, Temporada t, ValueChanged<Temporada> cambiar)? cabeceraBuilder;
+
+  /// Retoca la temporada en cada guardado (p. ej. la confianza del DT en Mi carrera).
+  final Temporada Function(Temporada t)? ajustar;
+
+  /// Mi carrera: el equipo lo maneja la IA, así que no hay mercado de pases ni fichajes de suplentes.
+  final bool modoJugador;
 
   final Temporada temporada;
   final Liga liga;
@@ -80,6 +93,7 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
 
   void _guardar(Temporada t) {
     t = CopaNba(_liga).alDia(t);
+    if (widget.ajustar case final ajustar?) t = ajustar(t);
     setState(() => _t = t);
     widget.onCambio(t);
   }
@@ -239,6 +253,7 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
               Text(resumen, style: tema.textTheme.bodyMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
             ],
             const SizedBox(height: 12),
+            if (widget.cabeceraBuilder case final b?) ...[b(context, _t, _guardar), const SizedBox(height: 12)],
             if (proximo != null)
               _ProximoPartido(
                 partido: proximo,
@@ -487,7 +502,7 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
               ),
             );
           }(),
-      if (_liga.proximoDelUsuario(_t) != null) ...[
+      if (_liga.proximoDelUsuario(_t) != null && !widget.modoJugador) ...[
         const SizedBox(height: 12),
         OutlinedButton.icon(
           icon: const Icon(Icons.swap_horiz),
@@ -507,7 +522,7 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
       Row(
         children: [
           Expanded(child: Text('Banco largo', style: tema.textTheme.titleMedium)),
-          if (_t.suplentes.length < Temporada.maxSuplentes && _liga.proximoDelUsuario(_t) != null)
+          if (_t.suplentes.length < Temporada.maxSuplentes && _liga.proximoDelUsuario(_t) != null && !widget.modoJugador)
             TextButton.icon(
               onPressed: _firmarSuplente,
               icon: const Icon(Icons.person_add_alt_1),

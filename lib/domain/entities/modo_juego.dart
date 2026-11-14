@@ -7,6 +7,7 @@ enum GrupoModo {
   torneo('Torneos históricos'),
   carrera('Gestión y carrera'),
   amigos('Con amigos, en el mismo dispositivo'),
+  competitivo('Competitivo y torneos'),
   minijuegos('Minijuegos');
 
   const GrupoModo(this.etiqueta);
@@ -86,13 +87,40 @@ enum ModoJuego {
   ligaIA(GrupoModo.rapido, 'Liga de 8 contra la IA', 'Draft en serpiente contra 7 mánagers con estilo propio.'),
   // Carrera
   figuraFranquicia(GrupoModo.carrera, 'Figura franquicia', 'Elegís un novato y armás todo alrededor de él.'),
-  // Minijuegos
+  // Carrera inmersiva (tipo MyCareer)
+  carreraJugador(GrupoModo.carrera, 'Mi carrera', 'Un jugador real o creado por vos: del draft al Salón de la Fama.'),
+  universitario(
+    GrupoModo.carrera,
+    'Modo universitario',
+    'Jugadores ficticios: simulá temporadas enteras y llegá al draft.',
+  ),
+  // Competitivo y torneos
+  divisiones(GrupoModo.competitivo, 'Divisiones', 'Diez divisiones: ascendé o descendé según tus puntos.'),
+  creadorTorneos(GrupoModo.competitivo, 'Creador de torneos', 'Elegí equipos y formato: liga, eliminación o grupos.'),
+  conquista(
+    GrupoModo.competitivo,
+    'Conquista',
+    'Un mapa con las 30 franquicias: cada victoria conquista un territorio.',
+  ),
+  fantasy(
+    GrupoModo.competitivo,
+    'Fantasy NBA',
+    'Elegí quinteto y sexto hombre; puntos por el rendimiento real. Contra la IA.',
+  ),
+  perfilPerfecto(
+    GrupoModo.minijuegos,
+    'Perfil perfecto',
+    'Acertijos de lógica: deducí quién es cada jugador con las pistas.',
+  ),
   adivina(GrupoModo.minijuegos, 'Adiviná la carta', 'Quién es por sus números, o cuál de dos tiene más media.');
 
   const ModoJuego(this.grupo, this.nombre, this.descripcion);
   final GrupoModo grupo;
   final String nombre;
   final String descripcion;
+
+  /// Modos que usan las cartas de tu álbum: ahí valen las evoluciones de cartas (en el resto, no).
+  bool get usaAlbum => const {desafiosArmado, divisiones, creadorTorneos, conquista, fantasy}.contains(this);
 
   /// Si la partida usa la temporada de 82 (calendario y rivales de liga). Los de escalera y el
   /// duelo arman sus propios cruces.
@@ -112,5 +140,11 @@ enum ModoJuego {
     desafiosArmado,
     ligaIA,
     adivina,
+    divisiones,
+    creadorTorneos,
+    conquista,
+    fantasy,
+    perfilPerfecto,
+    universitario,
   }.contains(this);
 }

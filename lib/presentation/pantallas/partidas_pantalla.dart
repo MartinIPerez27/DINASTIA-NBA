@@ -16,7 +16,9 @@ import '../../domain/liga.dart';
 import '../compartir/tarjeta_compartir.dart';
 import '../../domain/entities/modo_juego.dart';
 import '../../domain/modos/amigos.dart';
+import '../../domain/modos/competitivo.dart';
 import '../../domain/modos/dinastia.dart';
+import '../../domain/modos/universitario.dart';
 import '../../domain/variantes.dart';
 import '../../domain/entities/temporada.dart';
 import '../widgets/escudo.dart';
@@ -316,9 +318,11 @@ class _FilaPartida extends StatelessWidget {
         FaseAmigos.terminada => 'Terminada',
       };
     }
+    if (faseCompetitiva(t) case final f?) return f;
+    if (EstadoUniv.de(t) case final u?) return u.etiquetaFase;
     if (t.modoJuego == ModoJuego.extremo && Variantes.extremoPerdido(t)) return 'Perdida';
     final fase = _faseClasica(t);
-    if (t.modoJuego == ModoJuego.dinastia || t.modoJuego == ModoJuego.reescribi) {
+    if (CarreraDinastia.esCarrera(t)) {
       return 'Temporada ${EstadoDinastia.de(t).numero} · $fase';
     }
     return fase;
@@ -334,6 +338,11 @@ class _FilaPartida extends StatelessWidget {
         return '${fila.victorias}-${fila.derrotas}';
       }
       return '--';
+    }
+    if (marcadorCompetitivo(t) case final m?) return m;
+    if (EstadoUniv.de(t) case final u?) {
+      final m = u.registros()[0];
+      return '${m.v}-${m.d}';
     }
     final r = t.registroUsuario;
     return '${r.victorias}-${r.derrotas}';

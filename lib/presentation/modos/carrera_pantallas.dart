@@ -99,6 +99,26 @@ class _RecesoPantallaState extends State<RecesoPantalla> {
                 ),
               ),
             ],
+            if (_r.figura case final ev?) ...[
+              const SizedBox(height: 12),
+              EvolucionFiguraTarjeta(evolucion: ev),
+              if (widget.carrera.legado(widget.temporada) case final legado?)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => Scaffold(
+                          appBar: AppBar(title: const Text('Legado')),
+                          body: ListView(padding: const EdgeInsets.all(16), children: [PanelLegado(legado: legado)]),
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.workspace_premium_outlined),
+                    label: const Text('VER LEGADO'),
+                  ),
+                ),
+            ],
             const SizedBox(height: 20),
             Text('RETIROS', style: seccion()),
             const SizedBox(height: 4),
@@ -295,6 +315,20 @@ class HistoriaDinastiaPantalla extends StatelessWidget {
               for (var i = 0; i < titulos; i++) Icon(Icons.emoji_events, size: 18, color: esquema.primary),
             ],
           ),
+          if (estado.figuraId != null) ...[
+            const SizedBox(height: 12),
+            PanelLegado(
+              legado: LegadoFigura(
+                [...temporada.plantel.jugadores, ...temporada.suplentes]
+                        .where((j) => j.id == estado.figuraId)
+                        .firstOrNull
+                        ?.nombre ??
+                    'Tu figura',
+                estado.figura,
+                retirado: estado.figuraRetirada,
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           for (final p in estado.historial)
             _Hito(
@@ -409,6 +443,144 @@ class _Hito extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Receso de Figura franquicia: cuánto creció tu figura, su temporada y sus premios.
+class EvolucionFiguraTarjeta extends StatelessWidget {
+  const EvolucionFiguraTarjeta({super.key, required this.evolucion});
+
+  final EvolucionFigura evolucion;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final ev = evolucion;
+    final s = ev.temporada;
+    String uno(double x) => x.toStringAsFixed(1).replaceAll('.', ',');
+    final sube = ev.cambio >= 0;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: esquema.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: esquema.primary, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('TU FIGURA', style: tema.textTheme.labelLarge?.copyWith(color: esquema.primary, letterSpacing: 1)),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(child: Text(ev.jugador.nombre, style: tema.textTheme.titleLarge)),
+              TextoLed('${ev.antes}', tamano: 24, color: esquema.onSurfaceVariant),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Icon(sube ? Icons.trending_up : Icons.trending_down, color: esquema.primary),
+              ),
+              TextoLed('${ev.despues}', tamano: 28, color: esquema.primary),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${s.edad} años · ${s.pj} PJ · ${uno(s.pts)} PPP · ${uno(s.reb)} RPP · ${uno(s.ast)} APP',
+            style: tema.textTheme.bodyMedium,
+          ),
+          if (s.premios.isNotEmpty || s.allStar || s.campeon) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                if (s.campeon) const Chip(label: Text('Campeón'), visualDensity: VisualDensity.compact),
+                for (final p in s.premios) Chip(label: Text(p), visualDensity: VisualDensity.compact),
+                if (s.allStar) const Chip(label: Text('All-Star'), visualDensity: VisualDensity.compact),
+              ],
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            ev.retirado
+                ? 'Se retira: termina su carrera.'
+                : '${sube ? '+' : ''}${ev.cambio} de media para la temporada que viene.'
+                      '${ev.rolNuevo != null ? ' Nuevo rol: ${ev.rolNuevo!.etiqueta}.' : ''}',
+            style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// El legado de tu figura: totales de carrera, anillos, premios y el veredicto del Salón.
+class PanelLegado extends StatelessWidget {
+  const PanelLegado({super.key, required this.legado});
+
+  final LegadoFigura legado;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final l = legado;
+    Widget dato(String valor, String etiqueta) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextoLed(valor, tamano: 20, color: esquema.primary),
+        Text(etiqueta, style: tema.textTheme.labelSmall),
+      ],
+    );
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: esquema.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: esquema.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.workspace_premium_outlined, color: esquema.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'LEGADO DE ${l.nombre.toUpperCase()}${l.retirado ? ' · RETIRADO' : ''}',
+                  style: tema.textTheme.titleSmall?.copyWith(letterSpacing: 0.5),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (l.temporadas.isEmpty)
+            Text(
+              'Todavía no terminó su primera temporada.',
+              style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+            )
+          else ...[
+            Wrap(
+              spacing: 18,
+              runSpacing: 10,
+              children: [
+                dato('${l.temporadas.length}', 'TEMPORADAS'),
+                dato('${l.puntos}', 'PUNTOS'),
+                dato('${l.rebotes}', 'REBOTES'),
+                dato('${l.asistencias}', 'ASIST.'),
+                dato('${l.anillos}', 'ANILLOS'),
+                dato('${l.mvps}', 'MVP'),
+                dato('${l.allNba}', 'ALL-NBA'),
+                dato('${l.allStars}', 'ALL-STAR'),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(l.veredicto, style: tema.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+          ],
         ],
       ),
     );

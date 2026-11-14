@@ -14,6 +14,7 @@ import 'domain/entities/modo_juego.dart';
 import 'domain/entities/perfil.dart';
 import 'domain/entities/temporada.dart';
 import 'domain/liga.dart';
+import 'domain/modos/evoluciones.dart';
 import 'domain/progreso.dart';
 import 'domain/reto.dart';
 import 'presentation/modos/modos.dart';
@@ -73,7 +74,8 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   Liga? _liga;
 
   /// Una sola liga para toda la app (el catálogo se carga una vez).
-  Future<Liga> _ligaLista() async => _liga ??= Liga(await cargarCatalogo(), franquicias);
+  Future<Liga> _ligaLista() async =>
+      _liga ??= Liga(await cargarCatalogo(), franquicias)..nivelEvolucion = (id) => nivelEvo(perfilApp.value, id);
 
   late final _modos = ContextoModos(
     liga: _ligaLista,

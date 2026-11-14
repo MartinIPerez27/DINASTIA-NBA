@@ -4,12 +4,21 @@ import 'all_star.dart';
 import 'entities/perfil.dart';
 import 'entities/temporada.dart';
 import 'entities/metajuego.dart';
+import 'entities/modo_juego.dart';
 import 'liga.dart';
 import 'misiones.dart';
 import 'modos/amigos.dart';
+import 'modos/armado.dart';
+import 'modos/carrera_jugador.dart';
 import 'modos/dinastia.dart';
+import 'modos/epocas.dart';
+import 'modos/evoluciones.dart';
+import 'modos/fantasy.dart';
+import 'modos/competitivo.dart';
 import 'modos/escalera.dart';
+import 'modos/historia.dart';
 import 'modos/progreso_escalera.dart';
+import 'modos/universitario.dart';
 import 'historicos.dart';
 import 'motor.dart';
 import 'premios.dart';
@@ -51,6 +60,14 @@ class Progreso {
     // Entre amigos (draft en grupo, duelo): sin récords ni títulos para tu carrera; solo un poco de
     // XP por jugarla entera.
     if (PartidaAmigos.esModoDeAmigos(despues.modoJuego)) return _amigos(perfil, antes, despues);
+    // Tope salarial y Liga de 8 contra la IA: XP por partido y el título (sin récords de temporada).
+    if (esPartidaArmada(despues.modoJuego)) return premiarArmado(perfil, antes, despues);
+    // Divisiones, Conquista y Creador de torneos: XP y monedas por partido y premios propios.
+    if (esPartidaCompetitiva(despues.modoJuego)) return premiarCompetitivo(perfil, antes, despues);
+    // Modo universitario: XP por victoria y el título nacional (jugadores ficticios: sin álbum).
+    if (despues.modoJuego == ModoJuego.universitario) return premiarUniversitario(perfil, antes, despues);
+    // Fantasy NBA: XP por semana ganada y el podio de la liga.
+    if (despues.modoJuego == ModoJuego.fantasy) return premiarFantasy(perfil, antes, despues);
     final novedades = <Novedad>[];
     final nivelAntes = perfil.nivel;
     var p = perfil;
@@ -143,6 +160,11 @@ class Progreso {
       // Dinastía: 3 títulos en la misma carrera (los anteriores más este).
       if (CarreraDinastia.esCarrera(despues) && EstadoDinastia.de(despues).titulos + 1 >= 3) lograr(Logro.dinastia3);
     }
+    // Mi carrera: el jugador se retiró con una carrera de Salón de la Fama.
+    final miCarrera = EstadoCarrera.de(despues);
+    if (miCarrera != null && miCarrera.retirado && EstadoCarrera.de(antes)?.retirado != true && miCarrera.legado.salon) {
+      lograr(Logro.salonDeLaFama);
+    }
     // All-Star: 3 o más convocados tuyos.
     if (!logros.containsKey(Logro.tresAllStars)) {
       final allStar = allStarDe(despues, liga);
@@ -168,6 +190,12 @@ class Progreso {
     }
     // Variantes (Extremo, Solo entrenador, Leyenda única, Espejo, Desafío del día).
     logrosDeVariante(antes, despues).forEach(lograr);
+    // Torneos por época (guantelete, camadas, universidades).
+    logrosDeEpocas(antes, despues).forEach(lograr);
+    p = premiarEpocas(p, antes, despues, mult);
+    // Momentos clutch: cada final real que cambiás suma; todos, un logro.
+    logrosDeHistoria(antes, despues).forEach(lograr);
+    p = premiarHistoria(p, antes, despues, novedades);
     p = p.copyWith(logros: logros);
     p = premiarVariante(p, antes, despues, novedades);
 
@@ -179,6 +207,9 @@ class Progreso {
         p = p.copyWith(logros: logros);
       }
     }
+
+    // Evoluciones de cartas del álbum: progreso con lo que jugaron tus cartas.
+    p = avanzarEvoluciones(p, antes, despues);
 
     // Misiones, pase de temporada y rivalidades ("Revancha").
     final sumas = Misiones.diferencias(antes, despues);
