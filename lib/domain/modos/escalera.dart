@@ -7,8 +7,10 @@ import '../entities/posicion.dart';
 import '../entities/tactica.dart';
 import '../entities/temporada.dart';
 import '../liga.dart';
+import '../modificadores.dart';
 import '../motor.dart';
 import '../playbook.dart';
+import '../quimica.dart';
 
 /// Rival de un modo de escalera: un plantel armado a medida (no es una franquicia de la liga).
 class RivalEscalera {
@@ -134,7 +136,97 @@ class Cruce {
   };
 }
 
-/// Ventajas del Camino al anillo: después de cada escalón ganado elegís 1 de 3.
+/// Insignias tácticas del Camino al anillo: después de cada escalón ganado elegís 1 de 3, quedan
+/// para todo el camino y se suman entre sí. Varias rinden de verdad solo si tu plantel tiene con qué
+/// (si no, dan una versión chica): así elegís según tu armado.
+enum InsigniaCamino {
+  showtime('Showtime', 'Más contraataques después de cada robo o rebote defensivo.', 'un base que reparta (7+ asistencias)'),
+  badBoys('Bad Boys', 'Defensa física: el rival se cansa más rápido.', null),
+  zonaProhibida('Zona prohibida', 'El rival tira peor cerca del aro.', '2 taponadores (2+ tapas)'),
+  pizarron('Pizarrón de Popovich', 'Los tiros con asistencia entran más.', '3 jugadores de IQ 88 o más'),
+  splash('Splash', 'Tus triples entran más.', '2 tiradores (37 % o más de triple)'),
+  sangreFria('Sangre fría', 'Todo tu equipo tira mejor en el clutch.', null),
+  bancoProfundo('Banco profundo', 'Tus jugadores se cansan menos.', null),
+  quimica('Química de vestuario', 'Un poco más de acierto para todos.', 'química de 60 o más'),
+  mamba('Mamba mentality', 'Tu máximo anotador se agranda en el último cuarto.', null),
+  manosRapidas('Manos rápidas', 'Tu defensa fuerza más pérdidas.', '2 ladrones (1,5+ robos)'),
+  segundaChance('Segunda chance', 'Más rebotes ofensivos.', '2 reboteadores (9+ rebotes)'),
+  refuerzo('Refuerzo', 'Fichás un suplente para el banco largo.', null);
+
+  const InsigniaCamino(this.nombre, this.descripcion, this.requisito);
+  final String nombre;
+  final String descripcion;
+
+  /// Qué necesita tu plantel para el efecto completo (null: siempre completo).
+  final String? requisito;
+
+  /// ¿Tu plantel cumple el requisito?
+  bool cumple(Iterable<Jugador> js) {
+    int cuantos(bool Function(Jugador) f) => js.where(f).length;
+    return switch (this) {
+      showtime => cuantos((j) => j.stats.app >= 7) >= 1,
+      zonaProhibida => cuantos((j) => j.stats.tapP >= 2.0) >= 2,
+      pizarron => cuantos((j) => j.stats.iq >= 88) >= 3,
+      splash => cuantos((j) => j.stats.pctT3 >= 0.37) >= 2,
+      quimica => Quimica.de(js).puntaje >= 60,
+      manosRapidas => cuantos((j) => j.stats.robP >= 1.5) >= 2,
+      segundaChance => cuantos((j) => j.stats.rpp >= 9) >= 2,
+      _ => true,
+    };
+  }
+
+  /// Efecto en el partido (completo o la versión chica si el plantel no cumple el requisito).
+  ModificadoresEquipo efecto(Iterable<Jugador> js) {
+    final ok = cumple(js);
+    return switch (this) {
+      showtime => ModificadoresEquipo(contraataqueFactor: ok ? 1.8 : 1.3),
+      badBoys => const ModificadoresEquipo(fatigaRivalFactor: 1.25),
+      zonaProhibida => ModificadoresEquipo(interiorRival: ok ? 0.045 : 0.015),
+      pizarron => ModificadoresEquipo(asistidoExtra: ok ? 0.045 : 0.015),
+      splash => ModificadoresEquipo(tripleExtra: ok ? 0.04 : 0.015),
+      sangreFria => const ModificadoresEquipo(clutchExtra: 0.06),
+      bancoProfundo => const ModificadoresEquipo(fatigaFactor: 0.75),
+      quimica => ModificadoresEquipo(quimicaExtra: ok ? 0.025 : 0.01),
+      mamba => const ModificadoresEquipo(estrellaCuartoFinal: 0.08),
+      manosRapidas => ModificadoresEquipo(robosFactor: ok ? 1.35 : 1.12),
+      segundaChance => ModificadoresEquipo(reboteOfensivoFactor: ok ? 1.4 : 1.15),
+      refuerzo => ModificadoresEquipo.neutros,
+    };
+  }
+
+  /// El efecto en palabras, con números ("+3 % en triples").
+  String detalle(Iterable<Jugador> js) {
+    final ok = cumple(js);
+    String pct(double x) {
+      final v = (x * 100).abs();
+      return '${v == v.roundToDouble() ? v.round() : v.toStringAsFixed(1).replaceAll('.', ',')} %';
+    }
+
+    final m = efecto(js);
+    final texto = switch (this) {
+      showtime => '+${pct(m.contraataqueFactor - 1)} de contraataques',
+      badBoys => 'el rival se cansa ${pct(m.fatigaRivalFactor - 1)} más',
+      zonaProhibida => '−${pct(m.interiorRival)} al doble del rival',
+      pizarron => '+${pct(m.asistidoExtra)} en tiros asistidos',
+      splash => '+${pct(m.tripleExtra)} en triples',
+      sangreFria => '+${pct(m.clutchExtra)} en el clutch',
+      bancoProfundo => '${pct(1 - m.fatigaFactor)} menos de cansancio',
+      quimica => '+${pct(m.quimicaExtra)} de acierto',
+      mamba => '+${pct(m.estrellaCuartoFinal)} a tu figura en el último cuarto',
+      manosRapidas => '+${pct(m.robosFactor - 1)} de pérdidas del rival',
+      segundaChance => '+${pct(m.reboteOfensivoFactor - 1)} de rebotes ofensivos',
+      refuerzo => 'un suplente más',
+    };
+    if (requisito == null) return texto;
+    return ok ? '$texto (completo: tenés $requisito)' : '$texto (versión chica: falta $requisito)';
+  }
+
+  /// Todas las insignias juntas.
+  static ModificadoresEquipo suma(Iterable<InsigniaCamino> insignias, Iterable<Jugador> js) =>
+      insignias.fold(ModificadoresEquipo.neutros, (m, i) => m.mas(i.efecto(js)));
+}
+
+/// Ventajas del Camino al anillo de antes de las insignias (solo para partidas guardadas).
 enum VentajaCamino {
   inspiracion('Arenga', '+3 de media a todo tu plantel en el próximo partido.'),
   figura('Momento de gloria', '+3 de media a tu mejor jugador por el resto del camino.'),
@@ -491,6 +583,8 @@ class Escalera {
     this.total,
     this.ofrecidas = const [],
     this.elegidas = const [],
+    this.insignias = const [],
+    this.insigniasOfrecidas = const [],
     this.bonusPlantel = const {},
     this.bonusProximo = 0,
     this.rivalCansado = false,
@@ -510,6 +604,10 @@ class Escalera {
   /// Ventajas que esperan que elijas una (vacío: no hay elección pendiente).
   final List<VentajaCamino> ofrecidas;
   final List<VentajaCamino> elegidas;
+
+  /// Insignias ganadas (se suman entre sí) y las 3 que esperan que elijas una.
+  final List<InsigniaCamino> insignias;
+  final List<InsigniaCamino> insigniasOfrecidas;
 
   /// Media extra de tus cartas por el resto del camino (id de carta → bonus).
   final Map<String, int> bonusPlantel;
@@ -553,7 +651,7 @@ class Escalera {
   }
 
   bool get terminada => eliminado || completada;
-  bool get esperandoVentaja => ofrecidas.isNotEmpty;
+  bool get esperandoVentaja => ofrecidas.isNotEmpty || insigniasOfrecidas.isNotEmpty;
 
   /// Cruce que se puede jugar ahora (null si el modo terminó o espera que elijas una ventaja).
   Cruce? get pendiente {
@@ -575,6 +673,8 @@ class Escalera {
     List<Cruce>? cruces,
     List<VentajaCamino>? ofrecidas,
     List<VentajaCamino>? elegidas,
+    List<InsigniaCamino>? insignias,
+    List<InsigniaCamino>? insigniasOfrecidas,
     Map<String, int>? bonusPlantel,
     int? bonusProximo,
     bool? rivalCansado,
@@ -587,6 +687,8 @@ class Escalera {
     total: total,
     ofrecidas: ofrecidas ?? this.ofrecidas,
     elegidas: elegidas ?? this.elegidas,
+    insignias: insignias ?? this.insignias,
+    insigniasOfrecidas: insigniasOfrecidas ?? this.insigniasOfrecidas,
     bonusPlantel: bonusPlantel ?? this.bonusPlantel,
     bonusProximo: bonusProximo ?? this.bonusProximo,
     rivalCansado: rivalCansado ?? this.rivalCansado,
@@ -602,6 +704,10 @@ class Escalera {
     total: j['total'] as int?,
     ofrecidas: [for (final v in j['ofrecidas'] as List? ?? const []) VentajaCamino.values.byName(v as String)],
     elegidas: [for (final v in j['elegidas'] as List? ?? const []) VentajaCamino.values.byName(v as String)],
+    insignias: [for (final v in j['insignias'] as List? ?? const []) ?InsigniaCamino.values.asNameMap()[v]],
+    insigniasOfrecidas: [
+      for (final v in j['insigniasOfrecidas'] as List? ?? const []) ?InsigniaCamino.values.asNameMap()[v],
+    ],
     bonusPlantel: (j['bonus'] as Map<String, dynamic>? ?? const {}).map((k, v) => MapEntry(k, v as int)),
     bonusProximo: j['bonusProximo'] as int? ?? 0,
     rivalCansado: j['rivalCansado'] as bool? ?? false,
@@ -620,6 +726,8 @@ class Escalera {
     if (total != null) 'total': total,
     if (ofrecidas.isNotEmpty) 'ofrecidas': [for (final v in ofrecidas) v.name],
     if (elegidas.isNotEmpty) 'elegidas': [for (final v in elegidas) v.name],
+    if (insignias.isNotEmpty) 'insignias': [for (final v in insignias) v.name],
+    if (insigniasOfrecidas.isNotEmpty) 'insigniasOfrecidas': [for (final v in insigniasOfrecidas) v.name],
     if (bonusPlantel.isNotEmpty) 'bonus': bonusPlantel,
     if (bonusProximo != 0) 'bonusProximo': bonusProximo,
     if (rivalCansado) 'rivalCansado': true,
@@ -891,7 +999,8 @@ class ModosEscalera {
         usuarioAlto: false,
       );
     }
-    final objetivo = _base(t.dificultad) + (i * 1.4).round();
+    // Con las insignias el plantel crece en el camino: los rivales también (+2 de base, +1,7 por escalón).
+    final objetivo = _base(t.dificultad) + 2 + (i * 1.7).round();
     return Cruce(
       rival: rivalAlAzar(objetivo, propios, evitar: _recientes(Escalera.de(t).cruces)),
       titulo: 'Escalón ${i + 1} de $largoCamino',
@@ -1050,7 +1159,8 @@ class ModosEscalera {
   EquipoPartido equipoUsuario(Temporada t) {
     final e = Escalera.de(t);
     final base = liga.equipo(t, t.franquiciaUsuarioId);
-    if (e.bonusPlantel.isEmpty && e.bonusProximo == 0) return base;
+    final mods = InsigniaCamino.suma(e.insignias, base.plantel.jugadores);
+    if (e.bonusPlantel.isEmpty && e.bonusProximo == 0 && mods.esNeutro) return base;
     final forma = <String, int>{...base.forma};
     for (final j in [...base.plantel.jugadores, ...base.reserva]) {
       forma[j.id] = (forma[j.id] ?? 0) + (e.bonusPlantel[j.id] ?? 0) + e.bonusProximo;
@@ -1061,7 +1171,9 @@ class ModosEscalera {
       tactica: base.tactica,
       entrenador: base.entrenador,
       forma: forma,
+      energiaInicial: base.energiaInicial,
       reserva: base.reserva,
+      modificadores: mods,
     );
   }
 
@@ -1077,7 +1189,8 @@ class ModosEscalera {
         t.modoJuego == ModoJuego.racha ||
         t.modoJuego == ModoJuego.mundial ||
         t.modoJuego == ModoJuego.caminoAlAnillo && c.aGanar == 1;
-    final ajuste = aMedida ? 0 : ajusteDificultad(t.dificultad);
+    // Las Finales del camino: el rival llega entero (+2) porque el tuyo llega con sus insignias.
+    final ajuste = aMedida ? 0 : ajusteDificultad(t.dificultad) + (t.modoJuego == ModoJuego.caminoAlAnillo ? 2 : 0);
     final rival = equipoRival(
       c.rival,
       ajuste: ajuste - e.rivalDebil + _rampa(t, e),
@@ -1125,7 +1238,7 @@ class ModosEscalera {
           ],
         );
       case ModoJuego.caminoAlAnillo when nuevo.ganado && e.cruces.length < largoCamino:
-        e = e.copyWith(ofrecidas: _ofrecer(t, e));
+        e = e.copyWith(insigniasOfrecidas: ofrecerInsignias(t, e));
       case ModoJuego.mejoresEquipos when nuevo.ganado && e.cruces.length < mejoresEquipos.length:
         e = e.copyWith(cruces: [...e.cruces, _cruceMejores(e.cruces.length, propios)]);
       case ModoJuego.mundial:
@@ -1159,15 +1272,31 @@ class ModosEscalera {
 
   // ── Camino al anillo ──
 
-  List<VentajaCamino> _ofrecer(Temporada t, Escalera e) {
+  /// 3 insignias que todavía no tenés (el refuerzo, solo si hay lugar en el banco largo).
+  List<InsigniaCamino> ofrecerInsignias(Temporada t, Escalera e) {
     final opciones = [
-      for (final v in VentajaCamino.values)
-        if (v != VentajaCamino.refuerzo || t.suplentes.length < Temporada.maxSuplentes) v,
+      for (final v in InsigniaCamino.values)
+        if (!e.insignias.contains(v) && (v != InsigniaCamino.refuerzo || t.suplentes.length < Temporada.maxSuplentes))
+          v,
     ]..shuffle(_azar);
     return opciones.take(3).toList();
   }
 
-  /// Elige una de las ventajas ofrecidas y arma el próximo escalón.
+  /// Elige una de las insignias ofrecidas y arma el próximo escalón.
+  Temporada elegirInsignia(Temporada t, InsigniaCamino v) {
+    var e = Escalera.de(t);
+    if (!e.insigniasOfrecidas.contains(v)) return t;
+    var x = t;
+    if (v == InsigniaCamino.refuerzo) x = x.copyWith(suplentes: [...x.suplentes, _refuerzo(x)]);
+    e = e.copyWith(
+      insigniasOfrecidas: const [],
+      insignias: [...e.insignias, v],
+      cruces: [...e.cruces, _cruceCamino(t, e.cruces.length, _propios(x))],
+    );
+    return e.en(x);
+  }
+
+  /// Ventajas de antes de las insignias: solo para partidas guardadas con una elección pendiente.
   Temporada elegirVentaja(Temporada t, VentajaCamino v) {
     var e = Escalera.de(t);
     if (!e.ofrecidas.contains(v)) return t;

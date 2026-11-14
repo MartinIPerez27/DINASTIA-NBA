@@ -72,15 +72,16 @@ void main() {
     expect(copia.racha, e.racha);
   });
 
-  test('camino al anillo: 10 escalones, 1 de 3 ventajas entre cada uno y Las Finales al final', () {
+  test('camino al anillo: 10 escalones, 1 de 3 insignias entre cada uno y Las Finales al final', () {
     final modos = ModosEscalera(liga, azar: Random(3));
     var t = modos.iniciar(nueva(ModoJuego.caminoAlAnillo));
     // Siempre gana: así se recorren los 10 (con victorias forzadas sobre el motor).
     for (var paso = 0; paso < 40 && !Escalera.de(t).terminada; paso++) {
       final e = Escalera.de(t);
       if (e.esperandoVentaja) {
-        expect(e.ofrecidas, hasLength(3));
-        t = modos.elegirVentaja(t, e.ofrecidas.first);
+        expect(e.insigniasOfrecidas, hasLength(3));
+        expect(e.insigniasOfrecidas.toSet().intersection(e.insignias.toSet()), isEmpty, reason: 'no se repiten');
+        t = modos.elegirInsignia(t, e.insigniasOfrecidas.first);
         continue;
       }
       t = _forzarVictoria(modos, t);
@@ -88,27 +89,45 @@ void main() {
     final e = Escalera.de(t);
     expect(e.completada, isTrue);
     expect(e.cruces, hasLength(ModosEscalera.largoCamino));
-    expect(e.elegidas, hasLength(ModosEscalera.largoCamino - 1));
+    expect(e.insignias, hasLength(ModosEscalera.largoCamino - 1));
+    expect(e.insignias.toSet(), hasLength(e.insignias.length), reason: 'cada insignia una sola vez');
     expect(e.cruces.last.aGanar, 4, reason: 'Las Finales al mejor de 7');
     expect(e.cruces.last.titulo, contains('Las Finales'));
     expect(e.cruces[8].rival.media, greaterThan(e.cruces[0].rival.media + 5));
   });
 
-  test('las ventajas del camino cambian el partido', () {
+  test('las insignias del camino llegan al partido (y se suman)', () {
     final modos = ModosEscalera(liga, azar: Random(4));
     var t = modos.iniciar(nueva(ModoJuego.caminoAlAnillo));
+    expect(modos.equipoUsuario(t).modificadores.esNeutro, isTrue, reason: 'sin insignias, partido normal');
     t = _forzarVictoria(modos, t);
     var e = Escalera.de(t);
     expect(e.esperandoVentaja, isTrue);
     expect(e.pendiente, isNull);
-    final elegida = e.ofrecidas.contains(VentajaCamino.quimica) ? VentajaCamino.quimica : e.ofrecidas.first;
-    t = modos.elegirVentaja(t, elegida);
+    final elegida = e.insigniasOfrecidas.firstWhere((v) => v != InsigniaCamino.refuerzo);
+    t = modos.elegirInsignia(t, elegida);
     e = Escalera.de(t);
     expect(e.pendiente, isNotNull);
-    if (elegida == VentajaCamino.quimica) {
-      final propio = modos.equipoUsuario(t);
-      expect(propio.forma.values.every((v) => v >= 1), isTrue);
-    }
+    expect(e.insignias, [elegida]);
+    expect(modos.equipoUsuario(t).modificadores.esNeutro, isFalse);
+    // JSON: las insignias se guardan.
+    expect(Escalera.fromJson(e.toJson()).insignias, [elegida]);
+  });
+
+  test('partidas viejas: una ventaja pendiente se sigue pudiendo elegir', () {
+    final modos = ModosEscalera(liga, azar: Random(4));
+    var t = modos.iniciar(nueva(ModoJuego.caminoAlAnillo));
+    t = _forzarVictoria(modos, t);
+    // Simula una partida guardada antes de las insignias.
+    final vieja = Escalera.de(t).toJson()
+      ..remove('insigniasOfrecidas')
+      ..['ofrecidas'] = ['quimica', 'figura', 'scouting'];
+    t = t.copyWith(datosModo: {...t.datosModo, Escalera.clave: vieja});
+    final e = Escalera.de(t);
+    expect(e.esperandoVentaja, isTrue);
+    t = modos.elegirVentaja(t, VentajaCamino.quimica);
+    expect(Escalera.de(t).pendiente, isNotNull);
+    expect(modos.equipoUsuario(t).forma.values.every((v) => v >= 1), isTrue);
   });
 
   test('los mejores equipos de la historia: 10 al mejor de 3 y el último son los Bulls 96', () {

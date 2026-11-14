@@ -9,6 +9,7 @@ import '../../domain/entities/perfil.dart';
 import '../../domain/tienda.dart';
 import '../tema/tema_franquicia.dart';
 import '../widgets/carta_vertical.dart';
+import 'evoluciones_vista.dart';
 import '../widgets/escudo.dart';
 import '../widgets/haptica.dart';
 import '../widgets/texto_led.dart';
@@ -46,7 +47,7 @@ class _AlbumPantallaState extends State<AlbumPantalla> {
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
-    length: 2,
+    length: 3,
     child: Scaffold(
       appBar: AppBar(
         title: const Text('Álbum'),
@@ -69,6 +70,7 @@ class _AlbumPantallaState extends State<AlbumPantalla> {
           tabs: [
             Tab(text: 'Mis cartas'),
             Tab(text: 'Tienda'),
+            Tab(text: 'Evoluciones'),
           ],
         ),
       ),
@@ -77,7 +79,13 @@ class _AlbumPantallaState extends State<AlbumPantalla> {
         child: ValueListenableBuilder(
           valueListenable: perfilApp,
           builder: (context, perfil, _) =>
-              TabBarView(children: [_coleccion(context, perfil), _tiendaVista(context, perfil)]),
+              TabBarView(
+            children: [
+              _coleccion(context, perfil),
+              _tiendaVista(context, perfil),
+              EvolucionesVista(catalogo: widget.catalogo, perfil: perfil, onPerfil: widget.onPerfil),
+            ],
+          ),
         ),
       ),
     ),

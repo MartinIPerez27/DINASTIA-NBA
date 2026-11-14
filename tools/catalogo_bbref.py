@@ -339,6 +339,43 @@ def id_estable(pid):
     return -(zlib.crc32(pid.encode()) % 10_000_000) - 1
 
 
+# Nombre canónico de las universidades que Basketball-Reference abrevia o escribe distinto.
+UNIVERSIDADES_ALIAS = {"UNC": "North Carolina", "UConn": "Connecticut", "Pennslyvania": "Pennsylvania"}
+
+
+def universidad_canonica(nombre):
+    """Nombre limpio y estable: sin "University of"/"University", espacios de más ni abreviaturas."""
+    n = " ".join((nombre or "").split())
+    n = re.sub(r"^University of ", "", n)
+    n = re.sub(r" University$", "", n)
+    n = n.replace("Pennslyvania", "Pennsylvania")
+    return UNIVERSIDADES_ALIAS.get(n, n)
+
+
+def biografias(carreras, drafts):
+    """player_id → {"draft": [año, pick] o None, "universidad": str o None, "nacimiento": año o None}.
+
+    Universidad: la última de la lista (la de egreso, si hubo traspasos). Draft: el último draft de la
+    NBA/BAA en el que fue elegido (algunos se volvieron a presentar)."""
+    bio = {}
+    for f in carreras:
+        colegios = [c.strip() for c in next(csv.reader([f.get("colleges") or ""]), []) if c.strip()]
+        colegios = [c for c in colegios if c != "NA"]
+        nacimiento = (f.get("birth_date") or "")[:4]
+        bio[f["player_id"]] = {
+            "draft": None,
+            "universidad": universidad_canonica(colegios[-1]) if colegios else None,
+            "nacimiento": int(nacimiento) if nacimiento.isdigit() else None,
+        }
+    for f in sorted(drafts, key=lambda f: (int(f["season"]), numero(f["overall_pick"]) or 0)):
+        if f["lg"] not in ("NBA", "BAA") or f["player_id"] in ("", "NA"):
+            continue
+        pick = numero(f["overall_pick"])
+        bio.setdefault(f["player_id"], {"draft": None, "universidad": None, "nacimiento": None})
+        bio[f["player_id"]]["draft"] = [int(f["season"]), int(pick) if pick else 0]
+    return bio
+
+
 def main():
     todas = [f for f in leer("Player Totals.csv") if f["lg"] in ("NBA", "BAA")]
     ref = promedios_referencia(todas)
@@ -445,6 +482,8 @@ def main():
     if ec.SALIDA.exists():
         anteriores = {c["id"]: c["nbaPlayerId"] for c in json.loads(ec.SALIDA.read_text(encoding="utf-8"))}
 
+    bio = biografias(leer("Player Career Info.csv"), leer("Draft Pick History.csv"))
+
     cartas = []
     for clave, t in grupos.items():
         pid, franquicia, epoca = clave
@@ -477,6 +516,9 @@ def main():
             "dorsal": 0,  # el dataset no trae dorsales; se cargan en ajustes_cartas.json
             "stats": ec.stats_de(t),
             "temporadas": [anios[0], anios[-1]],
+            "draft": bio.get(pid, {}).get("draft"),
+            "universidad": bio.get(pid, {}).get("universidad"),
+            "nacimiento": bio.get(pid, {}).get("nacimiento"),
             "fotos": fotos.get(pid, ["n", "b", "w"] if nba_id else ["b", "w"]),
             "_perfil": p,
             "_puntos": pts,
@@ -498,7 +540,11 @@ def main():
     ec.aplicar_ajustes(cartas, ajustes)
     orden = {"sPlus": 0, "s": 1, "a": 2, "b": 3}
     cartas.sort(key=lambda c: (orden[c["tier"]], -c["media"]))
-    limpias = [{k: v for k, v in c.items() if not k.startswith("_")} for c in cartas]
+    opcionales = {"draft", "universidad", "nacimiento"}  # sin dato: no se escribe la clave
+    limpias = [
+        {k: v for k, v in c.items() if not k.startswith("_") and not (k in opcionales and v is None)}
+        for c in cartas
+    ]
     ec.SALIDA.write_text(json.dumps(limpias, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
     por_tier = Counter(c["tier"] for c in limpias)

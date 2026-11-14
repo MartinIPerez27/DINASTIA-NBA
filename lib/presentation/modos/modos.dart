@@ -7,10 +7,15 @@ import '../../domain/entities/temporada.dart';
 import '../../domain/liga.dart';
 import 'amigos.dart';
 import 'armado.dart';
+import 'carrera_jugador.dart';
+import 'competitivo.dart';
 import 'carrera.dart';
 import 'epocas.dart';
 import 'escalera.dart';
+import 'fantasy.dart';
 import 'historia.dart';
+import 'perfil_perfecto.dart';
+import 'universitario.dart';
 import 'reto.dart';
 import 'variantes.dart';
 
@@ -51,6 +56,11 @@ Future<void> iniciarModo(ModoJuego m, Franquicia enfocada, ContextoModos c) => s
   _ when esModoHistoria(m) => iniciarHistoria(m, enfocada, c),
   _ when esModoEpocas(m) => iniciarEpocas(m, enfocada, c),
   _ when esModoArmado(m) => iniciarArmado(m, enfocada, c),
+  _ when m == ModoJuego.carreraJugador => iniciarCarreraJugador(c),
+  _ when m == ModoJuego.universitario => iniciarUniversitario(c),
+  _ when esModoCompetitivo(m) => iniciarCompetitivo(m, enfocada, c),
+  _ when m == ModoJuego.fantasy => iniciarFantasy(c),
+  _ when m == ModoJuego.perfilPerfecto => iniciarPerfilPerfecto(c),
   _ when esModoAmigos(m) => iniciarAmigos(m, enfocada, c),
   _ => Future.value(),
 };
@@ -66,6 +76,10 @@ Future<Widget?> pantallaDeModo(Temporada t, ContextoModos c) async {
   if (esModoHistoria(m)) return pantallaHistoria(t, c);
   if (esModoEpocas(m)) return pantallaEpocas(t, c);
   if (esModoArmado(m)) return pantallaArmado(t, c);
+  if (m == ModoJuego.carreraJugador) return pantallaCarreraJugador(t, c);
+  if (m == ModoJuego.universitario) return pantallaUniversitario(t, c);
+  if (esModoCompetitivo(m)) return pantallaCompetitivo(t, c);
+  if (m == ModoJuego.fantasy) return pantallaFantasy(t, c);
   return null;
 }
 
@@ -103,6 +117,13 @@ class ModosPantalla extends StatelessWidget {
     ModoJuego.ligaIA => Icons.smart_toy_outlined,
     ModoJuego.figuraFranquicia => Icons.person_pin_outlined,
     ModoJuego.adivina => Icons.quiz_outlined,
+    ModoJuego.carreraJugador => Icons.sports_basketball,
+    ModoJuego.universitario => Icons.school,
+    ModoJuego.divisiones => Icons.leaderboard_outlined,
+    ModoJuego.creadorTorneos => Icons.account_tree,
+    ModoJuego.conquista => Icons.map_outlined,
+    ModoJuego.fantasy => Icons.groups_2_outlined,
+    ModoJuego.perfilPerfecto => Icons.psychology_alt_outlined,
   };
 
   @override

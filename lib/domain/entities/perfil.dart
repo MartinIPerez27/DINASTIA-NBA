@@ -23,18 +23,33 @@ enum Logro {
   recordHistorico('Para la historia', 'Batí un récord de una temporada de la NBA.'),
   tresAllStars('Constelación', 'Tené 3 o más jugadores en el All-Star.'),
   copaNba('Campeón de la Copa NBA', 'Ganá la Copa NBA de mitad de temporada.'),
+  divisionUno('Élite', 'Llegá a la División 1.'),
+  conquistaTotal('Dueño del mapa', 'Conquistá las 30 franquicias.'),
+  campeonTorneo('Organizador campeón', 'Ganá un torneo con tu equipo en el Creador de torneos.'),
   rachaInfinita('Racha infinita', 'Ganá 15 partidos seguidos en la Racha infinita.'),
   caminoAlAnillo('Camino al anillo', 'Superá los 10 escalones del Camino al anillo.'),
   mejoresDeLaHistoria('El mejor de todos los tiempos', 'Ganale a los 10 mejores equipos de la historia.'),
   mundial('Campeón del mundo', 'Ganá el Mundial de franquicias.'),
   escenario('Otro final', 'Ganá un escenario histórico.'),
   dinastia3('Dinastía', 'Ganá 3 títulos en una misma Dinastía (o Reescribí la historia).'),
+  salonDeLaFama('Salón de la Fama', 'Retirá a tu jugador de Mi carrera con una carrera de Salón de la Fama.'),
   revancha('Revancha', 'Eliminá en playoffs a una franquicia que antes te había eliminado.'),
   campeonExtremo('Sobreviviente', 'Salí campeón en Extremo.'),
   campeonSoloEntrenador('Pizarrón', 'Salí campeón en Solo entrenador.'),
   campeonLeyendaUnica('Una leyenda alcanza', 'Salí campeón en Leyenda única.'),
   campeonEspejo('Contra tu reflejo', 'Salí campeón en Modo espejo.'),
-  desafioCumplido('Desafío cumplido', 'Ganá 50 partidos o más en un Desafío del día.');
+  desafioCumplido('Desafío cumplido', 'Ganá 50 partidos o más en un Desafío del día.'),
+  topeSalarial('Gerente de bolsillo', 'Salí campeón en Tope salarial.'),
+  ligaIA('Mejor que la máquina', 'Ganá la Liga de 8 contra la IA.'),
+  desafiosArmado('Arquitecto', 'Resolvé 10 desafíos de armado.'),
+  adivina('Enciclopedia', 'Acertá 10 de 10 en Adiviná la carta.'),
+  guantelete('Viajero del tiempo', 'Completá el Guantelete de las décadas.'),
+  camadas('La mejor camada', 'Ganá la Batalla de camadas.'),
+  universidades('Campeón universitario', 'Ganá el Torneo de universidades.'),
+  clutchHistorico('Sangre fría histórica', 'Ganá todos los Momentos clutch.'),
+  campeonFantasy('Gran DT', 'Ganá una liga de Fantasy NBA.'),
+  detective('Detective de la NBA', 'Resolvé 25 niveles de Perfil perfecto.'),
+  maestroDetective('Sherlock del básquet', 'Resolvé 100 niveles de Perfil perfecto.');
 
   const Logro(this.nombre, this.descripcion);
   final String nombre;
@@ -58,6 +73,9 @@ enum TipoTrofeo {
   mejoresEquipos('Los mejores de la historia'),
   mundial('Mundial de franquicias'),
   escenario('Escenario histórico'),
+  divisiones('División 1'),
+  conquista('Dueño del mapa'),
+  torneoPropio('Torneo propio'),
   copa('Copa NBA');
 
   const TipoTrofeo(this.nombre);
@@ -178,6 +196,9 @@ class PerfilEntrenador {
     this.mejorRacha = 0,
     this.desafiosDelDia = const {},
     this.metajuego = const Metajuego(),
+    this.armado = const {},
+    this.evoluciones = const {},
+    this.perfilPerfecto = const {},
   });
 
   final int xp;
@@ -208,6 +229,16 @@ class PerfilEntrenador {
 
   /// Misiones, pase de temporada, cosméticos y rivalidades.
   final Metajuego metajuego;
+
+  /// Modos de armado sin partida: desafíos resueltos y récords de Adiviná la carta (ver
+  /// `PerfilArmado` en domain/modos/armado.dart).
+  final Map<String, dynamic> armado;
+
+  /// Evoluciones de cartas del álbum (ver `PerfilEvoluciones` en domain/modos/evoluciones.dart).
+  final Map<String, dynamic> evoluciones;
+
+  /// Progreso de Perfil perfecto: estrellas por nivel y pistas (ver domain/modos/perfil_perfecto.dart).
+  final Map<String, dynamic> perfilPerfecto;
 
   /// XP total necesaria para llegar a un nivel: 0, 150, 450, 900, 1500…
   static int xpParaNivel(int nivel) => 75 * nivel * (nivel - 1);
@@ -243,6 +274,9 @@ class PerfilEntrenador {
     int? mejorRacha,
     Map<String, int>? desafiosDelDia,
     Metajuego? metajuego,
+    Map<String, dynamic>? armado,
+    Map<String, dynamic>? evoluciones,
+    Map<String, dynamic>? perfilPerfecto,
   }) => PerfilEntrenador(
     xp: xp ?? this.xp,
     monedas: monedas ?? this.monedas,
@@ -256,6 +290,9 @@ class PerfilEntrenador {
     mejorRacha: mejorRacha ?? this.mejorRacha,
     desafiosDelDia: desafiosDelDia ?? this.desafiosDelDia,
     metajuego: metajuego ?? this.metajuego,
+    armado: armado ?? this.armado,
+    evoluciones: evoluciones ?? this.evoluciones,
+    perfilPerfecto: perfilPerfecto ?? this.perfilPerfecto,
   );
 
   factory PerfilEntrenador.fromJson(Map<String, dynamic> j) => PerfilEntrenador(
@@ -282,6 +319,9 @@ class PerfilEntrenador {
     mejorRacha: j['mejorRacha'] as int? ?? 0,
     desafiosDelDia: (j['desafiosDelDia'] as Map<String, dynamic>? ?? {}).map((k, v) => MapEntry(k, v as int)),
     metajuego: Metajuego.fromJson(j['metajuego'] as Map<String, dynamic>? ?? const {}),
+    armado: j['armado'] as Map<String, dynamic>? ?? const {},
+    evoluciones: j['evoluciones'] as Map<String, dynamic>? ?? const {},
+    perfilPerfecto: j['perfilPerfecto'] as Map<String, dynamic>? ?? const {},
   );
 
   Map<String, dynamic> toJson() => {
@@ -299,5 +339,8 @@ class PerfilEntrenador {
     if (mejorRacha > 0) 'mejorRacha': mejorRacha,
     if (desafiosDelDia.isNotEmpty) 'desafiosDelDia': desafiosDelDia,
     'metajuego': metajuego.toJson(),
+    if (armado.isNotEmpty) 'armado': armado,
+    if (evoluciones.isNotEmpty) 'evoluciones': evoluciones,
+    if (perfilPerfecto.isNotEmpty) 'perfilPerfecto': perfilPerfecto,
   };
 }

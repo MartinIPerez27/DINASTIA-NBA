@@ -11,6 +11,7 @@ import 'entities/plantel.dart';
 import 'entities/posicion.dart';
 import 'entities/rival.dart';
 import 'entities/temporada.dart';
+import 'modos/evoluciones.dart';
 import 'motor.dart';
 import 'playbook.dart';
 import 'versiones.dart';
@@ -24,6 +25,10 @@ class Liga {
   final List<Jugador> catalogo;
   final List<Franquicia> franquicias;
   final Random _azar;
+
+  /// Nivel de evolución de una carta del álbum (lo conecta la app con el perfil). Solo se aplica en
+  /// las partidas que usan el álbum (ver `partidaUsaAlbum`).
+  int Function(String cartaId)? nivelEvolucion;
 
   late final Map<String, Jugador> _porId = {for (final j in catalogo) j.id: j};
 
@@ -162,7 +167,15 @@ class Liga {
   EquipoPartido equipo(Temporada t, String franquiciaId, {Map<String, int>? lesiones}) {
     final les = lesiones ?? t.lesiones;
     if (franquiciaId == t.franquiciaUsuarioId) {
-      final (plantel, reserva) = _conReemplazos(t.plantel, t.suplentes, les);
+      var (plantel, reserva) = _conReemplazos(t.plantel, t.suplentes, les);
+      // Evoluciones de cartas: solo en los modos que usan tu álbum.
+      if (nivelEvolucion case final nivel? when partidaUsaAlbum(t)) {
+        plantel = Plantel.deEmergencia({
+          for (final pos in Posicion.values)
+            if (plantel.en(pos) case final j?) pos: conNivelEvo(j, nivel(j.id)),
+        });
+        reserva = [for (final j in reserva) conNivelEvo(j, nivel(j.id))];
+      }
       return EquipoPartido(
         identidadId: franquiciaId,
         plantel: plantel,
@@ -488,6 +501,10 @@ class Liga {
   // ------------------------------------------------------------------ jugadores y premios
 
   Jugador? jugador(String cartaId) => _porId[cartaId];
+
+  /// Anota (o reemplaza) una carta propia de una partida, como el jugador de Mi carrera: premios,
+  /// forma y All-Star lo buscan por id. Tiene que tener un id que no sea de ninguna carta del catálogo.
+  void registrarCarta(Jugador j) => _porId[j.id] = j;
 
   /// Franquicia de cada carta en esta temporada (tu plantel y los 29 rivales).
   Map<String, String> equipos(Temporada t) => {

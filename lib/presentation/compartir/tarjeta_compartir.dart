@@ -63,7 +63,8 @@ class ResumenCompartir {
         _ => 'Temporada regular terminada',
       };
       final lineas = <String>[
-        if (m == ModoJuego.dinastia || m == ModoJuego.reescribi) _lineaDinastia(t, campeon),
+        if (m == ModoJuego.dinastia || m == ModoJuego.reescribi || m == ModoJuego.figuraFranquicia)
+          _lineaDinastia(t, campeon),
         if (m == ModoJuego.reto) ?_lineaReto(t),
       ];
       final premios = liga == null || t.lineas.isEmpty

@@ -157,6 +157,12 @@ class _EscaleraPantallaState extends State<EscaleraPantalla> {
           const SizedBox(height: 12),
           if (e.terminada)
             _Final(temporada: _t, escalera: e, onSalir: () => Navigator.of(context).popUntil((r) => r.isFirst))
+          else if (e.insigniasOfrecidas.isNotEmpty)
+            _ElegirInsignia(
+              opciones: e.insigniasOfrecidas,
+              plantel: _t.plantel.jugadores.toList(),
+              onElegir: (v) => _guardar(_modos.elegirInsignia(_t, v)),
+            )
           else if (e.esperandoVentaja)
             _Ventajas(opciones: e.ofrecidas, onElegir: (v) => _guardar(_modos.elegirVentaja(_t, v)))
           else if (pendiente != null)
@@ -169,6 +175,10 @@ class _EscaleraPantallaState extends State<EscaleraPantalla> {
               onSimular: () => _simular(),
               onSimularSerie: pendiente.esSerie ? () => _simular(cruce: true) : null,
             ),
+          if (modo == ModoJuego.caminoAlAnillo && e.insignias.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _InsigniasActivas(insignias: e.insignias, plantel: _t.plantel.jugadores.toList()),
+          ],
           const SizedBox(height: 16),
           if (modo == ModoJuego.mundial)
             _CuadroMundial(escalera: e, propia: _propia)
@@ -366,7 +376,114 @@ class _ProximoCruce extends StatelessWidget {
   }
 }
 
-/// Camino al anillo: 1 de 3 ventajas antes del próximo escalón.
+IconData _iconoInsignia(InsigniaCamino v) => switch (v) {
+  InsigniaCamino.showtime => Icons.bolt,
+  InsigniaCamino.badBoys => Icons.sports_mma,
+  InsigniaCamino.zonaProhibida => Icons.block,
+  InsigniaCamino.pizarron => Icons.draw_outlined,
+  InsigniaCamino.splash => Icons.water_drop_outlined,
+  InsigniaCamino.sangreFria => Icons.ac_unit,
+  InsigniaCamino.bancoProfundo => Icons.event_seat_outlined,
+  InsigniaCamino.quimica => Icons.handshake_outlined,
+  InsigniaCamino.mamba => Icons.local_fire_department_outlined,
+  InsigniaCamino.manosRapidas => Icons.back_hand_outlined,
+  InsigniaCamino.segundaChance => Icons.replay,
+  InsigniaCamino.refuerzo => Icons.person_add_alt_1,
+};
+
+/// Camino al anillo: 1 de 3 insignias antes del próximo escalón (se suman a las que ya tenés).
+class _ElegirInsignia extends StatelessWidget {
+  const _ElegirInsignia({required this.opciones, required this.plantel, required this.onElegir});
+
+  final List<InsigniaCamino> opciones;
+  final List<Jugador> plantel;
+  final ValueChanged<InsigniaCamino> onElegir;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text('¡ESCALÓN SUPERADO!', style: _titular),
+        Text(
+          'Elegí una insignia: queda para todo el camino y se suma a las que ya tenés.',
+          style: tema.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 8),
+        for (final v in opciones)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Material(
+              color: esquema.surfaceContainerLowest,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: esquema.primary.withValues(alpha: v.cumple(plantel) ? 0.8 : 0.35)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: ListTile(
+                leading: Icon(_iconoInsignia(v), color: esquema.primary),
+                title: Text(v.nombre.toUpperCase(), style: tema.textTheme.titleSmall?.copyWith(letterSpacing: 0.5)),
+                subtitle: Text('${v.descripcion}\n${v.detalle(plantel)}'),
+                isThreeLine: true,
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => onElegir(v),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Las insignias que ya ganaste, con su efecto en palabras.
+class _InsigniasActivas extends StatelessWidget {
+  const _InsigniasActivas({required this.insignias, required this.plantel});
+
+  final List<InsigniaCamino> insignias;
+  final List<Jugador> plantel;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _panel(esquema),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('TUS INSIGNIAS', style: tema.textTheme.labelLarge?.copyWith(letterSpacing: 1)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final v in insignias)
+                Chip(
+                  avatar: Icon(_iconoInsignia(v), size: 16, color: esquema.primary),
+                  label: Text(v.nombre),
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (final v in insignias)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '${v.nombre}: ${v.detalle(plantel)}',
+                style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Camino al anillo (partidas viejas): 1 de 3 ventajas antes del próximo escalón.
 class _Ventajas extends StatelessWidget {
   const _Ventajas({required this.opciones, required this.onElegir});
 

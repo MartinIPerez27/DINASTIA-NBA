@@ -119,6 +119,9 @@ class Jugador {
     this.fotos = const ['n', 'b'],
     this.estimadas = const {},
     this.temporadas,
+    this.draft,
+    this.universidad,
+    this.nacimiento,
   }) : equipo = equipo ?? franquiciaId;
 
   final String id;
@@ -149,6 +152,15 @@ class Jugador {
 
   /// Primera y última temporada del tramo, por año de cierre (2019-20 → 2020). Null en cartas viejas.
   final (int, int)? temporadas;
+
+  /// Año y número de elección en el draft (null: no fue elegido o no hay dato).
+  final (int, int)? draft;
+
+  /// Universidad de egreso, como la escribe Basketball-Reference ('UNC', 'Duke'…); null si no fue.
+  final String? universidad;
+
+  /// Año de nacimiento.
+  final int? nacimiento;
 
   /// Qué tramo es la carta: "2020–23", "1985–98", "1999–2004"; sin datos, la época ("Años 90").
   String get tramo => switch (temporadas) {
@@ -185,6 +197,9 @@ class Jugador {
     fotos: fotos,
     estimadas: estimadas,
     temporadas: temporadas,
+    draft: draft,
+    universidad: universidad,
+    nacimiento: nacimiento,
   );
 
   /// Id de Basketball-Reference (prefijo del id de carta).
@@ -235,6 +250,12 @@ class Jugador {
         [final num a, final num b] => (a.toInt(), b.toInt()),
         _ => null,
       },
+      draft: switch (j['draft']) {
+        [final num a, final num b] => (a.toInt(), b.toInt()),
+        _ => null,
+      },
+      universidad: j['universidad'] as String?,
+      nacimiento: (j['nacimiento'] as num?)?.toInt(),
     );
   }
 
@@ -254,6 +275,9 @@ class Jugador {
     'fotos': fotos,
     if (estimadas.isNotEmpty) 'estimadas': estimadas.toList(),
     if (temporadas case (final a, final b)) 'temporadas': [a, b],
+    if (draft case (final a, final b)) 'draft': [a, b],
+    if (universidad != null) 'universidad': universidad,
+    if (nacimiento != null) 'nacimiento': nacimiento,
   };
 
   @override
