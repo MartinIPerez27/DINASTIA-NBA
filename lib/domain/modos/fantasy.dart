@@ -6,6 +6,7 @@ import '../entities/posicion.dart';
 import '../entities/temporada.dart';
 import '../progreso.dart';
 import 'evoluciones.dart';
+import '../entities/enum_tolerante.dart';
 
 /// Fantasy NBA (al estilo de El Gran DT / ESPN fantasy).
 ///
@@ -200,10 +201,10 @@ class EquipoFantasy {
   factory EquipoFantasy.fromJson(Map<String, dynamic> j) => EquipoFantasy(
     nombre: j['n'] as String,
     plantel: {
-      for (final e in (j['p'] as Map<String, dynamic>).entries) Posicion.values.byName(e.key): e.value as String,
+      for (final e in (j['p'] as Map<String, dynamic>).entries) ?Posicion.values.porNombre(e.key): e.value as String,
     },
     capitan: j['c'] as String?,
-    personalidad: j['a'] == null ? null : PersonalidadFantasy.values.byName(j['a'] as String),
+    personalidad: PersonalidadFantasy.values.porNombre(j['a']),
   );
 
   Map<String, dynamic> toJson() => {

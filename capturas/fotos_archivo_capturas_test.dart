@@ -81,7 +81,7 @@ void main() {
         final f = File('$_muestras/nba${url.split('/').last}');
         return f.existsSync() ? MemoryImage(f.readAsBytesSync()) : null;
       }
-      final r = recortes[url.split('/').last.replaceAll('.jpg', '')];
+      final r = recortes[url.split('/').last];
       return r == null ? null : MemoryImage(r.readAsBytesSync());
     }
 

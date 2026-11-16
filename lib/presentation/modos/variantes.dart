@@ -8,6 +8,7 @@ import '../../domain/entities/modo_juego.dart';
 import '../../domain/entities/plantel.dart';
 import '../../domain/entities/posicion.dart';
 import '../../domain/entities/temporada.dart';
+import '../../domain/tokens_draft.dart';
 import '../../domain/version_catalogo.dart';
 import '../../domain/variantes.dart';
 import '../pantallas/draft_pantalla.dart';
@@ -79,7 +80,7 @@ Future<Widget> _draft(Temporada t, ContextoModos c) async {
   return DraftPantalla(
     temporada: t,
     catalogo: liga.catalogo,
-    azar: t.modoJuego == ModoJuego.desafioDelDia ? Variantes.azarDraftDelDia(t) : null,
+    azarPara: t.modoJuego == ModoJuego.desafioDelDia ? Variantes.azarPorPasoDelDia : null,
     onCambio: (nueva) {
       if (espejo) {
         pasadas = Variantes.registrarPasadas(draft, ultima, nueva, pasadas);
@@ -406,7 +407,7 @@ Future<void> _desafioDelDia(ContextoModos c) async {
     puntos: [
       'Hoy dirigís a los ${franquicia.nombreCompleto}, con draft de ${modo.nombre}.',
       'Mismas tiradas, mismos sobres y mismos rivales para todos los que lo jueguen hoy.',
-      'Dificultad Normal y 3 fichas para volver a tirar. Un solo intento por día.',
+      'Dificultad Normal, con un kit fijo y gratis: 2 fichas para volver a tirar, 1 Mejor versión y 1 Doble. Un solo intento por día.',
       'Tu puntaje son las victorias de la temporada regular.',
     ],
     extra: DesafioDelDiaEncabezado(fecha: hoy, desafios: perfil.desafiosDelDia),
@@ -423,6 +424,7 @@ Future<void> _desafioDelDia(ContextoModos c) async {
       franquiciaUsuarioId: franquicia.id,
       modo: modo,
       modoJuego: ModoJuego.desafioDelDia,
+      rerollsRestantes: ReglasTokens.rerollsKit,
       datosModo: {'semilla': semilla},
       // Sellada desde el arranque: las tiradas del día se siembran con fecha + versión de las cartas.
       versionCatalogo: versionCatalogo == 0 ? null : versionCatalogo,

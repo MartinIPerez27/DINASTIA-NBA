@@ -1,58 +1,31 @@
 {
- "_ayuda": "Correcciones manuales por id de carta ({bbref_id}-{franquicia}-{época}): posiciones, rol, tier, iq, dorsal, o {\"excluir\": true}. Se aplican después del cálculo automático.",
+ "_ayuda": "Correcciones manuales por id v2 de carta ({bbref_id}-{franquicia}-{código de época}): posiciones, rol, tier, iq, o {\"excluir\": true}. Valen para todas las ventanas de esa década (catálogo v3). Sin dorsales: todas o ninguna.",
  "bryanko01-LAL-00": {
-  "dorsal": 8,
   "rol": "superestrellaAclarados"
  },
- "bryanko01-LAL-10": {
-  "dorsal": 24
- },
- "jordami01-CHI-80": {
-  "dorsal": 23
- },
  "jordami01-CHI-90": {
-  "dorsal": 23,
   "rol": "superestrellaAclarados"
  },
  "jamesle01-CLE-10": {
-  "dorsal": 23,
   "rol": "controladorTotal"
  },
- "jamesle01-LAL-act": {
-  "dorsal": 23
- },
  "curryst01-GSW-10": {
-  "dorsal": 30,
   "rol": "anotadorExterior"
  },
- "curryst01-GSW-act": {
-  "dorsal": 30
- },
  "johnsma02-LAL-80": {
-  "dorsal": 32,
   "rol": "organizadorPuro"
  },
  "birdla01-BOS-80": {
-  "dorsal": 33,
   "rol": "controladorTotal"
  },
  "duncati01-SAS-00": {
-  "dorsal": 21,
   "rol": "maestroPoste"
  },
  "onealsh01-LAL-00": {
-  "dorsal": 34,
   "rol": "goliatPintura"
  },
- "jokicni01-DEN-act": {
-  "dorsal": 15
- },
  "antetgi01-MIL-act": {
-  "dorsal": 34,
   "rol": "distribuidorInterior"
- },
- "ginobma01-SAS-00": {
-  "dorsal": 20
  },
  "pippesc01-CHI-90": {
   "rol": "cerrojoDefensivo"

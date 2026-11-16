@@ -7,6 +7,17 @@ Este documento existe para **continuar el proyecto en otro chat** sin perder con
 - **Repositorio:** `MartinIPerez27/DINASTIA-NBA` (público), rama `main`. Directorio de trabajo en la sesión: `/home/user/dinatia-nba`.
 - **Estado de verificación al escribirlo:** `flutter analyze` sin issues, `flutter test` 322 pruebas pasando, `python3 -m unittest discover tools` OK. **Nada se probó en un dispositivo Android real** (ver §20).
 
+> **ACTUALIZACIÓN (build 27, rama `mejoras-v4`):** ver también `docs/CATALOGO_V3.md`, `docs/VERIFICACION_AUDITORIA.md` y `docs/ESTILO_NARRACION.md`. Cambios desde este documento:
+> - **Catálogo v3:** cada carta es un **tramo real** (equipo + ventana de 1 a 4 temporadas). 13.026 cartas activas + 5 `legado`; todos los ids viejos se conservan. S+ 81 · S 187 · A 3.097 · B 9.656. Datos hasta la temporada 2025-26 (2026-27 en curso se corta). Dorsales siempre 0.
+> - **Balance actual:** Normal (rivales 79) 61 % / 98 %; Difícil (83) 31 % / 87 %; Leyenda 13 % / 59 %.
+> - **Tokens del draft con monedas** (volver a tirar, mejor versión, doble, intercambio, comodín); `rerollsPorTemporada` = 1; solo el 82-0 cobra.
+> - **Menú de modos nuevo** (7 categorías, "Seguir jugando"), bloqueo vertical en teléfono, tope de texto ×1,5, contraste del LED, botón de Álbum y Tienda.
+> - **Integridad:** arranque seguro, receso que guarda antes de borrar, partidas importadas sin premios, enums tolerantes, misiones/evoluciones en todos los modos, sin cola estática.
+> - **Fotos:** gestor de descarga local por persona (índice SQLite, nunca vencen), fuentes con licencia, avatares ilustrados, ya no se usa Basketball-Reference para fotos.
+> - **Mi carrera / Figura / Dinastía / Universitario:** potencial oculto, costo creciente, declive, tests de largo plazo (`test/carrera_largo_plazo_test.dart`).
+> - **Pendiente (ronda 2):** motor v2 (ritmo, tácticas que importen, sesgo de época, expulsados), simulación más emocionante con relator + comentarista (`docs/ESTILO_NARRACION.md`), tensión en los modos que no son el 82-0, Draft con cartas en teléfono chico, aro que tapa el cartel.
+> - **Suite:** correr con más margen (`timeout 1700`): tarda ~4–5 min con carga.
+
 ---
 
 ## 0. Cómo usar este documento en un chat nuevo
@@ -135,7 +146,7 @@ Todo se serializa a JSON (`toJson`/`fromJson`); **los campos nuevos son opcional
 ## 5. Datos
 
 ### 5.1 Catálogo de cartas (`assets/database/nba_players.json`, ~4 MB)
-- **11.323 cartas.** Una carta = jugador + franquicia + **década** (con mínimo de 20 partidos en ese tramo). **IDs estables** (`pid-FRANQUICIA-codigoEpoca`, p. ej. `lillada01-POR-act`): **no se deben cambiar ni borrar** (partidas guardadas, álbum y rivales los referencian).
+- **13.031 cartas (v3, ver docs/CATALOGO_V3.md).** Una carta = jugador + franquicia + **ventana de 1–4 temporadas** (tramo real; campo `temporadas`; 5 cartas `legado: true` fuera de los sorteos; mínimo de 20 partidos). **IDs estables** (`pid-FRANQUICIA-codigoEpoca`, p. ej. `lillada01-POR-act`): **no se deben cambiar ni borrar** (partidas guardadas, álbum y rivales los referencian).
 - **Campos por carta:** `id`, `nbaPlayerId` (ID oficial para la foto; negativo si no hay cruce), `nombre`, `franquicia`, `equipo` (identidad de época, p. ej. "SEA" para Seattle SuperSonics), `epoca`, `tier`, `posiciones`, `rol`, `dorsal` (siempre 0), `stats` (11 estadísticas), `fotos`, `media`, `temporadas: [primerAñoDeCierre, últimoAñoDeCierre]`, `draft: [año, pick]` (84,2 % de las cartas), `universidad` (91,9 %, normalizada: "UNC" → "North Carolina"), `nacimiento` (100 %), y `estimadas` (si hay datos estimados).
 - **Épocas (`Epoca`):** `anios40 … anios2010, actualidad`. `actualidad` = **toda la década 2020** (2019-20 en adelante, incluye 2026-27 en curso). Etiquetas visibles: "Años 2020", código "20s", corta "20’" (antes "HOY"). El nombre del enum `actualidad` **no** se renombra (compatibilidad de JSON).
 - **Tiers:** B 8.411 · A 2.704 · S 138 · S+ 70 (v2). **Media** 60–99.

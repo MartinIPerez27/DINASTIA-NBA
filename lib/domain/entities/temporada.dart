@@ -9,6 +9,8 @@ import 'oferta.dart';
 import 'rival.dart';
 import 'tactica.dart';
 import 'tirada.dart';
+import 'tokens_temporada.dart';
+import 'enum_tolerante.dart';
 
 /// Fila de la tabla de posiciones (Standings).
 class RegistroEquipo {
@@ -89,7 +91,7 @@ class SeriePlayoff {
   }
 
   factory SeriePlayoff.fromJson(Map<String, dynamic> j) => SeriePlayoff(
-    ronda: RondaPlayoff.values.byName(j['ronda'] as String),
+    ronda: RondaPlayoff.values.porNombreO(j['ronda']),
     altoId: j['alto'] as String,
     bajoId: j['bajo'] as String,
     victoriasAlto: j['victoriasAlto'] as int,
@@ -107,7 +109,7 @@ class SeriePlayoff {
 
 /// Qué tan fuertes son los rivales (se elige al empezar la partida).
 enum Dificultad {
-  normal('Normal', 'Rivales a la altura de un buen draft: con un gran plantel, el 82-0 está a tiro.', 78),
+  normal('Normal', 'Rivales a la altura de un buen draft: con un gran plantel, el 82-0 está a tiro.', 79),
   dificil('Difícil', 'Rivales con muchas figuras. Cada victoria cuesta.', 83),
   leyenda('Leyenda', 'Cada rival es lo mejor de su historia o de su época. El 82-0 es una hazaña.', null);
 
@@ -187,9 +189,14 @@ class Temporada {
     this.datosModo = const {},
     this.allStar,
     this.versionCatalogo,
+    this.tokens = const TokensTemporada(),
+    this.importada = false,
+    this.origenId,
   });
 
-  static const rerollsPorTemporada = 3;
+  /// Fichas gratis de volver a tirar por draft (la ventaja del nivel 3 suma 1). Las demás tiradas
+  /// se pagan con monedas: ver `ReglasTokens` en domain/tokens_draft.dart.
+  static const rerollsPorTemporada = 1;
   static const partidosTemporadaRegular = 82;
   static const clasificadosPorConferencia = 8;
 
@@ -256,6 +263,16 @@ class Temporada {
   /// Versión del catálogo de cartas con que se creó la partida (hash del JSON; ver
   /// `version_catalogo.dart`). Null en partidas anteriores al versionado.
   final int? versionCatalogo;
+
+  /// Tokens del draft usados en esta partida y las monedas que costaron (JSON opcional `tokens`).
+  final TokensTemporada tokens;
+
+  /// Partida importada desde un archivo: queda "de exhibición" (se juega, pero no da premios, marcas
+  /// ni logros). Una copia completa propia conserva los ids y no se marca (ver `importarCopia`).
+  final bool importada;
+
+  /// Id de la partida de la que viene una importada (para saber de dónde salió).
+  final String? origenId;
 
   /// A qué modo pertenece esta partida (el clásico es la temporada de 82).
   final ModoJuego modoJuego;
@@ -374,7 +391,7 @@ class Temporada {
 
   Temporada usarReroll() {
     if (rerollsRestantes <= 0) throw StateError('No quedan fichas de Reroll.');
-    return copyWith(rerollsRestantes: rerollsRestantes - 1);
+    return copyWith(rerollsRestantes: rerollsRestantes - 1, tokens: tokens.conUso(TokenDraft.volverATirar));
   }
 
   Temporada copyWith({
@@ -397,6 +414,9 @@ class Temporada {
     Map<String, dynamic>? datosModo,
     AllStar? allStar,
     int? versionCatalogo,
+    TokensTemporada? tokens,
+    bool? importada,
+    String? origenId,
   }) => Temporada(
     id: id,
     franquiciaUsuarioId: franquiciaUsuarioId,
@@ -426,6 +446,9 @@ class Temporada {
     datosModo: datosModo ?? this.datosModo,
     allStar: allStar ?? this.allStar,
     versionCatalogo: versionCatalogo ?? this.versionCatalogo,
+    tokens: tokens ?? this.tokens,
+    importada: importada ?? this.importada,
+    origenId: origenId ?? this.origenId,
   );
 
   Temporada conTirada(Tirada? nueva) => _con(tirada: nueva, oferta: oferta);
@@ -461,6 +484,9 @@ class Temporada {
     datosModo: datosModo,
     allStar: allStar,
     versionCatalogo: versionCatalogo,
+    tokens: tokens,
+    importada: importada,
+    origenId: origenId,
   );
 
   factory Temporada.fromJson(Map<String, dynamic> j) => Temporada(
@@ -475,7 +501,7 @@ class Temporada {
     series: List.unmodifiable([for (final s in j['series'] as List) SeriePlayoff.fromJson(s as Map<String, dynamic>)]),
     tirada: j['tirada'] == null ? null : Tirada.fromJson(j['tirada'] as Map<String, dynamic>),
     tacticaConfirmada: j['tacticaConfirmada'] as bool? ?? false,
-    modo: ModoDraft.values.byName(j['modo'] as String? ?? 'ruleta'),
+    modo: ModoDraft.values.porNombreO(j['modo'], ModoDraft.ruleta),
     oferta: j['oferta'] == null ? null : Oferta.fromJson(j['oferta'] as Map<String, dynamic>),
     rivales: {
       for (final e in (j['rivales'] as Map<String, dynamic>? ?? {}).entries)
@@ -490,9 +516,9 @@ class Temporada {
         e.key: LineaEstadistica.fromJson(e.value as Map<String, dynamic>),
     },
     // Las partidas de antes del selector se armaron con rivales casi all-time.
-    dificultad: Dificultad.values.byName(j['dificultad'] as String? ?? 'leyenda'),
-    regla: ReglaDraft.values.byName(j['regla'] as String? ?? 'libre'),
-    epocaRegla: j['epocaRegla'] == null ? null : Epoca.values.byName(j['epocaRegla'] as String),
+    dificultad: Dificultad.values.porNombreO(j['dificultad'], Dificultad.leyenda),
+    regla: ReglaDraft.values.porNombreO(j['regla'], ReglaDraft.libre),
+    epocaRegla: Epoca.values.porNombre(j['epocaRegla']),
     robos: {
       for (final e in (j['robos'] as Map<String, dynamic>? ?? {}).entries) e.key: (e.value as List).cast<String>(),
     },
@@ -502,11 +528,22 @@ class Temporada {
     lesiones: (j['lesiones'] as Map<String, dynamic>? ?? {}).map((k, v) => MapEntry(k, v as int)),
     pases: [for (final x in j['pases'] as List? ?? const []) Pase.fromJson(x as Map<String, dynamic>)],
     copa: [for (final x in j['copa'] as List? ?? const []) SeriePlayoff.fromJson(x as Map<String, dynamic>)],
-    modoJuego: ModoJuego.values.asNameMap()[j['modoJuego']] ?? ModoJuego.clasico,
+    modoJuego: _modoDeJson(j['modoJuego']),
     datosModo: (j['datosModo'] as Map<String, dynamic>?) ?? const {},
     allStar: j['allStar'] == null ? null : AllStar.fromJson(j['allStar'] as Map<String, dynamic>),
     versionCatalogo: j['versionCatalogo'] as int?,
+    // Partidas viejas: sin `tokens`; las fichas que les quedaban en `rerollsRestantes` siguen siendo gratis.
+    tokens: j['tokens'] == null ? const TokensTemporada() : TokensTemporada.fromJson(j['tokens'] as Map<String, dynamic>),
+    importada: j['importada'] as bool? ?? false,
+    origenId: j['origenId'] as String?,
   );
+
+  /// Un modo que esta versión no conoce NO se carga como clásico (se pisaría la partida al guardar):
+  /// la partida se considera de una versión futura y la lista la saltea.
+  static ModoJuego _modoDeJson(Object? nombre) {
+    if (nombre == null) return ModoJuego.clasico;
+    return ModoJuego.values.porNombre(nombre) ?? (throw FormatException('Modo de juego desconocido: $nombre'));
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -533,6 +570,9 @@ class Temporada {
     if (datosModo.isNotEmpty) 'datosModo': datosModo,
     if (allStar != null) 'allStar': allStar!.toJson(),
     if (versionCatalogo != null) 'versionCatalogo': versionCatalogo,
+    if (!tokens.vacio) 'tokens': tokens.toJson(),
+    if (importada) 'importada': true,
+    if (origenId != null) 'origenId': origenId,
     if (oferta != null) 'oferta': oferta!.toJson(),
     if (rivales.isNotEmpty) 'rivales': {for (final e in rivales.entries) e.key: e.value.toJson()},
     if (lineas.isNotEmpty) 'lineas': {for (final e in lineas.entries) e.key: e.value.toJson()},

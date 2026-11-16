@@ -65,8 +65,8 @@ void main() {
       expect(d[TipoMision.triples], greaterThan(0));
       expect(d[TipoMision.rebotes], greaterThan(30));
       // Por Progreso: misiones del día y puntos del pase por jugar; lo anotado en vivo también cuenta.
-      Misiones.anotar(TipoMision.jugarEnVivo);
-      final (p, _) = Progreso(liga, reloj: () => hoy).aplicar(const PerfilEntrenador(), t0, t);
+      final conVivo = Misiones.anotarEn(const PerfilEntrenador(), TipoMision.jugarEnVivo, 1, hoy);
+      final (p, _) = Progreso(liga, reloj: () => hoy).aplicar(conVivo, t0, t);
       final r = t.registroUsuario;
       expect(p.metajuego.puntosPase, r.victorias * 10 + r.derrotas * 3);
       expect(p.metajuego.misiones, hasLength(6));
@@ -78,7 +78,6 @@ void main() {
         };
         if (esperado != null) expect(m.progreso, min(m.objetivo, esperado), reason: m.tipo.name);
       }
-      expect(Misiones.cobrarPendientes(), isEmpty, reason: 'lo anotado se cobró');
 
       final cumplida = Metajuego(
         misiones: [const Mision(id: 'd-x-0', tipo: TipoMision.ganarPartidos, objetivo: 3, semanal: false, progreso: 3)],

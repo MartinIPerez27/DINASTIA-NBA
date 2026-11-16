@@ -113,7 +113,7 @@ class PanelAtributos extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           'Los ganás jugando bien, cumpliendo los objetivos y con los premios. Cuanto más alto el atributo, más '
-          'cuesta subirlo.',
+          'cuesta subirlo, y cada jugador tiene un techo que no se ve: a los 20 nadie está en su pico.',
           style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
         ),
         const SizedBox(height: 8),
@@ -124,6 +124,7 @@ class PanelAtributos extends StatelessWidget {
             cambio: estado.atributos[a] - estado.atributosBase[a],
             costo: ModeloCarrera.costo(estado.atributos[a]),
             puede: carrera.puedeSubir(estado, a),
+            techo: carrera.enTecho(estado, a),
             onSubir: () => onSubir(a),
           ),
         const SizedBox(height: 12),
@@ -167,11 +168,12 @@ class _FilaAtributo extends StatelessWidget {
     required this.costo,
     required this.puede,
     required this.onSubir,
+    this.techo = false,
   });
 
   final Atributo atributo;
   final int valor, cambio, costo;
-  final bool puede;
+  final bool puede, techo;
   final VoidCallback onSubir;
 
   @override
@@ -210,7 +212,7 @@ class _FilaAtributo extends StatelessWidget {
               minimumSize: const Size(64, 38),
               padding: const EdgeInsets.symmetric(horizontal: 8),
             ),
-            child: Text(valor >= 99 ? 'MÁX.' : '+1 · $costo'),
+            child: Text(valor >= 99 ? 'MÁX.' : (techo ? 'TECHO' : '+1 · $costo')),
           ),
         ],
       ),
@@ -306,6 +308,14 @@ class TarjetaMiJugador extends StatelessWidget {
           const SizedBox(height: 8),
           BarraNivel(etiqueta: 'Confianza DT', valor: estado.confianza, pie: _etiquetaConfianza(estado.confianza)),
           BarraNivel(etiqueta: 'Ánimo', valor: estado.moral),
+          if (CarreraJugador.rolProyectado(estado) != estado.rolEquipo)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'El DT te va a pasar a ${CarreraJugador.rolProyectado(estado).etiqueta.toLowerCase()} en el receso.',
+                style: tema.textTheme.bodySmall?.copyWith(color: esquema.primary),
+              ),
+            ),
           const SizedBox(height: 6),
           Text(
             marca.pj == 0
@@ -531,7 +541,15 @@ class RecesoJugadorPantalla extends StatefulWidget {
     required this.onEstado,
     required this.onSeguir,
     required this.onRetirar,
+    this.pasoInicial,
+    this.onPaso,
   });
+
+  /// Paso del receso en que se había quedado (retomar no vuelve al principio).
+  final String? pasoInicial;
+
+  /// Se llama al cambiar de paso, para guardarlo.
+  final ValueChanged<String>? onPaso;
 
   /// La temporada terminada (con los playoffs).
   final Temporada temporada;
@@ -556,7 +574,7 @@ class RecesoJugadorPantalla extends StatefulWidget {
 
 class _RecesoJugadorPantallaState extends State<RecesoJugadorPantalla> {
   late EstadoCarrera _e = widget.estado;
-  late _Paso _paso = widget.cierre == null ? _Paso.entrenar : _Paso.resumen;
+  late _Paso _paso = _pasoGuardado() ?? (widget.cierre == null ? _Paso.entrenar : _Paso.resumen);
   OfertaContrato? _oferta;
   late var _pidioTraspaso = widget.estado.pidioTraspaso;
   RespuestaPrensa? _respondida;
@@ -578,11 +596,17 @@ class _RecesoJugadorPantallaState extends State<RecesoJugadorPantalla> {
     if (_hayRetiro) _Paso.retiro,
   ];
 
+  _Paso? _pasoGuardado() {
+    final p = _Paso.values.asNameMap()[widget.pasoInicial];
+    return p == null || (p == _Paso.resumen && widget.cierre == null) ? null : p;
+  }
+
   void _siguiente() {
     final pasos = _pasos;
     final i = pasos.indexOf(_paso);
     if (i < pasos.length - 1) {
       setState(() => _paso = pasos[i + 1]);
+      widget.onPaso?.call(pasos[i + 1].name);
     } else {
       widget.onSeguir(_e, _oferta);
     }

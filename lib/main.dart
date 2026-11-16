@@ -1,19 +1,25 @@
+import 'domain/coleccion.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'core/fotos/arranque_fotos.dart';
+import 'core/orientacion.dart';
+import 'data/arranque.dart';
 import 'data/catalogo_jugadores.dart';
 import 'data/db_local.dart';
 import 'data/estado_app.dart';
 import 'data/franquicias.dart';
-import 'domain/draft.dart';
 import 'domain/version_catalogo.dart';
 import 'domain/entities/ajustes.dart';
 import 'domain/entities/franquicia.dart';
+import 'domain/entities/metajuego.dart';
 import 'domain/entities/modo_juego.dart';
 import 'domain/entities/perfil.dart';
 import 'domain/entities/temporada.dart';
 import 'domain/liga.dart';
+import 'domain/misiones.dart';
+import 'domain/partido_en_curso.dart';
 import 'domain/modos/evoluciones.dart';
 import 'domain/progreso.dart';
 import 'domain/reto.dart';
@@ -32,11 +38,14 @@ import 'presentation/pantallas/temporada_pantalla.dart';
 import 'presentation/pantallas/tutorial_pantalla.dart';
 import 'presentation/tema/tema_franquicia.dart';
 import 'presentation/widgets/aviso.dart';
+import 'presentation/widgets/carga.dart';
+import 'presentation/widgets/escala_texto.dart';
 import 'presentation/widgets/elegir_modo.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  await aplicarOrientacion();
   for (final (familia, archivo) in [('Doto', 'OFL-Doto.txt'), ('Big Shoulders', 'OFL-BigShoulders.txt')]) {
     LicenseRegistry.addLicense(() async* {
       yield LicenseEntryWithLineBreaks([familia], await rootBundle.loadString('assets/fonts/$archivo'));
@@ -45,23 +54,44 @@ Future<void> main() async {
 
   // Sin base de datos se puede jugar igual; solo no se guarda la temporada.
   DbLocal? db;
-  Temporada? guardada;
+  ResultadoArranque? arranque;
   try {
     db = await DbLocal.abrir();
-    guardada = await db.ultimaTemporada();
-    if (await db.leer('ajustes') case final j?) ajustesApp.value = Ajustes.fromJson(j);
-    if (await db.leer('perfil') case final j?) perfilApp.value = PerfilEntrenador.fromJson(j);
+    // Cada lectura va por separado: una partida o un perfil dañados no tumban al resto.
+    arranque = await cargarArranque(db);
+    await iniciarGestorFotos(db);
+    if (arranque.ajustes case final a?) ajustesApp.value = a;
+    if (arranque.perfil case final p?) perfilApp.value = p;
   } catch (e) {
     debugPrint('Base local no disponible: $e');
   }
-  runApp(DinastiaNbaApp(db: db, guardada: guardada));
+  runApp(
+    DinastiaNbaApp(
+      db: db,
+      guardada: arranque?.guardada,
+      avisosArranque: arranque?.avisos ?? const [],
+      perfilIlegible: arranque?.perfilIlegible ?? false,
+    ),
+  );
 }
 
 class DinastiaNbaApp extends StatefulWidget {
-  const DinastiaNbaApp({super.key, this.db, this.guardada});
+  const DinastiaNbaApp({
+    super.key,
+    this.db,
+    this.guardada,
+    this.avisosArranque = const [],
+    this.perfilIlegible = false,
+  });
 
   final DbLocal? db;
   final Temporada? guardada;
+
+  /// Avisos de la carga inicial (partidas dañadas, perfil ilegible…).
+  final List<String> avisosArranque;
+
+  /// El perfil guardado no se pudo leer: hay que preguntarle al usuario qué hacer.
+  final bool perfilIlegible;
 
   @override
   State<DinastiaNbaApp> createState() => _DinastiaNbaAppState();
@@ -88,8 +118,15 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   void _abrirModos() => _navegador.currentState?.push(
     MaterialPageRoute<void>(
       builder: (c) => ModosPantalla(
+        guardada: _guardada,
+        onSeguir: _guardada == null
+            ? null
+            : () {
+                Navigator.of(c).popUntil((r) => r.isFirst);
+                _abrirTemporada(_guardada!);
+              },
         onElegir: (m) {
-          Navigator.of(c).pop();
+          Navigator.of(c).popUntil((r) => r.isFirst);
           if (m == ModoJuego.clasico) {
             _dirigir(_enfocada);
           } else {
@@ -101,10 +138,96 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   );
 
   @override
+  void dispose() {
+    Misiones.alAnotar = null;
+    PartidoEnCurso.alEmpezar = null;
+    PartidoEnCurso.alTerminar = null;
+    super.dispose();
+  }
+
+  /// Avance de misiones que no queda en la temporada (partido en vivo, partido de un desafío): se
+  /// aplica al perfil y se guarda en el acto, sin cola en memoria. Las partidas importadas (de
+  /// exhibición) no suman.
+  /// Marca en la base que hay un partido en vivo abierto de la partida actual (y la borra al terminar).
+  void _marcarPartido(bool abierto) {
+    final id = _guardada?.id;
+    if (id == null) return;
+    widget.db?.escribir('partido_en_curso', abierto ? {'temporada': id} : const {}).ignore();
+  }
+
+  /// Si se cerró la app a mitad de un partido de esta partida, se simula ahora: no se puede repetir.
+  Future<Temporada> _resolverPartidoAbandonado(Temporada t) async {
+    try {
+      final marca = await widget.db?.leer('partido_en_curso');
+      if (marca == null || marca['temporada'] != t.id) return t;
+      await widget.db?.escribir('partido_en_curso', const {});
+      if (!t.modoJuego.usaTemporada || t.importada) return t;
+      final liga = await _ligaLista();
+      Temporada? nueva;
+      if (t.fase == FaseTemporada.temporadaRegular) {
+        nueva = liga.simularProximo(t);
+      } else if (t.fase == FaseTemporada.playoffs && t.serieDelUsuario != null) {
+        nueva = liga.simularPartidoPlayoff(t);
+      }
+      if (nueva == null) return t;
+      setState(() => _guardada = t); // el "antes" del metajuego es esta partida
+      await _guardarCambios(nueva);
+      _avisoGuardado('Cerraste la app en medio de un partido: se simuló y quedó registrado.');
+      return nueva;
+    } catch (_) {
+      return t;
+    }
+  }
+
+  void _anotarMision(TipoMision tipo, int cantidad) {
+    if (_guardada?.importada ?? false) return;
+    _guardarPerfil(Misiones.anotarEn(perfilApp.value, tipo, cantidad, DateTime.now()));
+  }
+
+  @override
   void initState() {
     super.initState();
+    Misiones.alAnotar = _anotarMision;
+    PartidoEnCurso.alEmpezar = () => _marcarPartido(true);
+    PartidoEnCurso.alTerminar = () => _marcarPartido(false);
     if (!ajustesApp.value.tutorialVisto) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _abrirTutorial());
+    }
+    if (widget.perfilIlegible || widget.avisosArranque.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _avisarArranque());
+    }
+  }
+
+  /// Cuenta qué salió mal al arrancar; si el perfil no se pudo leer, deja elegir qué hacer.
+  Future<void> _avisarArranque() async {
+    final contexto = _navegador.currentContext;
+    if (contexto == null || !contexto.mounted) return;
+    final texto = widget.avisosArranque.join('\n\n');
+    if (!widget.perfilIlegible) {
+      ScaffoldMessenger.maybeOf(contexto)
+        ?..clearSnackBars()
+        ..showSnackBar(SnackBar(content: Text(texto), duration: const Duration(seconds: 8)));
+      return;
+    }
+    final nuevo = await showDialog<bool>(
+      context: contexto,
+      barrierDismissible: false,
+      builder: (c) => AlertDialog(
+        title: const Text('No se pudo leer tu perfil'),
+        content: Text(
+          '$texto\n\nGuardamos una copia de lo que había (perfil.bak). Si empezás con un perfil nuevo, '
+          'el progreso de esta copia no se va a ver. Si elegís seguir sin guardar, jugás normal pero '
+          'no se guarda tu progreso en esta sesión.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('SEGUIR SIN GUARDAR')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('EMPEZAR PERFIL NUEVO')),
+        ],
+      ),
+    );
+    if (nuevo == true) {
+      perfilApp.value = const PerfilEntrenador();
+      await widget.db?.empezarPerfilNuevo(perfilApp.value);
     }
   }
 
@@ -125,8 +248,12 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
     widget.db?.escribir('ajustes', a.toJson()).ignore();
   }
 
+  /// Espera [f] mostrando "Cargando…" si el catálogo todavía no está listo y tarda.
+  Future<T> _conCarga<T>(Future<T> f) =>
+      _liga != null || _navegador.currentState == null ? f : conCarga(_navegador.currentState!, f);
+
   Future<void> _abrirPerfil() async {
-    final liga = await _ligaLista();
+    final liga = await _conCarga(_ligaLista());
     _navegador.currentState?.push(
       MaterialPageRoute<void>(
         builder: (_) => PerfilPantalla(jugador: liga.jugador, onVestuario: _abrirVestuario),
@@ -158,7 +285,29 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
 
   void _guardarPerfil(PerfilEntrenador p) {
     perfilApp.value = p;
-    widget.db?.escribir('perfil', p.toJson()).ignore();
+    _escribirPerfil(p);
+  }
+
+  /// Perfil cambiado en memoria que todavía no llegó a la base (falló un guardado).
+  var _perfilSinGuardar = false;
+
+  /// Escribe el perfil y, si falla, avisa (antes el error se ignoraba en silencio).
+  Future<void> _escribirPerfil(PerfilEntrenador p) async {
+    try {
+      await widget.db?.escribir('perfil', p.toJson());
+      _perfilSinGuardar = false;
+    } catch (e) {
+      _perfilSinGuardar = true;
+      _avisoGuardado('No se pudo guardar tu perfil. Se reintenta con el próximo guardado.');
+    }
+  }
+
+  void _avisoGuardado(String texto) {
+    final contexto = _navegador.currentContext;
+    if (contexto == null) return;
+    ScaffoldMessenger.maybeOf(contexto)
+      ?..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(texto)));
   }
 
   void _abrirMisiones() => _navegador.currentState?.push(
@@ -174,15 +323,12 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   );
 
   Future<void> _abrirAlbum() async {
-    final liga = await _ligaLista();
+    final liga = await _conCarga(_ligaLista());
     _navegador.currentState?.push(
       MaterialPageRoute<void>(
         builder: (_) => AlbumPantalla(
           catalogo: liga.catalogo,
-          onPerfil: (p) {
-            perfilApp.value = p;
-            widget.db?.escribir('perfil', p.toJson()).ignore();
-          },
+          onPerfil: _guardarPerfil,
         ),
       ),
     );
@@ -196,16 +342,18 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
 
   /// Abre la pantalla que corresponde a la fase de la temporada.
   Future<void> _abrirTemporada(Temporada t, {bool reemplazar = false}) async {
+    t = await _resolverPartidoAbandonado(t);
     setState(() {
       _enfocada = franquiciaPorId(t.franquiciaUsuarioId);
       _guardada = t;
     });
     final Widget pantalla;
-    final propia = await pantallaDeModo(t, _modos);
+    // Si el catálogo todavía se está leyendo, un indicador evita que parezca que no pasó nada.
+    final propia = await _conCarga(pantallaDeModo(t, _modos));
     if (propia != null) {
       pantalla = propia;
     } else {
-      pantalla = await _pantallaClasica(t);
+      pantalla = await _conCarga(_pantallaClasica(t));
     }
     final ruta = MaterialPageRoute<void>(builder: (_) => pantalla);
     final navegador = _navegador.currentState!;
@@ -221,6 +369,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
           temporada: t,
           azarPara: Reto.azarPara(t),
           onCambio: _guardarCambios,
+          onPerfil: (p) => widget.db?.escribir('perfil', p.toJson()).ignore(),
           onCompleto: () => _abrirTemporada(_guardada!, reemplazar: true),
         );
       case FaseTemporada.tacticas:
@@ -248,9 +397,14 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
     await _abrirTemporada(lista, reemplazar: true);
   }
 
+  /// Último estado de cada partida sobre el que ya se aplicó el metajuego. Si todavía no cargó la liga,
+  /// el "antes" no puede ser el estado en memoria: se perdería el premio de ese paso (META-12).
+  Temporada? _baseProgreso;
+
   /// Cada paso del draft se guarda al instante (cerrar la app no regala tiradas).
   Future<void> _guardarCambios(Temporada t) async {
     final antes = _guardada;
+    final base = _baseProgreso != null && _baseProgreso!.id == t.id ? _baseProgreso : antes;
     // Versión del catálogo: una partida nueva se sella con la de ahora; las pantallas que no la
     // conocen heredan la que ya tenía guardada (las partidas anteriores al versionado quedan sin).
     if (t.versionCatalogo == null) {
@@ -264,20 +418,29 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
     }
     setState(() => _guardada = t);
     // Metajuego: XP, monedas, puntaje, logros, trofeos e historial por lo que acaba de pasar.
-    if (_liga case final liga?) {
-      final (perfil, novedades) = Progreso(liga).aplicar(perfilApp.value, antes, t);
+    Liga? liga = _liga;
+    if (liga == null) {
+      try {
+        liga = await _ligaLista();
+      } catch (_) {}
+    }
+    if (liga != null) {
+      final (perfil, novedades) = Progreso(liga).aplicar(perfilApp.value, base, t);
       if (!identical(perfil, perfilApp.value)) {
         perfilApp.value = perfil;
-        widget.db?.escribir('perfil', perfil.toJson()).ignore();
+        _perfilSinGuardar = true;
       }
+      _baseProgreso = t;
       if (_navegador.currentState?.overlay case final overlay?) Avisos.mostrar(overlay, novedades);
+    } else {
+      _baseProgreso = base; // sin liga no se aplicó nada: el próximo guardado cobra la diferencia
     }
     try {
-      await widget.db?.guardarTemporada(t);
+      // Partida y perfil en una sola transacción: o se guardan las dos o ninguna.
+      await widget.db?.guardarTemporadaYPerfil(t, _perfilSinGuardar ? perfilApp.value : null);
+      _perfilSinGuardar = false;
     } catch (e) {
-      ScaffoldMessenger.of(_navegador.currentContext!)
-        ..clearSnackBars()
-        ..showSnackBar(const SnackBar(content: Text('No se pudo guardar el progreso.')));
+      _avisoGuardado('No se pudo guardar el progreso.');
     }
   }
 
@@ -287,7 +450,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
     final regla = await elegirRegla(
       _navegador.currentContext!,
       modo: modo,
-      coleccionAlcanza: _ligaLista().then((l) => Draft.coleccionAlcanza(l.catalogo, perfilApp.value.coleccion)),
+      coleccionAlcanza: _ligaLista().then((l) => coleccionLlenaPuestos(l.catalogo, perfilApp.value.coleccion)),
     );
     if (regla == null) return;
     final dificultad = await elegirDificultad(_navegador.currentContext!);
@@ -321,6 +484,7 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
     navigatorKey: _navegador,
     debugShowCheckedModeBanner: false,
     theme: temaFranquicia(_enfocada),
+    builder: conTopeEscalaTexto,
     themeAnimationDuration: const Duration(milliseconds: 250),
     themeAnimationCurve: Curves.easeOutCubic,
     home: InicioPantalla(

@@ -13,10 +13,15 @@ import '../../domain/entities/oferta.dart';
 import '../../domain/entities/plantel.dart';
 import '../../domain/entities/posicion.dart';
 import '../../domain/entities/temporada.dart';
+import '../../domain/entities/perfil.dart';
 import '../../domain/entities/tirada.dart';
+import '../../domain/reto.dart';
+import '../../domain/tokens_draft.dart';
 import '../../domain/quimica.dart';
 import '../../domain/versiones.dart';
+import '../draft/bandeja_tokens.dart';
 import '../draft/cancha.dart';
+import '../draft/hojas_tokens.dart';
 import '../draft/entrenadores.dart';
 import '../draft/quimica_panel.dart';
 import '../draft/revelado_cartas.dart';
@@ -27,6 +32,8 @@ import '../widgets/carta_jugador.dart';
 import '../widgets/carta_vertical.dart';
 import '../widgets/ficha_jugador.dart';
 import '../widgets/haptica.dart';
+import '../widgets/texto_led.dart';
+import '../../domain/entities/franquicia.dart';
 
 /// Draft 82-0 (GDD §4). Modo ruleta: tirar los carretes, elegir una de las cartas que salieron y
 /// tocar su puesto. Modo cartas: tocar un puesto, se revelan 5 cartas y se ficha una.
@@ -40,6 +47,7 @@ class DraftPantalla extends StatefulWidget {
     this.catalogo,
     this.azar,
     this.azarPara,
+    this.onPerfil,
   });
 
   final Temporada temporada;
@@ -54,6 +62,9 @@ class DraftPantalla extends StatefulWidget {
 
   /// Azar de cada paso del draft (retos: el mismo draft para el mismo código). Ver [Draft.azarPara].
   final Random Function(Temporada t, int paso)? azarPara;
+
+  /// Se llama con el perfil nuevo cuando un token gasta monedas (para guardarlo al instante).
+  final ValueChanged<PerfilEntrenador>? onPerfil;
 
   @override
   State<DraftPantalla> createState() => _DraftPantallaState();
@@ -95,7 +106,13 @@ class _DraftPantallaState extends State<DraftPantalla> {
 
   Draft _crearDraft(List<Jugador> catalogo) {
     registrarVersiones(catalogo);
-    return Draft(catalogo, azar: widget.azar, azarPara: widget.azarPara, coleccion: perfilApp.value.coleccion);
+    return Draft(
+      catalogo,
+      azar: widget.azar,
+      azarPara: widget.azarPara,
+      coleccion: perfilApp.value.coleccion,
+      ventajas: VentajasTokens.de(perfilApp.value),
+    );
   }
 
   /// Química del plantel: líneas en la cancha entre los puestos vinculados.
@@ -131,18 +148,66 @@ class _DraftPantallaState extends State<DraftPantalla> {
     widget.onCambio(nueva);
   }
 
-  void _tirar() {
-    final Temporada nueva;
+  int get _monedas => perfilApp.value.monedas;
+
+  /// Guarda la temporada y, si el paso gastó monedas en tokens, las descuenta del perfil (primero
+  /// el perfil: cerrar la app justo en el medio nunca regala un token).
+  void _aplicar(Temporada nueva) {
+    final gasto = nueva.tokens.gastadas - _t.tokens.gastadas;
+    if (gasto > 0) {
+      final p = perfilApp.value;
+      final nuevo = p.copyWith(monedas: max(0, p.monedas - gasto));
+      perfilApp.value = nuevo;
+      widget.onPerfil?.call(nuevo);
+    }
+    _guardar(nueva);
+  }
+
+  void _avisar(String texto) => ScaffoldMessenger.of(context)
+    ..clearSnackBars()
+    ..showSnackBar(SnackBar(content: Text(texto)));
+
+  /// Una acción del dominio que puede rechazar el paso (sin monedas, sin usos…).
+  Temporada? _probar(Temporada Function() accion) {
     try {
-      nueva = _draft!.tirar(_t, retenidos: _retenidos);
-    } on Error catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      return accion();
+    } on Object catch (e) {
+      _avisar('$e');
+      return null;
+    }
+  }
+
+  /// Aviso de la hoja de pago: pagar tokens saca la partida de los retos por código.
+  String? get _avisoReto =>
+      Reto.sePuedeRetar(_t) ? 'Ojo: si pagás tokens con monedas, esta partida ya no se podrá retar con código.' : null;
+
+  void _tirar() {
+    final nueva = _probar(() => _draft!.tirar(_t, retenidos: _retenidos, monedas: _monedas));
+    if (nueva != null) _girarCon(nueva);
+  }
+
+  /// Volver a tirar: gratis o con monedas (pide confirmar el gasto).
+  Future<void> _volverATirar() async {
+    final precio = _draft!.precioDe(_t, TokenDraft.volverATirar) ?? 0;
+    if (precio > 0 &&
+        !await confirmarGasto(
+          context,
+          titulo: TokenDraft.volverATirar.nombre,
+          detalle: TokenDraft.volverATirar.descripcion,
+          precio: precio,
+          monedas: _monedas,
+          aviso: _avisoReto,
+        )) {
       return;
     }
+    if (mounted) _tirar();
+  }
+
+  void _girarCon(Temporada nueva) {
     final animar = !MediaQuery.disableAnimationsOf(context);
     Haptica.ligera();
     setState(() {
-      _guardar(nueva);
+      _aplicar(nueva);
       _vuelta++;
       _girando = animar;
       _elegida = null;
@@ -182,7 +247,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
       if (_t.tirada != null && !_t.plantel.estaOcupada(p)) setState(() => _filtro = _filtro == p ? null : p);
       return;
     }
-    if (!_t.plantel.posicionesDisponiblesPara(elegida).contains(p)) return;
+    if (!_draft!.puestosPara(_t, elegida).contains(p)) return;
     Haptica.fuerte();
     setState(() {
       _guardar(_draft!.elegir(_t, elegida, p));
@@ -192,7 +257,177 @@ class _DraftPantallaState extends State<DraftPantalla> {
     });
   }
 
-  void _volverARepartir() => setState(() => _guardar(_draft!.volverARepartir(_t)));
+  Future<void> _volverARepartir() async {
+    final precio = _draft!.precioDe(_t, TokenDraft.volverATirar) ?? 0;
+    if (precio > 0 &&
+        !await confirmarGasto(
+          context,
+          titulo: 'Volver a repartir',
+          detalle: 'Se reparten tres sobres nuevos para este puesto.',
+          precio: precio,
+          monedas: _monedas,
+          aviso: _avisoReto,
+        )) {
+      return;
+    }
+    if (!mounted) return;
+    final nueva = _probar(() => _draft!.volverARepartir(_t, monedas: _monedas));
+    if (nueva != null) setState(() => _aplicar(nueva));
+  }
+
+  // ── Tokens ──
+
+  bool get _hayBandeja => const {ModoTokens.monedas, ModoTokens.kit}.contains(ReglasTokens.modoDe(_t));
+
+  Future<void> _usar(TokenDraft k, {Jugador? deLasCartas}) async {
+    final d = _draft;
+    if (d == null || _girando) return;
+    final estado = d.estadoDe(_t, k, monedas: _monedas);
+    final precio = d.precioDe(_t, k);
+    if (estado != EstadoToken.gratis && estado != EstadoToken.disponible) {
+      _avisar(_motivo(k, estado, precio));
+      return;
+    }
+    switch (k) {
+      case TokenDraft.volverATirar:
+        if (_modoCartas) return _volverARepartir();
+        if (!d.puedeVolverATirar(_t, _retenidos)) {
+          return _avisar('No quedan cartas con esos carretes retenidos.');
+        }
+        return _volverATirar();
+      case TokenDraft.mejorVersion:
+        return _mejorVersion(_modoCartas ? deLasCartas : _elegida);
+      case TokenDraft.doble:
+        if (precio! > 0 &&
+            !await confirmarGasto(
+              context,
+              titulo: k.nombre,
+              detalle: '${k.descripcion} Se paga al activarlo y no se puede volver a tirar mientras esté activo.',
+              precio: precio,
+              monedas: _monedas,
+              aviso: _avisoReto,
+            )) {
+          return;
+        }
+        if (!mounted) return;
+        final nueva = _probar(() => d.doble(_t, monedas: _monedas));
+        if (nueva != null) setState(() => _aplicar(nueva));
+      case TokenDraft.intercambio:
+        return _intercambio();
+      case TokenDraft.comodin:
+        return _comodin();
+    }
+  }
+
+  Future<void> _mejorVersion(Jugador? j) async {
+    final d = _draft!;
+    if (j == null) return _avisar('Tocá primero la carta que querés cambiar por su mejor versión.');
+    final mejor = d.mejorVersionDe(_t, j);
+    if (mejor == null) return _avisar('${j.nombre} ya está en su mejor versión disponible.');
+    final ok = await confirmarMejorVersion(
+      context,
+      actual: j,
+      mejor: mejor,
+      versiones: d.versionesDe(j).length,
+      precio: d.precioDe(_t, TokenDraft.mejorVersion) ?? 0,
+      monedas: _monedas,
+      aviso: _avisoReto,
+    );
+    if (!ok || !mounted) return;
+    final nueva = _probar(() => d.mejorVersion(_t, j, monedas: _monedas));
+    if (nueva != null) {
+      setState(() {
+        _aplicar(nueva);
+        _elegida = null;
+      });
+    }
+  }
+
+  Future<void> _intercambio() async {
+    final d = _draft!;
+    final elegido = await elegirIntercambio(
+      context,
+      opciones: d.opcionesIntercambio(_t),
+      precioDe: (sale, entra) => d.precioDe(_t, TokenDraft.intercambio, sale: sale, entra: entra) ?? 0,
+      monedas: _monedas,
+      aviso: _avisoReto,
+    );
+    if (elegido == null || !mounted) return;
+    final (puesto, entra) = elegido;
+    final nueva = _probar(() => d.intercambiar(_t, entra, puesto, monedas: _monedas));
+    if (nueva != null) {
+      Haptica.fuerte();
+      setState(() {
+        _aplicar(nueva);
+        _elegida = null;
+        _filtro = null;
+        _ubicada = puesto;
+      });
+    }
+  }
+
+  Future<void> _comodin() async {
+    final d = _draft!;
+    final elegido = await elegirComodin(
+      context,
+      franquicias: d.franquiciasPosibles(_t),
+      epocas: d.epocasPosibles(_t),
+      precio: d.precioDe(_t, TokenDraft.comodin) ?? 0,
+      monedas: _monedas,
+      aviso: _avisoReto,
+    );
+    if (elegido == null || !mounted) return;
+    final (franquiciaId, epoca) = elegido;
+    if (_modoCartas) {
+      final nueva = _probar(() => d.comodinSobre(_t, franquiciaId: franquiciaId, epoca: epoca, monedas: _monedas));
+      if (nueva != null) setState(() => _aplicar(nueva));
+      return;
+    }
+    final nueva = _probar(() => d.comodin(_t, franquiciaId: franquiciaId, epoca: epoca, monedas: _monedas));
+    if (nueva != null) {
+      _retenidos = {};
+      _girarCon(nueva);
+    }
+  }
+
+  /// Por qué el token no se puede usar ahora.
+  String _motivo(TokenDraft k, EstadoToken e, int? precio) => switch (e) {
+    EstadoToken.agotado =>
+      '${k.nombre}: ya no te quedan usos en este draft${ReglasTokens.modoDe(_t) == ModoTokens.monedas ? ' (o llegaste al tope de ${ReglasTokens.topeGastoPorDraft} monedas en tokens)' : ''}.',
+    EstadoToken.caro => 'Te faltan ${(precio ?? 0) - _monedas} monedas para ${k.nombre.toLowerCase()}.',
+    _ => switch (k) {
+      TokenDraft.volverATirar => _modoCartas ? 'Abrí un sobre primero.' : 'Tirá los carretes primero.',
+      TokenDraft.mejorVersion => 'Ninguna carta de esta tirada tiene una versión mejor disponible.',
+      TokenDraft.doble => 'El Doble pide una tirada con dos cartas que entren en dos puestos libres.',
+      TokenDraft.intercambio => 'Necesitás una carta ya elegida y otra de esta tirada que juegue su mismo puesto.',
+      TokenDraft.comodin =>
+        _modoCartas ? 'El Comodín se usa con los sobres cerrados.' : 'Ahora no se puede usar el Comodín.',
+    },
+  };
+
+  Widget? _bandeja(Draft d, {Jugador? elegidaDeLasCartas}) {
+    if (!_hayBandeja) return null;
+    return BandejaTokens(
+      tokens: [
+        for (final k in TokenDraft.values)
+          if (Draft.trae(_t, k)) k,
+      ],
+      estado: (k) => d.estadoDe(_t, k, monedas: _monedas),
+      precio: (k) => d.precioDe(_t, k),
+      usosRestantes: (k) => d.usosRestantes(_t, k),
+      onUsar: (k) => _usar(k, deLasCartas: elegidaDeLasCartas),
+    );
+  }
+
+  String _textoVolver(Draft d, String verbo) {
+    final precio = d.precioDe(_t, TokenDraft.volverATirar);
+    if (precio == null) {
+      return ReglasTokens.modoDe(_t) == ModoTokens.monedas ? 'SIN MÁS TIRADAS' : 'SIN FICHAS DE REROLL';
+    }
+    return precio == 0 ? '$verbo · GRATIS' : '$verbo · $precio MONEDAS';
+  }
+
+  bool _puedeVolver(Draft d) => (d.precioDe(_t, TokenDraft.volverATirar) ?? 1 << 30) <= _monedas;
 
   /// Se guarda al instante; la carta vuela desde la escena del reparto hasta su puesto.
   void _fichar(Jugador carta, Rect origen) {
@@ -229,7 +464,13 @@ class _DraftPantallaState extends State<DraftPantalla> {
 
   /// Teléfono: cancha arriba, tragamonedas y cartas abajo; los sobres tapan toda la pantalla.
   /// Tablet apaisada: la cancha a la izquierda y el draft (carretes, cartas o sobres) a la derecha.
-  Widget _disponer({required Draft draft, required Widget cancha, Widget? tragamonedas, Widget? overlay}) {
+  Widget _disponer({
+    required Draft draft,
+    required Widget cancha,
+    Widget? tragamonedas,
+    Widget? bandeja,
+    Widget? overlay,
+  }) {
     final grande = !_modoCartas && _t.tirada != null && !_t.plantel.completo;
     if (!esTabletApaisada(context)) {
       return Stack(
@@ -239,9 +480,13 @@ class _DraftPantallaState extends State<DraftPantalla> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(flex: 4, child: Center(child: cancha)),
+                Expanded(
+                  flex: bandeja == null ? 4 : 3,
+                  child: Center(child: cancha),
+                ),
                 const SizedBox(height: 12),
-                if (tragamonedas != null) ...[tragamonedas, const SizedBox(height: 12)],
+                if (tragamonedas != null) ...[tragamonedas, const SizedBox(height: 8)],
+                if (bandeja != null) ...[bandeja, const SizedBox(height: 8)],
                 if (grande) Expanded(flex: 5, child: _zonaInferior(draft)) else _zonaInferior(draft),
               ],
             ),
@@ -265,7 +510,8 @@ class _DraftPantallaState extends State<DraftPantalla> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisAlignment: grande ? MainAxisAlignment.start : MainAxisAlignment.center,
                   children: [
-                    if (tragamonedas != null) ...[tragamonedas, const SizedBox(height: 12)],
+                    if (tragamonedas != null) ...[tragamonedas, const SizedBox(height: 8)],
+                    if (bandeja != null) ...[bandeja, const SizedBox(height: 8)],
                     if (grande) Expanded(child: _zonaInferior(draft)) else _zonaInferior(draft),
                   ],
                 ),
@@ -284,10 +530,20 @@ class _DraftPantallaState extends State<DraftPantalla> {
     final draft = _draft;
     final elegida = _elegida;
 
+    return ValueListenableBuilder<PerfilEntrenador>(
+      valueListenable: perfilApp,
+      builder: (context, perfil, _) => _construir(context, franquicia, draft, elegida),
+    );
+  }
+
+  Widget _construir(BuildContext context, Franquicia franquicia, Draft? draft, Jugador? elegida) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Draft de los ${franquicia.nombre}'),
-        actions: [_Fichas(_t.rerollsRestantes), const SizedBox(width: 16)],
+        actions: [
+          if (ReglasTokens.modoDe(_t) == ModoTokens.monedas) Monedero(_monedas) else _Fichas(_t.rerollsRestantes),
+          const SizedBox(width: 16),
+        ],
       ),
       body: SafeArea(
         top: false,
@@ -308,7 +564,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
                         : const {})
                   : elegida == null
                   ? const {}
-                  : _t.plantel.posicionesDisponiblesPara(elegida).toSet(),
+                  : draft.puestosPara(_t, elegida).toSet(),
               onTocar: _tocarPuesto,
               recienUbicada: _ubicada,
               clavesPuestos: _clavesPuestos,
@@ -323,11 +579,12 @@ class _DraftPantallaState extends State<DraftPantalla> {
                     puedeRetener:
                         !_girando &&
                         _t.tirada != null &&
-                        _t.rerollsRestantes > 0 &&
+                        draft.puedeVolverATirar(_t, const {}) &&
                         _retenidos.length < Draft.maxRetenidos,
                     onRetener: _retener,
                   )
                 : null,
+            bandeja: !_t.plantel.completo && !_modoCartas ? _bandeja(draft) : null,
             overlay: switch (_t.oferta) {
               final oferta? when _modoCartas =>
                 oferta.sinAbrir
@@ -336,6 +593,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
                         posicion: oferta.posicion,
                         sobres: oferta.sobres,
                         onAbrir: _abrirSobre,
+                        bandeja: _hayBandeja && Draft.trae(_t, TokenDraft.comodin) ? _bandeja(draft) : null,
                         aviso: _t.regla == ReglaDraft.serpiente
                             ? (_t.plantel.jugadores.length.isOdd
                                   ? 'Draft en serpiente: en esta ronda los rivales eligen antes que vos.'
@@ -346,7 +604,9 @@ class _DraftPantallaState extends State<DraftPantalla> {
                         key: ValueKey('cartas-${oferta.cartaIds.join()}'),
                         posicion: oferta.posicion,
                         cartas: draft.cartasDeOferta(_t),
-                        rerollsRestantes: _t.rerollsRestantes,
+                        textoVolver: _textoVolver(draft, 'VOLVER A REPARTIR'),
+                        puedeVolver: _puedeVolver(draft),
+                        bandeja: _hayBandeja ? (elegida) => _bandeja(draft, elegidaDeLasCartas: elegida)! : null,
                         onFichar: _fichar,
                         onVolverARepartir: _volverARepartir,
                         sorpresaId: oferta.sorpresaId,
@@ -440,7 +700,9 @@ class _DraftPantallaState extends State<DraftPantalla> {
     final String texto;
     if (_girando) {
       texto = ' ';
-    } else if (_retenidos.isNotEmpty && !puedeVolver && _t.rerollsRestantes > 0) {
+    } else if (_t.tokens.picksExtra > 0) {
+      texto = 'DOBLE ACTIVO: elegí dos jugadores de esta tirada, cada uno en su puesto.';
+    } else if (_retenidos.isNotEmpty && !puedeVolver && draft.precioDe(_t, TokenDraft.volverATirar) != null) {
       texto = 'No quedan cartas con esos carretes retenidos.';
     } else if (_elegida != null) {
       texto = 'Tocá un puesto marcado en la cancha.';
@@ -462,7 +724,11 @@ class _DraftPantallaState extends State<DraftPantalla> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (quimica != null && !_girando) ...[quimica, const SizedBox(height: 6)],
+        // En teléfonos bajos, la bandeja de tokens le gana el lugar al medidor de química.
+        if (quimica != null && !_girando && !(_hayBandeja && MediaQuery.sizeOf(context).height < 760)) ...[
+          quimica,
+          const SizedBox(height: 6),
+        ],
         SizedBox(
           height: 40,
           child: ListView(
@@ -526,16 +792,16 @@ class _DraftPantallaState extends State<DraftPantalla> {
         Text(texto, style: ayuda, textAlign: TextAlign.center),
         const SizedBox(height: 8),
         OutlinedButton(
-          onPressed: puedeVolver ? _tirar : null,
+          onPressed: puedeVolver && _puedeVolver(draft) ? _volverATirar : null,
           style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-          child: Text(_t.rerollsRestantes == 0 ? 'SIN FICHAS DE REROLL' : 'VOLVER A TIRAR · 1 FICHA'),
+          child: Text(_textoVolver(draft, 'VOLVER A TIRAR')),
         ),
       ],
     );
   }
 }
 
-/// Fichas de Reroll como LED: encendidas las que quedan.
+/// Fichas gratis de volver a tirar que quedan (modos sin tokens de pago).
 class _Fichas extends StatelessWidget {
   const _Fichas(this.restantes);
 
@@ -545,21 +811,16 @@ class _Fichas extends StatelessWidget {
   Widget build(BuildContext context) {
     final esquema = Theme.of(context).colorScheme;
     return Semantics(
-      label: 'Fichas de Reroll: $restantes de ${Temporada.rerollsPorTemporada}',
-      child: Row(
-        children: [
-          for (var i = 0; i < Temporada.rerollsPorTemporada; i++)
-            Container(
-              width: 12,
-              height: 12,
-              margin: const EdgeInsets.only(left: 6),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: i < restantes ? esquema.primary : null,
-                border: Border.all(color: i < restantes ? esquema.primary : esquema.onSurfaceVariant, width: 1.5),
-              ),
-            ),
-        ],
+      label: 'Fichas para volver a tirar: $restantes',
+      child: ExcludeSemantics(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.replay, size: 18, color: restantes > 0 ? esquema.primary : esquema.onSurfaceVariant),
+            const SizedBox(width: 4),
+            TextoLed('$restantes', tamano: 20, color: restantes > 0 ? null : esquema.onSurfaceVariant),
+          ],
+        ),
       ),
     );
   }

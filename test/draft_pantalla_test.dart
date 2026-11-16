@@ -58,7 +58,8 @@ void main() {
     }
 
     expect(guardadas.last.plantel.completo, isTrue);
-    expect(guardadas.last.rerollsRestantes, 3, reason: 'no se usó ninguna ficha');
+    expect(guardadas.last.rerollsRestantes, Temporada.rerollsPorTemporada, reason: 'no se usó ninguna ficha');
+    expect(guardadas.last.tokens.gastadas, 0, reason: 'sin tokens no se gastan monedas');
     expect(find.text('QUÍMICA'), findsOneWidget, reason: 'medidor de química visible');
 
     // 7.º puesto: el entrenador, antes de las tácticas.
@@ -73,7 +74,7 @@ void main() {
     expect(find.text('ELEGIR TÁCTICAS'), findsOneWidget);
   });
 
-  testWidgets('volver a tirar gasta una ficha y respeta el carrete retenido', (tester) async {
+  testWidgets('volver a tirar gasta la ficha gratis y respeta el carrete retenido', (tester) async {
     tester.view.physicalSize = const Size(412, 915) * 2.5;
     tester.view.devicePixelRatio = 2.5;
     addTearDown(tester.view.reset);
@@ -96,10 +97,10 @@ void main() {
 
     await tester.tap(find.text('RETENER').first); // carrete de franquicia
     await tester.pump();
-    await tester.tap(find.text('VOLVER A TIRAR · 1 FICHA'));
+    await tester.tap(find.text('VOLVER A TIRAR · GRATIS'));
     await tester.pump(const Duration(seconds: 2));
 
-    expect(guardadas.last.rerollsRestantes, 2);
+    expect(guardadas.last.rerollsRestantes, 0);
     expect(guardadas.last.tirada!.franquiciaId, primera.franquiciaId);
   });
 

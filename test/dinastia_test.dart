@@ -161,7 +161,11 @@ void main() {
       ).toJson(),
     );
     final r = carrera.receso(jugarEntera(viejos), nombre);
-    expect(r.opciones.values.expand((x) => x).every((j) => j.epoca == Epoca.anios90), isTrue);
+    // Camada real del año (campo draft) o, si no alcanza, novatos de la década siguiente.
+    expect(
+      r.opciones.values.expand((x) => x).every((j) => j.draft?.$1 == 1981 || j.epoca == Epoca.anios90),
+      isTrue,
+    );
     final t2 = carrera.siguiente(viejos, r, elegirPrimeros(r));
     final novato = elegirPrimeros(r).values.first;
     final enPlantel = [...t2.plantel.jugadores, ...t2.suplentes].firstWhere((j) => j.id == novato.id);

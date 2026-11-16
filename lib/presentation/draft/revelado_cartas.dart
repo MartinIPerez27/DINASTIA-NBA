@@ -23,13 +23,18 @@ class ReveladoCartas extends StatefulWidget {
     super.key,
     required this.posicion,
     required this.cartas,
-    required this.rerollsRestantes,
+    required this.textoVolver,
+    required this.puedeVolver,
     required this.onFichar,
     required this.onVolverARepartir,
     this.sorpresaId,
     this.ciega = false,
     this.robadas = const [],
+    this.bandeja,
   });
+
+  /// Bandeja de tokens: recibe la carta elegida (para Mejor versión).
+  final Widget Function(Jugador? elegida)? bandeja;
 
   /// Carta que viene boca abajo hasta tocarla.
   final String? sorpresaId;
@@ -42,7 +47,9 @@ class ReveladoCartas extends StatefulWidget {
 
   final Posicion posicion;
   final List<Jugador> cartas;
-  final int rerollsRestantes;
+  /// Texto del botón de volver a repartir (gratis, con precio o agotado) y si se puede apretar.
+  final String textoVolver;
+  final bool puedeVolver;
 
   /// Recibe la carta y el rectángulo (global) desde donde vuela a la cancha.
   final void Function(Jugador carta, Rect origen) onFichar;
@@ -221,6 +228,7 @@ class _ReveladoCartasState extends State<ReveladoCartas> {
                     ],
                   ),
                   const Spacer(),
+                  if (widget.bandeja case final b?) ...[b(elegida), const SizedBox(height: 8)],
                   FilledButton(
                     onPressed: elegida == null ? null : _fichar,
                     style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
@@ -234,9 +242,9 @@ class _ReveladoCartasState extends State<ReveladoCartas> {
                   ),
                   const SizedBox(height: 8),
                   OutlinedButton(
-                    onPressed: _todasReveladas && widget.rerollsRestantes > 0 ? widget.onVolverARepartir : null,
+                    onPressed: _todasReveladas && widget.puedeVolver ? widget.onVolverARepartir : null,
                     style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                    child: Text(widget.rerollsRestantes == 0 ? 'SIN FICHAS DE REROLL' : 'VOLVER A REPARTIR · 1 FICHA'),
+                    child: Text(widget.textoVolver),
                   ),
                 ],
               );

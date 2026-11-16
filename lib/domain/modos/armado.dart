@@ -14,6 +14,7 @@ import '../playbook.dart';
 import '../progreso.dart';
 import '../quimica.dart';
 import 'amigos.dart';
+import '../entities/enum_tolerante.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // Modos de armado: Tope salarial, Liga de 8 contra la IA (los dos terminan en una liga de 8),
@@ -163,7 +164,7 @@ class EstadoTope {
     tablero: (j['tablero'] as List).cast<String>(),
     compra: {
       for (final e in (j['compra'] as Map<String, dynamic>? ?? {}).entries)
-        Posicion.values.byName(e.key): e.value as String,
+        ?Posicion.values.porNombre(e.key): e.value as String,
     },
   );
 

@@ -1,5 +1,6 @@
 import '../motor.dart';
 import 'metajuego.dart';
+import 'enum_tolerante.dart';
 
 /// Logros (GDD: metajuego). Cada uno da XP y monedas la primera vez.
 enum Logro {
@@ -99,8 +100,12 @@ class Trofeo {
   final String? detalle; // p. ej. el nombre del MVP
   final int fecha;
 
+  /// Lee un trofeo; null si es de un tipo que esta versión no conoce (se descarta, no se disfraza).
+  static Trofeo? intentar(Map<String, dynamic> j) =>
+      TipoTrofeo.values.porNombre(j['tipo']) == null ? null : Trofeo.fromJson(j);
+
   factory Trofeo.fromJson(Map<String, dynamic> j) => Trofeo(
-    tipo: TipoTrofeo.values.byName(j['tipo'] as String),
+    tipo: TipoTrofeo.values.porNombreO(j['tipo']),
     temporadaId: j['temporada'] as String,
     franquiciaId: j['franquicia'] as String,
     detalle: j['detalle'] as String?,
@@ -172,10 +177,11 @@ class ResumenTemporada {
 
 /// Ventajas del entrenador que se desbloquean con el nivel.
 enum Ventaja {
-  fichaExtra(3, '+1 ficha para volver a tirar en cada draft'),
+  fichaExtra(3, '+1 ficha gratis para volver a tirar en cada draft'),
   tiempoMuertoExtra(6, '+1 tiempo muerto en cada partido en vivo'),
-  segundaFichaExtra(10, '+1 ficha más para volver a tirar (2 en total)'),
-  descansoLargo(15, 'Los tiempos muertos recuperan el doble de energía');
+  descuentoTokens(10, '−20 % en el precio de los tokens del draft'),
+  descansoLargo(15, 'Los tiempos muertos recuperan el doble de energía'),
+  versionGratis(20, '1 «Mejor versión» gratis en cada draft');
 
   const Ventaja(this.nivel, this.descripcion);
   final int nivel;
@@ -200,6 +206,7 @@ class PerfilEntrenador {
     this.armado = const {},
     this.evoluciones = const {},
     this.perfilPerfecto = const {},
+    this.momentosClutch = const {},
   });
 
   final int xp;
@@ -241,6 +248,9 @@ class PerfilEntrenador {
   /// Progreso de Perfil perfecto: estrellas por nivel y pistas (ver domain/modos/perfil_perfecto.dart).
   final Map<String, dynamic> perfilPerfecto;
 
+  /// Momentos clutch ya superados alguna vez (ids): borrar la partida no los reinicia ni vuelve a pagarlos.
+  final Set<String> momentosClutch;
+
   /// XP total necesaria para llegar a un nivel: 0, 150, 450, 900, 1500…
   static int xpParaNivel(int nivel) => 75 * nivel * (nivel - 1);
 
@@ -260,7 +270,8 @@ class PerfilEntrenador {
 
   bool tiene(Ventaja v) => nivel >= v.nivel;
 
-  int get fichasExtra => (tiene(Ventaja.fichaExtra) ? 1 : 0) + (tiene(Ventaja.segundaFichaExtra) ? 1 : 0);
+  /// Fichas gratis extra de volver a tirar (una sola: el resto de los tokens se paga con monedas).
+  int get fichasExtra => tiene(Ventaja.fichaExtra) ? 1 : 0;
 
   PerfilEntrenador copyWith({
     int? xp,
@@ -278,6 +289,7 @@ class PerfilEntrenador {
     Map<String, dynamic>? armado,
     Map<String, dynamic>? evoluciones,
     Map<String, dynamic>? perfilPerfecto,
+    Set<String>? momentosClutch,
   }) => PerfilEntrenador(
     xp: xp ?? this.xp,
     monedas: monedas ?? this.monedas,
@@ -294,6 +306,7 @@ class PerfilEntrenador {
     armado: armado ?? this.armado,
     evoluciones: evoluciones ?? this.evoluciones,
     perfilPerfecto: perfilPerfecto ?? this.perfilPerfecto,
+    momentosClutch: momentosClutch ?? this.momentosClutch,
   );
 
   factory PerfilEntrenador.fromJson(Map<String, dynamic> j) => PerfilEntrenador(
@@ -304,7 +317,7 @@ class PerfilEntrenador {
       for (final e in (j['logros'] as Map<String, dynamic>? ?? {}).entries)
         ?Logro.values.asNameMap()[e.key]: e.value as int,
     },
-    trofeos: [for (final t in j['trofeos'] as List? ?? const []) Trofeo.fromJson(t as Map<String, dynamic>)],
+    trofeos: [for (final t in j['trofeos'] as List? ?? const []) ?Trofeo.intentar(t as Map<String, dynamic>)],
     historial: [
       for (final h in j['historial'] as List? ?? const []) ResumenTemporada.fromJson(h as Map<String, dynamic>),
     ],
@@ -323,6 +336,7 @@ class PerfilEntrenador {
     armado: j['armado'] as Map<String, dynamic>? ?? const {},
     evoluciones: j['evoluciones'] as Map<String, dynamic>? ?? const {},
     perfilPerfecto: j['perfilPerfecto'] as Map<String, dynamic>? ?? const {},
+    momentosClutch: {...(j['momentosClutch'] as List? ?? const []).cast<String>()},
   );
 
   Map<String, dynamic> toJson() => {
@@ -343,5 +357,6 @@ class PerfilEntrenador {
     if (armado.isNotEmpty) 'armado': armado,
     if (evoluciones.isNotEmpty) 'evoluciones': evoluciones,
     if (perfilPerfecto.isNotEmpty) 'perfilPerfecto': perfilPerfecto,
+    if (momentosClutch.isNotEmpty) 'momentosClutch': momentosClutch.toList()..sort(),
   };
 }

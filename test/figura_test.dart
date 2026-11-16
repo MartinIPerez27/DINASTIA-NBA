@@ -131,11 +131,12 @@ void main() {
     t = t.copyWith(
       datosModo: {
         ...t.datosModo,
-        'edades': {figura.id: 30},
+        'edades': {figura.id: 28},
       },
     );
+    final firme = figura.conMedia(78);
     for (var s = 0; s < 20; s++) {
-      expect(carrera.evolucionFigura(t, figura, Random(s)).retirado, isFalse);
+      expect(carrera.evolucionFigura(t, firme, Random(s)).retirado, isFalse);
     }
     // Media muy baja: se retira a cualquier edad.
     final caida = figura.conMedia(64);

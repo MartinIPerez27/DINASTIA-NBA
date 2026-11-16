@@ -6,11 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../data/copia.dart';
 import '../../data/db_local.dart';
 import '../../data/estado_app.dart';
 import '../../data/franquicias.dart';
 import '../../domain/entities/ajustes.dart';
-import '../../domain/entities/perfil.dart';
 import '../../data/catalogo_jugadores.dart';
 import '../../domain/liga.dart';
 import '../compartir/tarjeta_compartir.dart';
@@ -18,6 +18,9 @@ import '../../domain/entities/modo_juego.dart';
 import '../../domain/modos/amigos.dart';
 import '../../domain/modos/competitivo.dart';
 import '../../domain/modos/dinastia.dart';
+import '../../domain/modos/epocas.dart';
+import '../../domain/modos/escalera.dart';
+import '../../domain/modos/historia.dart';
 import '../../domain/modos/universitario.dart';
 import '../../domain/variantes.dart';
 import '../../domain/entities/temporada.dart';
@@ -110,14 +113,23 @@ class _PartidasPantallaState extends State<PartidasPantalla> {
 
   Future<void> _exportarCopia() async {
     try {
-      final partidas = _partidas ?? await widget.db?.temporadas() ?? const <Temporada>[];
-      await _compartir('dinastia-copia-${_fechaArchivo(DateTime.now())}.json', {
-        'tipo': 'copia',
-        'version': 1,
-        'perfil': perfilApp.value.toJson(),
-        'ajustes': ajustesApp.value.toJson(),
-        'temporadas': [for (final t in partidas) t.toJson()],
-      });
+      final db = widget.db;
+      // Las partidas se leen tal cual están guardadas (así no se pierde ningún campo que esta
+      // versión no conozca) y el archivo se arma de a una partida, en forma atómica.
+      final crudas = db == null ? const <(String, String)>[] : await db.temporadasCrudas();
+      final carpeta = await getTemporaryDirectory();
+      final nombre = 'dinastia-copia-${_fechaArchivo(DateTime.now())}.json';
+      final archivo = File('${carpeta.path}/$nombre');
+      final informe = await escribirCopia(
+        archivo,
+        perfil: perfilApp.value.toJson(),
+        ajustes: ajustesApp.value.toJson(),
+        partidasJson: [for (final c in crudas) c.$2],
+      );
+      if (informe.advertencia case final a?) _avisar(a, error: true);
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(archivo.path, mimeType: 'application/json')], subject: nombre),
+      );
     } catch (e) {
       _avisar('No se pudo exportar la copia completa.', error: true);
     }
@@ -147,14 +159,17 @@ class _PartidasPantallaState extends State<PartidasPantalla> {
       switch (datos['tipo']) {
         case 'partida':
           await _guardarImportada(db, datos['temporada'] as Map<String, dynamic>);
-          _avisar('Partida importada.');
+          _avisar('Partida importada. Queda de exhibición: se juega, pero no da premios ni marcas.');
         case 'copia':
           if (!mounted) return;
           final ok = await showDialog<bool>(
             context: context,
             builder: (c) => AlertDialog(
               title: const Text('¿Importar la copia completa?'),
-              content: const Text('Reemplaza tu perfil y tus ajustes, y suma las partidas de la copia.'),
+              content: const Text(
+                'Reemplaza tu perfil y tus ajustes, y suma las partidas de la copia (si ya tenés una con el mismo '
+                'id, queda la de la copia). Se importa todo o nada.',
+              ),
               actions: [
                 TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
                 FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('IMPORTAR')),
@@ -162,17 +177,16 @@ class _PartidasPantallaState extends State<PartidasPantalla> {
             ),
           );
           if (ok != true) return;
-          final perfil = PerfilEntrenador.fromJson(datos['perfil'] as Map<String, dynamic>);
-          final ajustes = Ajustes.fromJson(datos['ajustes'] as Map<String, dynamic>);
-          final temporadas = [for (final t in datos['temporadas'] as List) t as Map<String, dynamic>];
-          await db.escribir('perfil', perfil.toJson());
-          await db.escribir('ajustes', ajustes.toJson());
-          perfilApp.value = perfil;
-          ajustesApp.value = ajustes;
-          for (final t in temporadas) {
-            await _guardarImportada(db, t);
-          }
-          _avisar('Copia importada: perfil y ${temporadas.length} partidas.');
+          // Se valida todo antes de escribir nada y se escribe en una sola transacción.
+          final copia = leerCopia(datos);
+          await db.restaurarCopia(perfil: copia.perfil, ajustes: copia.ajustes, partidas: copia.partidas);
+          perfilApp.value = copia.perfil;
+          ajustesApp.value = Ajustes.fromJson(copia.ajustes);
+          _avisar(
+            'Copia importada: perfil y ${copia.partidas.length} partidas.'
+            '${copia.descartadas > 0 ? ' ${copia.descartadas} partidas dañadas no se importaron.' : ''}',
+            error: copia.descartadas > 0,
+          );
         default:
           _avisar('Ese archivo no es una partida de Dinastía NBA.', error: true);
           return;
@@ -184,12 +198,10 @@ class _PartidasPantallaState extends State<PartidasPantalla> {
     await _recargar();
   }
 
-  /// Guarda una partida importada; si ya existe una con el mismo id, le da uno nuevo.
+  /// Guarda una partida suelta importada: id nuevo (y raíz nueva en Dinastía y Mi carrera, para no
+  /// pisar a la original) y de exhibición: no da premios ni marcas.
   Future<void> _guardarImportada(DbLocal db, Map<String, dynamic> json) async {
-    final datos = Map<String, dynamic>.of(json);
-    final existe = await db.cargarTemporada(datos['id'] as String) != null;
-    if (existe) datos['id'] = '${DateTime.now().microsecondsSinceEpoch}';
-    await db.guardarTemporada(Temporada.fromJson(datos));
+    await db.guardarTemporada(partidaImportada(json));
   }
 
   // ------------------------------------------------------------------ borrar
@@ -301,6 +313,46 @@ class _Vacio extends StatelessWidget {
   }
 }
 
+/// Etiqueta de fase de los modos de escalera, torneos por época y Momentos clutch (no usan el calendario
+/// de la temporada: antes se veían como "Temporada regular" o "Draft"). Null si el modo no es de ellos.
+String? faseDeModoPropio(Temporada t) {
+  final m = t.modoJuego;
+  if (ProgresoEscalera.esEscalera(m)) {
+    final e = Escalera.de(t);
+    if (!e.iniciada) return 'Sin empezar';
+    if (e.eliminado) return 'Eliminado';
+    if (e.completada) return 'Completado';
+    return m == ModoJuego.racha ? 'Racha de ${e.racha}' : '${e.victorias} victorias';
+  }
+  if (ModosEpocas.esModo(m)) {
+    final e = EstadoEpocas.de(t);
+    if (e.equipos.isEmpty) return 'Sin empezar';
+    if (e.eliminado) return 'Eliminado';
+    if (e.campeon) return 'Campeón';
+    if (e.enDraft) return 'Armando el equipo';
+    return m == ModoJuego.guantelete ? 'Década ${e.etapa + 1}' : 'En juego';
+  }
+  if (m == ModoJuego.ultimoCuarto) {
+    return '${HistoriaNba.superados(t).length}/${momentosClutch.length} momentos';
+  }
+  return null;
+}
+
+/// El número grande de la fila para esos mismos modos (victorias-derrotas, o momentos superados).
+String? marcadorDeModoPropio(Temporada t) {
+  final m = t.modoJuego;
+  if (ProgresoEscalera.esEscalera(m)) {
+    final e = Escalera.de(t);
+    return '${e.victorias}-${e.derrotas}';
+  }
+  if (ModosEpocas.esModo(m)) {
+    final marcadores = EstadoEpocas.de(t).todosLosMarcadores;
+    return '${marcadores.where((x) => x.$1 > x.$2).length}-${marcadores.where((x) => x.$1 <= x.$2).length}';
+  }
+  if (m == ModoJuego.ultimoCuarto) return '${HistoriaNba.superados(t).length}/${momentosClutch.length}';
+  return null;
+}
+
 class _FilaPartida extends StatelessWidget {
   const _FilaPartida({required this.temporada, required this.onTap, required this.onAccion});
 
@@ -320,6 +372,7 @@ class _FilaPartida extends StatelessWidget {
     }
     if (faseCompetitiva(t) case final f?) return f;
     if (EstadoUniv.de(t) case final u?) return u.etiquetaFase;
+    if (faseDeModoPropio(t) case final f?) return f;
     if (t.modoJuego == ModoJuego.extremo && Variantes.extremoPerdido(t)) return 'Perdida';
     final fase = _faseClasica(t);
     if (CarreraDinastia.esCarrera(t)) {
@@ -344,6 +397,7 @@ class _FilaPartida extends StatelessWidget {
       final m = u.registros()[0];
       return '${m.v}-${m.d}';
     }
+    if (marcadorDeModoPropio(t) case final m?) return m;
     final r = t.registroUsuario;
     return '${r.victorias}-${r.derrotas}';
   }

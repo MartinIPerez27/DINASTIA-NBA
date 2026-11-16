@@ -1,3 +1,4 @@
+import '../../domain/partido_en_curso.dart';
 import 'dart:math';
 import 'dart:ui' as ui;
 
@@ -153,6 +154,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    PartidoEnCurso.alEmpezar?.call();
     _box = _copiaBox();
     double media(bool local) {
       final js = [..._m.enCancha(local), ?_m.enBanco(local)];
@@ -473,6 +475,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   void _terminar() {
     if (_registrado) return;
     _registrado = true;
+    PartidoEnCurso.alTerminar?.call();
     Misiones.anotar(TipoMision.jugarEnVivo);
     widget.onTerminado(_m);
     setState(() => _final = true);

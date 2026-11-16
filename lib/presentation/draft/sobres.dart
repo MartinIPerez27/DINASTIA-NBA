@@ -15,7 +15,17 @@ import '../widgets/texto_led.dart';
 /// Modo cartas: 3 sobres cerrados para un puesto. Al tocar uno, se abre (la tapa se rasga y sube,
 /// los otros se apagan) y recién ahí se reparten sus cartas con [onAbrir].
 class ElegirSobre extends StatefulWidget {
-  const ElegirSobre({super.key, required this.posicion, required this.sobres, required this.onAbrir, this.aviso});
+  const ElegirSobre({
+    super.key,
+    required this.posicion,
+    required this.sobres,
+    required this.onAbrir,
+    this.aviso,
+    this.bandeja,
+  });
+
+  /// Bandeja de tokens (el Comodín cambia un sobre) bajo los sobres.
+  final Widget? bandeja;
 
   final Posicion posicion;
   final List<Sobre> sobres;
@@ -111,6 +121,7 @@ class _ElegirSobreState extends State<ElegirSobre> with SingleTickerProviderStat
                     _elegido == null ? 'Tocá un sobre para abrirlo.' : ' ',
                     style: tema.textTheme.bodyMedium?.copyWith(color: esquema.onSurfaceVariant),
                   ),
+                  if (widget.bandeja case final b? when _elegido == null) ...[const SizedBox(height: 12), b],
                   const SizedBox(height: 24),
                 ],
               );

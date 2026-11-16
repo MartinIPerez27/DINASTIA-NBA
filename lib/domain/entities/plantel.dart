@@ -1,5 +1,6 @@
 import 'jugador.dart';
 import 'posicion.dart';
+import 'enum_tolerante.dart';
 
 class ReglaPlantelException implements Exception {
   const ReglaPlantelException(this.mensaje);
@@ -67,7 +68,7 @@ class Plantel {
   factory Plantel.fromJson(Map<String, dynamic> j) {
     var plantel = const Plantel();
     j.forEach((pos, jugador) {
-      plantel = plantel.asignar(Jugador.fromJson(jugador as Map<String, dynamic>), Posicion.values.byName(pos));
+      plantel = plantel.asignar(Jugador.fromJson(jugador as Map<String, dynamic>), Posicion.values.porNombreO(pos));
     });
     return plantel;
   }

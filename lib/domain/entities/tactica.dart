@@ -1,3 +1,4 @@
+import 'enum_tolerante.dart';
 /// Rasgos del plantel que cada sistema necesita (0 a 1, ver `domain/playbook.dart`).
 enum Rasgo {
   triple('Triple', '%T3'),
@@ -155,8 +156,8 @@ class Tactica {
       Tactica(ofensiva: ofensiva ?? this.ofensiva, defensiva: defensiva ?? this.defensiva);
 
   factory Tactica.fromJson(Map<String, dynamic> j) => Tactica(
-    ofensiva: SistemaOfensivo.values.byName(j['ofensiva'] as String),
-    defensiva: EsquemaDefensivo.values.byName(j['defensiva'] as String),
+    ofensiva: SistemaOfensivo.values.porNombreO(j['ofensiva']),
+    defensiva: EsquemaDefensivo.values.porNombreO(j['defensiva']),
   );
 
   Map<String, dynamic> toJson() => {'ofensiva': ofensiva.name, 'defensiva': defensiva.name};

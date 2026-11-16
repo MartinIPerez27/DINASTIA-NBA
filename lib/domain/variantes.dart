@@ -9,10 +9,12 @@ import 'entities/perfil.dart';
 import 'entities/plantel.dart';
 import 'entities/posicion.dart';
 import 'entities/rival.dart';
+import 'tokens_draft.dart';
 import 'entities/temporada.dart';
 import 'liga.dart';
 import 'playbook.dart';
 import 'progreso.dart';
+import 'entities/enum_tolerante.dart';
 
 /// Reglas de las variantes de la temporada clásica (Leyenda única, Extremo, Solo entrenador,
 /// Modo espejo y Desafío del día): cómo se arma el plantel, qué cambia en la liga y qué se gana.
@@ -155,7 +157,8 @@ class Variantes {
     if (ids == null) return null;
     var p = const Plantel();
     for (final e in ids.entries) {
-      final puesto = Posicion.values.byName(e.key);
+      final puesto = Posicion.values.porNombre(e.key);
+      if (puesto == null) continue;
       p = p.asignar(cartaOReemplazo(_porId, catalogo, e.value as String, puesto, p), puesto);
     }
     return p;
@@ -191,6 +194,20 @@ class Variantes {
   /// Azar del draft del día, estable para cada elección (abrir y cerrar la app no cambia lo que sale).
   static Random azarDraftDelDia(Temporada t) =>
       Random((semillaDeAzar(t) ?? 0) * 31 + t.plantel.jugadores.length * 7919 + t.rerollsRestantes);
+
+  /// Azar de CADA PASO del draft del día (mismo contrato que `Draft.azarPara`): sale de la semilla del
+  /// día, de cuántos jugadores fichaste, del número de paso y de cuántas fichas gastaste. Así reabrir
+  /// la pantalla no repite la tirada ni regala la ficha, y todos ven el mismo draft.
+  static Random azarPorPasoDelDia(Temporada t, int paso) {
+    final usadas = Draft.pasoConFicha(paso)
+        ? max(0, ReglasTokens.rerollsKit - t.rerollsRestantes) + t.tokens.pagosDe(TokenDraft.volverATirar)
+        : 0;
+    var h = (semillaDeAzar(t) ?? 0) & 0x7fffffff;
+    for (final v in [t.plantel.jugadores.length, paso, usadas]) {
+      h = (h * 1000003 + v * 7919 + 0x9e37) & 0x7fffffff;
+    }
+    return Random(h);
+  }
 
   // ── Extremo ──
 
@@ -265,7 +282,9 @@ PerfilEntrenador premiarVariante(PerfilEntrenador p, Temporada antes, Temporada 
   if (despues.modoJuego == ModoJuego.desafioDelDia) {
     final fecha = despues.datosModo['semilla'] as int?;
     final v = despues.registroUsuario.victorias;
-    if (fecha != null && v > (p.desafiosDelDia['$fecha'] ?? -1)) {
+    // Solo cuenta la partida original del día (id 'dia-<fecha>'): una copia importada o reimportada
+    // no puede mover la marca.
+    if (fecha != null && despues.id == 'dia-$fecha' && v > (p.desafiosDelDia['$fecha'] ?? -1)) {
       p = p.copyWith(desafiosDelDia: {...p.desafiosDelDia, '$fecha': v});
     }
   }

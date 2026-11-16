@@ -9,19 +9,17 @@ import 'entities/temporada.dart';
 class Misiones {
   Misiones._();
 
-  // shortcut: cosas que no quedan en la temporada (jugar en vivo, ganar un partido de un modo de
-  // escalera) se anotan acá y las cobra el próximo Progreso.aplicar. Si crece, pasar a eventos.
-  static final _pendientes = <TipoMision, int>{};
+  /// Quién registra el avance que no queda en la temporada (jugar en vivo, ganar un partido de un modo
+  /// de escalera). La app lo conecta al perfil y a la base (ver main.dart): se aplica y se guarda en el
+  /// momento, así que no hay cola en memoria que se pierda al cerrar la app.
+  static void Function(TipoMision tipo, int cantidad)? alAnotar;
 
   /// Suma avance a una misión desde fuera de la temporada (p. ej. un partido de Racha ganado).
-  static void anotar(TipoMision tipo, [int cantidad = 1]) => _pendientes[tipo] = (_pendientes[tipo] ?? 0) + cantidad;
+  static void anotar(TipoMision tipo, [int cantidad = 1]) => alAnotar?.call(tipo, cantidad);
 
-  /// Lo anotado con [anotar] desde la última vez (y lo deja en cero).
-  static Map<TipoMision, int> cobrarPendientes() {
-    final copia = Map.of(_pendientes);
-    _pendientes.clear();
-    return copia;
-  }
+  /// Versión pura de [anotar]: el perfil con el avance sumado (y las misiones al día).
+  static PerfilEntrenador anotarEn(PerfilEntrenador p, TipoMision tipo, int cantidad, DateTime ahora) =>
+      p.copyWith(metajuego: avanzar(alDia(p.metajuego, ahora), {tipo: cantidad}));
 
   static const _diarias = [
     (TipoMision.ganarPartidos, 3),
@@ -69,16 +67,33 @@ class Misiones {
   /// Pase vigente: uno por trimestre ('2026-T4').
   static String paseDe(DateTime f) => '${f.year}-T${(f.month - 1) ~/ 3 + 1}';
 
+  static int _fechaInt(DateTime f) => int.parse(_clave(f));
+
   /// Renueva misiones vencidas (conserva el avance de las vigentes) y el pase si cambió el trimestre.
+  ///
+  /// Las misiones cumplidas y sin cobrar de días anteriores NO se pierden: quedan en la lista para
+  /// cobrarlas. Y si el reloj del teléfono se atrasa, se sigue usando la última fecha vista (si no,
+  /// las misiones ya cobradas volverían a aparecer y se podrían cobrar de nuevo).
   static Metajuego alDia(Metajuego m, DateTime ahora) {
+    final hoy = _fechaInt(ahora);
+    final fecha = m.ultimaFecha > hoy
+        ? DateTime(m.ultimaFecha ~/ 10000, (m.ultimaFecha ~/ 100) % 100, m.ultimaFecha % 100)
+        : ahora;
     final previas = {for (final x in m.misiones) x.id: x};
-    final misiones = [for (final x in generar(ahora)) previas[x.id] ?? x];
-    final pase = paseDe(ahora);
+    final vigentes = [for (final x in generar(fecha)) previas[x.id] ?? x];
+    final ids = {for (final x in vigentes) x.id};
+    final rezagadas = [
+      for (final x in m.misiones)
+        if (x.cumplida && !x.reclamada && !ids.contains(x.id)) x,
+    ];
+    final misiones = [...vigentes, ...rezagadas];
+    final pase = paseDe(fecha);
+    final nuevaFecha = max(m.ultimaFecha, hoy);
     final mismas = misiones.length == m.misiones.length && misiones.every((x) => previas[x.id] == x);
-    if (mismas && pase == m.pase) return m;
+    if (mismas && pase == m.pase && nuevaFecha == m.ultimaFecha) return m;
     return pase == m.pase
-        ? m.copyWith(misiones: misiones)
-        : m.copyWith(misiones: misiones, pase: pase, puntosPase: 0, nivelesReclamados: {});
+        ? m.copyWith(misiones: misiones, ultimaFecha: nuevaFecha)
+        : m.copyWith(misiones: misiones, pase: pase, puntosPase: 0, nivelesReclamados: {}, ultimaFecha: nuevaFecha);
   }
 
   /// Cuánto avanzó cada tipo de misión entre dos estados de la misma temporada.

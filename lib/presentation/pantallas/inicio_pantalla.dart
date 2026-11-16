@@ -117,30 +117,14 @@ class InicioPantalla extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 12),
-                                  if (guardada != null && delGuardado != null) ...[
-                                    OutlinedButton(
-                                      onPressed: onSeguir,
-                                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                                      child: Text(
-                                        guardada.modoJuego == ModoJuego.clasico
-                                            ? 'Seguir la temporada de los ${delGuardado.nombre}'
-                                            : 'Seguir: ${guardada.modoJuego.nombre} (${delGuardado.nombre})',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                  ],
-                                  FilledButton(
-                                    onPressed: () => onDirigir(enfocada),
-                                    child: Text('Dirigir a los ${enfocada.nombre}'.toUpperCase()),
+                                  _Acciones(
+                                    enfocada: enfocada,
+                                    guardada: guardada,
+                                    delGuardado: delGuardado,
+                                    onSeguir: onSeguir,
+                                    onDirigir: onDirigir,
+                                    onModos: onModos,
                                   ),
-                                  if (onModos != null)
-                                    TextButton.icon(
-                                      onPressed: onModos,
-                                      icon: const Icon(Icons.grid_view_rounded),
-                                      label: const Text('OTROS MODOS DE JUEGO'),
-                                    ),
                                 ],
                               ),
                             ),
@@ -169,30 +153,14 @@ class InicioPantalla extends StatelessWidget {
                         onTocar: _enfocar,
                       ),
                       const SizedBox(height: 12),
-                      if (guardada != null && delGuardado != null) ...[
-                        OutlinedButton(
-                          onPressed: onSeguir,
-                          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                          child: Text(
-                            guardada.modoJuego == ModoJuego.clasico
-                                ? 'Seguir la temporada de los ${delGuardado.nombre}'
-                                : 'Seguir: ${guardada.modoJuego.nombre} (${delGuardado.nombre})',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                      FilledButton(
-                        onPressed: () => onDirigir(enfocada),
-                        child: Text('Dirigir a los ${enfocada.nombre}'.toUpperCase()),
+                      _Acciones(
+                        enfocada: enfocada,
+                        guardada: guardada,
+                        delGuardado: delGuardado,
+                        onSeguir: onSeguir,
+                        onDirigir: onDirigir,
+                        onModos: onModos,
                       ),
-                      if (onModos != null)
-                        TextButton.icon(
-                          onPressed: onModos,
-                          icon: const Icon(Icons.grid_view_rounded),
-                          label: const Text('OTROS MODOS DE JUEGO'),
-                        ),
                     ],
                   ],
                 ),
@@ -201,6 +169,63 @@ class InicioPantalla extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Los botones de abajo: seguir la partida guardada, dirigir al equipo enfocado y el menú de modos.
+class _Acciones extends StatelessWidget {
+  const _Acciones({
+    required this.enfocada,
+    required this.guardada,
+    required this.delGuardado,
+    required this.onSeguir,
+    required this.onDirigir,
+    required this.onModos,
+  });
+
+  final Franquicia enfocada;
+  final Temporada? guardada;
+  final Franquicia? delGuardado;
+  final VoidCallback? onSeguir;
+  final ValueChanged<Franquicia> onDirigir;
+  final VoidCallback? onModos;
+
+  @override
+  Widget build(BuildContext context) {
+    final guardada = this.guardada, delGuardado = this.delGuardado;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (guardada != null && delGuardado != null) ...[
+          OutlinedButton(
+            onPressed: onSeguir,
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+            child: Text(
+              guardada.modoJuego == ModoJuego.clasico
+                  ? 'Seguir la temporada de los ${delGuardado.nombre}'
+                  : 'Seguir: ${guardada.modoJuego.nombre} (${delGuardado.nombre})',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        FilledButton(
+          onPressed: () => onDirigir(enfocada),
+          child: Text('Dirigir a los ${enfocada.nombre}'.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+        if (onModos != null) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: onModos,
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+            icon: const Icon(Icons.grid_view_rounded),
+            label: const Text('MODOS DE JUEGO'),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -285,6 +310,8 @@ class _BarraCarrera extends StatelessWidget {
               ),
               tooltip: 'Misiones y pase',
             ),
+          if (onAlbum != null)
+            IconButton(onPressed: onAlbum, icon: const Icon(Icons.style_outlined), tooltip: 'Álbum y tienda'),
           IconButton(
             onPressed: onPartidas,
             icon: const Icon(Icons.folder_open_outlined),
@@ -304,13 +331,22 @@ class _Encabezado extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     crossAxisAlignment: CrossAxisAlignment.end,
     children: [
-      Text(
-        'DINASTÍA',
-        style: Theme.of(context).textTheme.headlineSmall
-            ?.copyWith(fontVariations: const [FontVariation.weight(800)], letterSpacing: 3),
+      // Con letra grande, la marca y el marcador se achican en vez de desbordarse.
+      Expanded(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.bottomLeft,
+          child: Text(
+            'DINASTÍA',
+            style: Theme.of(context).textTheme.headlineSmall
+                ?.copyWith(fontVariations: const [FontVariation.weight(800)], letterSpacing: 3),
+          ),
+        ),
       ),
-      const Spacer(),
-      const TextoLed('82-0', tamano: 44),
+      const SizedBox(width: 12),
+      const Flexible(
+        child: FittedBox(fit: BoxFit.scaleDown, child: TextoLed('82-0', tamano: 44)),
+      ),
     ],
   );
 }
@@ -528,24 +564,28 @@ class _ItemCinta extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           child: SizedBox(
             width: escudo * 2,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AnimatedOpacity(
-                  opacity: encendida ? 1 : 0.45,
-                  duration: const Duration(milliseconds: 150),
-                  child: Escudo(franquicia, tamano: escudo),
-                ),
-                const SizedBox(height: 6),
-                TextoLed(franquicia.id, tamano: 18, color: encendida ? colorLed : apagado),
-                const SizedBox(height: 6),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  height: 3,
-                  width: encendida ? 28 : 0,
-                  decoration: BoxDecoration(color: colorLed, borderRadius: BorderRadius.circular(2)),
-                ),
-              ],
+            // Con letra grande el bloque se achica en vez de desbordar la cinta.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AnimatedOpacity(
+                    opacity: encendida ? 1 : 0.45,
+                    duration: const Duration(milliseconds: 150),
+                    child: Escudo(franquicia, tamano: escudo),
+                  ),
+                  const SizedBox(height: 6),
+                  TextoLed(franquicia.id, tamano: 18, color: encendida ? colorLed : apagado),
+                  const SizedBox(height: 6),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    height: 3,
+                    width: encendida ? 28 : 0,
+                    decoration: BoxDecoration(color: colorLed, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

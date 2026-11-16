@@ -6,6 +6,7 @@ import 'entities/modo_juego.dart';
 import 'entities/oferta.dart';
 import 'entities/temporada.dart';
 import 'liga.dart';
+import 'tokens_draft.dart';
 
 /// Lo que viaja en un código de reto: con qué semilla y reglas se arma el draft, y (si ya lo
 /// jugó) qué hizo el que reta.
@@ -192,7 +193,10 @@ class Reto {
     if (semilla == null) return null;
     return (x, paso) {
       final fichas = x.datosModo[claveFichas] as int? ?? x.rerollsRestantes;
-      final usadas = Draft.pasoConFicha(paso) ? fichas - x.rerollsRestantes : 0;
+      // Tiradas de más que hizo quien juega: fichas gratis gastadas + tiradas pagadas con monedas.
+      final usadas = Draft.pasoConFicha(paso)
+          ? fichas - x.rerollsRestantes + x.tokens.pagosDe(TokenDraft.volverATirar)
+          : 0;
       var h = semilla;
       for (final v in [x.plantel.jugadores.length, paso, usadas]) {
         h = (h * 1000003 + v * 7919 + 0x9e37) & 0x7fffffff;
@@ -208,7 +212,9 @@ class Reto {
   }
 
   /// "Mi colección" depende del álbum de cada uno: no se puede retar con esa regla.
-  static bool sePuedeRetar(Temporada t) => semillaDe(t) != null && t.regla != ReglaDraft.coleccion;
+  /// Tampoco si pagaste tokens con monedas: el que acepta el reto juega con un kit fijo y gratis.
+  static bool sePuedeRetar(Temporada t) =>
+      semillaDe(t) != null && t.regla != ReglaDraft.coleccion && !t.tokens.usoPagos;
 
   /// El código para retar a un amigo con esta partida (con tu marca, si ya terminaste la temporada
   /// regular). Null si la partida no tiene semilla (anteriores a los retos) o es de "Mi colección".
@@ -229,8 +235,11 @@ class Reto {
   }
 
   /// La partida de quien acepta el reto.
+  ///
+  /// El kit de tokens es fijo y gratis para todos ([ReglasTokens.rerollsKit] fichas de volver a
+  /// tirar, nada con monedas): [fichasExtra] ya no cuenta (se acepta por compatibilidad).
   static Temporada aceptar(CodigoReto c, {required String id, int fichasExtra = 0}) {
-    final fichas = Temporada.rerollsPorTemporada + fichasExtra;
+    final fichas = ReglasTokens.rerollsKit;
     return Temporada(
       id: id,
       franquiciaUsuarioId: c.franquiciaId,

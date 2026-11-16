@@ -14,6 +14,7 @@ import 'entities/temporada.dart';
 import 'modos/evoluciones.dart';
 import 'motor.dart';
 import 'playbook.dart';
+import 'version_catalogo.dart';
 import 'versiones.dart';
 
 /// Temporada regular (GDD §7): rivales, calendario de 82 y simulación de los partidos de los demás.
@@ -30,7 +31,7 @@ class Liga {
   /// las partidas que usan el álbum (ver `partidaUsaAlbum`).
   int Function(String cartaId)? nivelEvolucion;
 
-  late final Map<String, Jugador> _porId = {for (final j in catalogo) j.id: j};
+  late final Map<String, Jugador> _porId = {...cartasLegado, for (final j in catalogo) j.id: j};
 
   /// Prepara la temporada: calendario oficial y los 29 rivales (mitad históricos, mitad de época).
   /// [excluidos]: personas que tampoco pueden estar en los rivales (p. ej. tu plantel en el Modo espejo).
@@ -93,7 +94,10 @@ class Liga {
     final tipo = _azar.nextBool() ? TipoRival.historico : TipoRival.epoca;
     if (tipo == TipoRival.epoca && epocas.isNotEmpty) {
       final epoca = epocas[_azar.nextInt(epocas.length)];
-      final deEsaEpoca = propias.where((j) => j.epoca == epoca).toList();
+      final deLaDecada = propias.where((j) => j.epoca == epoca).toList();
+      // Catálogo v3: un rival "de época" es un equipo de un año real (las cartas cuyo tramo incluye ese
+      // año o está a uno de distancia); si no alcanzan para armar el plantel, se usa toda la década.
+      final deEsaEpoca = _deUnAnio(deLaDecada, dificultad.mediaRivales == null ? 1 : 2);
       final plantel = _armarPlantel(
         deEsaEpoca,
         variedad: dificultad.mediaRivales == null ? 1 : 2,
@@ -110,6 +114,24 @@ class Liga {
     }
     final plantel = _armarPlantel(propias, variedad: 3, objetivo: dificultad.mediaRivales)!;
     return _rival(franquiciaId, TipoRival.historico, plantel, franquiciaId);
+  }
+
+  /// Cartas del pool cuyo tramo está a un año (o menos) de un año elegido al azar entre los que cubren las
+  /// cartas; el primero que junte un plantel completo. Sin datos de temporadas (o sin plantel), todo el pool.
+  List<Jugador> _deUnAnio(List<Jugador> pool, int variedad) {
+    final anios = <int>{
+      for (final j in pool)
+        if (j.temporadas case (final a, final b)) for (var x = a; x <= b; x++) x,
+    }.toList()..sort();
+    for (var intento = 0; intento < 4 && anios.isNotEmpty; intento++) {
+      final ancla = anios[_azar.nextInt(anios.length)];
+      final cerca = [
+        for (final j in pool)
+          if (j.temporadas case (final a, final b) when ancla >= a - 1 && ancla <= b + 1) j,
+      ];
+      if (_armarPlantel(cerca, variedad: variedad) != null) return cerca;
+    }
+    return pool;
   }
 
   /// Arma 5 titulares + Sexto Hombre: por puesto, al azar entre los [variedad] de más media
@@ -719,7 +741,8 @@ class Premio {
   final double valor;
 }
 
-/// La carta [id] del catálogo o, si ya no existe (una partida guardada con un catálogo anterior),
+/// La carta [id] del catálogo o, si ya no existe o ya no puede jugar en [puesto] (una partida guardada con un
+/// catálogo anterior),
 /// un reemplazo que pueda jugar en [puesto]: de la misma franquicia y época, si no de la misma
 /// franquicia, si no cualquiera; siempre el de más media que no esté ya en [actual]. Así una
 /// partida vieja nunca se rompe por una carta que se quitó.
@@ -730,7 +753,9 @@ Jugador cartaOReemplazo(
   Posicion puesto,
   Plantel actual,
 ) {
-  if (porId[id] case final j?) return j;
+  // Catálogo v3: una carta conserva su id pero puede haber cambiado de tramo (y de puestos): si ya no
+  // sirve para este puesto, se reemplaza igual que una carta que ya no existe.
+  if (porId[id] case final j? when j.puedeJugarEn(puesto) && !actual.contiene(j)) return j;
   final partes = id.split('-');
   final franquicia = partes.length >= 3 ? partes[partes.length - 2] : '';
   final epoca = partes.length >= 3 ? partes.last : '';

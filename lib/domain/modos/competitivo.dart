@@ -13,6 +13,7 @@ import '../playbook.dart';
 import '../progreso.dart' show Novedad;
 import 'evoluciones.dart';
 import 'escalera.dart';
+import '../entities/enum_tolerante.dart';
 
 /// Divisiones, Conquista y Creador de torneos: modos que juegan con cartas de tu álbum (las
 /// evoluciones de cartas valen acá). Cada uno guarda todo su estado en [Temporada.datosModo].
@@ -30,7 +31,7 @@ typedef Alineacion = Map<Posicion, String>;
 Map<String, dynamic> alineacionAJson(Alineacion a) => {for (final e in a.entries) e.key.name: e.value};
 
 Alineacion alineacionDeJson(Map<String, dynamic> j) => {
-  for (final e in j.entries) Posicion.values.byName(e.key): e.value as String,
+  for (final e in j.entries) ?Posicion.values.porNombre(e.key): e.value as String,
 };
 
 Alineacion alineacionDePlantel(Plantel p) => {
@@ -59,7 +60,7 @@ class CierreDivision {
   final MovimientoDivision movimiento;
 
   factory CierreDivision.fromJson(Map<String, dynamic> j) =>
-      CierreDivision(j['d'] as int, j['p'] as int, MovimientoDivision.values.byName(j['m'] as String));
+      CierreDivision(j['d'] as int, j['p'] as int, MovimientoDivision.values.porNombreO(j['m']));
 
   Map<String, dynamic> toJson() => {'d': division, 'p': puntos, 'm': movimiento.name};
 }
@@ -826,7 +827,7 @@ class Torneo {
 
   factory Torneo.fromJson(Map<String, dynamic> j) => Torneo(
     nombre: j['nombre'] as String,
-    formato: FormatoTorneo.values.byName(j['formato'] as String),
+    formato: FormatoTorneo.values.porNombreO(j['formato']),
     aGanar: j['aGanar'] as int,
     equipos: [for (final e in j['equipos'] as List) EquipoTorneo.fromJson((e as Map).cast<String, dynamic>())],
     llaves: [for (final l in j['llaves'] as List) Llave.fromJson((l as Map).cast<String, dynamic>())],

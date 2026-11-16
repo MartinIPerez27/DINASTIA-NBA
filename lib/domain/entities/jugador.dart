@@ -1,6 +1,7 @@
 import '../../core/nba_cdn.dart';
 import 'posicion.dart';
 import 'rol_cancha.dart';
+import 'enum_tolerante.dart';
 
 /// Carrete 2 del tragamonedas (GDD §4.2).
 enum Epoca {
@@ -100,7 +101,7 @@ class EstadisticasJugador {
   };
 }
 
-/// Una carta del draft. Un mismo jugador NBA puede tener varias cartas (otra época o franquicia),
+/// Una carta del draft. Un mismo jugador NBA puede tener varias cartas (otra ventana de temporadas o franquicia),
 /// por eso [id] identifica la carta y [nbaPlayerId] a la persona.
 class Jugador {
   const Jugador({
@@ -122,6 +123,8 @@ class Jugador {
     this.draft,
     this.universidad,
     this.nacimiento,
+    this.edad,
+    this.legado = false,
   }) : equipo = equipo ?? franquiciaId;
 
   final String id;
@@ -150,7 +153,8 @@ class Jugador {
   /// Datos que la NBA no registraba en esa época y fueron estimados (p. ej. 'robP', 'tapP').
   final Set<String> estimadas;
 
-  /// Primera y última temporada del tramo, por año de cierre (2019-20 → 2020). Null en cartas viejas.
+  /// Ventana de temporadas de la carta (catálogo v3: racha con el mismo equipo y rendimiento parejo), por
+  /// año de cierre: 2019-20 → 2020. Null en cartas viejas.
   final (int, int)? temporadas;
 
   /// Año y número de elección en el draft (null: no fue elegido o no hay dato).
@@ -161,6 +165,13 @@ class Jugador {
 
   /// Año de nacimiento.
   final int? nacimiento;
+
+  /// Edad (años cumplidos) en la primera temporada del tramo, según Basketball-Reference; null sin dato.
+  final int? edad;
+
+  /// Carta del catálogo anterior que se conserva solo para que partidas y álbumes viejos carguen: los
+  /// sorteos (draft, sobres, rivales, mercado) no la usan.
+  final bool legado;
 
   /// Qué tramo es la carta: "2020–23", "1985–98", "1999–2004"; sin datos, la época ("Años 90").
   String get tramo => switch (temporadas) {
@@ -200,18 +211,19 @@ class Jugador {
     draft: draft,
     universidad: universidad,
     nacimiento: nacimiento,
+    edad: edad,
+    legado: legado,
   );
 
   /// Id de Basketball-Reference (prefijo del id de carta).
   String get idBbref => id.split('-').first;
 
-  /// URLs de foto en el orden en que se prueban (`wiki:<nombre>` = buscar en Wikipedia).
+  /// URLs de foto directas (CDN de la NBA y `w:`). La fuente `b` (Basketball-Reference `/req/`, excluida por su
+  /// robots.txt) ya no se usa: las demás fotos las resuelve `GestorFotos` (Wikipedia/Commons).
   List<String> get urlsFoto => [
     for (final f in fotos)
       if (f == 'n' && nbaPlayerId > 0)
         NbaCdn.headshot(nbaPlayerId)
-      else if (f == 'b')
-        'https://www.basketball-reference.com/req/202106291/images/headshots/$idBbref.jpg'
       else if (f == 'w')
         'wiki:$nombre'
       else if (f.startsWith('w:'))
@@ -236,11 +248,11 @@ class Jugador {
       nbaPlayerId: j['nbaPlayerId'] as int,
       nombre: j['nombre'] as String,
       franquiciaId: j['franquicia'] as String,
-      epoca: Epoca.values.byName(j['epoca'] as String),
-      tier: Tier.values.byName(j['tier'] as String),
+      epoca: Epoca.values.porNombreO(j['epoca']),
+      tier: Tier.values.porNombreO(j['tier']),
       posiciones: List.unmodifiable(posiciones),
-      rol: RolCancha.values.byName(j['rol'] as String),
-      dorsal: j['dorsal'] as int,
+      rol: RolCancha.values.porNombreO(j['rol']),
+      dorsal: j['dorsal'] as int? ?? 0,
       stats: EstadisticasJugador.fromJson(j['stats'] as Map<String, dynamic>),
       media: j['media'] as int? ?? 75,
       equipo: j['equipo'] as String?,
@@ -256,6 +268,8 @@ class Jugador {
       },
       universidad: j['universidad'] as String?,
       nacimiento: (j['nacimiento'] as num?)?.toInt(),
+      edad: (j['edad'] as num?)?.toInt(),
+      legado: j['legado'] as bool? ?? false,
     );
   }
 
@@ -278,6 +292,8 @@ class Jugador {
     if (draft case (final a, final b)) 'draft': [a, b],
     if (universidad != null) 'universidad': universidad,
     if (nacimiento != null) 'nacimiento': nacimiento,
+    if (edad != null) 'edad': edad,
+    if (legado) 'legado': true,
   };
 
   @override

@@ -10,6 +10,7 @@ import '../liga.dart';
 import '../motor.dart';
 import '../playbook.dart';
 import 'escalera.dart' show Cruce, ModosEscalera, RivalEscalera;
+import '../entities/enum_tolerante.dart';
 
 /// Un participante de los torneos por época: una clase de draft, una universidad o el campeón de
 /// una década.
@@ -163,7 +164,7 @@ class EstadoEpocas {
     ofertas: [for (final x in j['ofertas'] as List? ?? const []) x as String],
     elegidas: {
       for (final e in (j['elegidas'] as Map<String, dynamic>? ?? const {}).entries)
-        Posicion.values.byName(e.key): e.value as String,
+        ?Posicion.values.porNombre(e.key): e.value as String,
     },
   );
 

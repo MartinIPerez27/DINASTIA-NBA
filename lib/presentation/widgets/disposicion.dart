@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 /// Ancho desde el que una pantalla apaisada se arma en dos paneles (tablet en horizontal).
 const anchoTablet = 900.0;
 
-/// Tablet en horizontal (p. ej. 11" 2K apaisada): ancho ≥ [anchoTablet] y más ancha que alta.
+/// Tablet en horizontal (p. ej. 11" 2K apaisada): ancho ≥ [anchoTablet], más ancha que alta y con el
+/// lado corto de tablet (≥ 600 dp): un teléfono grande girado no entra al diseño de tablet.
 /// En el teléfono (vertical) todo queda como siempre.
 bool esTabletApaisada(BuildContext context) {
   final s = MediaQuery.sizeOf(context);
-  return s.width >= anchoTablet && s.width > s.height;
+  return s.width >= anchoTablet && s.width > s.height && s.shortestSide >= 600;
 }
 
 /// Dos paneles lado a lado en tablet apaisada; en el teléfono, [angosto] (o los dos apilados).
