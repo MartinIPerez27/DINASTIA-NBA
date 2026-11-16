@@ -163,9 +163,9 @@ void main() {
       expect(() => s.registrarVictoria('CHI'), throwsStateError);
     });
 
-    test('3 rerolls por temporada', () {
+    test('las fichas gratis de volver a tirar se gastan una a una', () {
       var t = const Temporada(id: 't1', franquiciaUsuarioId: 'CHI');
-      t = t.usarReroll().usarReroll().usarReroll();
+      t = t.copyWith(rerollsRestantes: 3).usarReroll().usarReroll().usarReroll();
       expect(t.rerollsRestantes, 0);
       expect(t.usarReroll, throwsStateError);
     });

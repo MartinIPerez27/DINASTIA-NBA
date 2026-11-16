@@ -58,20 +58,20 @@ void main() {
     final draft = Draft(_catalogo, azar: Random(1));
     for (var i = 0; i < 50; i++) {
       final t = draft.tirar(nueva);
-      expect(t.rerollsRestantes, 3);
+      expect(t.rerollsRestantes, Temporada.rerollsPorTemporada, reason: 'la primera tirada no gasta fichas');
       expect(draft.candidatos(t), isNotEmpty);
     }
   });
 
-  test('no se puede volver a tirar sin gastar ficha, y sin fichas no se tira', () {
+  test('volver a tirar gasta una ficha gratis; sin fichas ni monedas no se tira (los tokens: tokens_test.dart)', () {
     final draft = Draft(_catalogo, azar: Random(2));
-    var t = draft.tirar(nueva);
+    var t = draft.tirar(nueva.copyWith(rerollsRestantes: 3));
     t = draft.tirar(t);
     expect(t.rerollsRestantes, 2);
     t = draft.tirar(draft.tirar(t));
     expect(t.rerollsRestantes, 0);
-    expect(draft.puedeVolverATirar(t, const {}), isFalse);
-    expect(() => draft.tirar(t), throwsStateError);
+    expect(() => draft.tirar(t), throwsStateError, reason: 'sin monedas no se paga otra tirada');
+    expect(draft.puedeVolverATirar(t, const {}), isTrue, reason: 'se puede pagar con monedas');
   });
 
   test('retener carretes: solo al volver a tirar, máximo 2, y se respetan', () {
@@ -172,7 +172,7 @@ void main() {
 
     test('volver a repartir gasta una ficha y pone sobres nuevos; todo se guarda en JSON', () {
       final draft = Draft(catalogo, azar: Random(2));
-      final t = draft.abrirSobre(draft.repartir(cartas, Posicion.alero), 1);
+      final t = draft.abrirSobre(draft.repartir(cartas.copyWith(rerollsRestantes: 3), Posicion.alero), 1);
       final otra = draft.volverARepartir(t);
       expect(otra.rerollsRestantes, 2);
       expect(otra.oferta!.sinAbrir, isTrue);

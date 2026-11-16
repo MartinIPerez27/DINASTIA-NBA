@@ -12,6 +12,7 @@ import '../motor.dart';
 import '../playbook.dart';
 import '../progreso.dart';
 import 'carrera_jugador.dart';
+import '../entities/enum_tolerante.dart';
 
 // ===========================================================================================
 // Modo universitario: un programa ficticio, una liga ficticia de 32 universidades y jugadores
@@ -362,8 +363,8 @@ class Estudiante {
     return Estudiante(
       id: j['id'] as String,
       nombre: j['n'] as String,
-      posicion: Posicion.values.byName(j['p'] as String),
-      rol: RolCancha.values.byName(j['r'] as String),
+      posicion: Posicion.values.porNombreO(j['p']),
+      rol: RolCancha.values.porNombreO(j['r']),
       atributos: Atributos.fromJson(j['a'] as Map<String, dynamic>),
       alturaCm: j['h'] as int? ?? 198,
       pesoKg: j['w'] as int? ?? 95,
@@ -478,9 +479,13 @@ class TemporadaUniv {
     required this.campeon,
     this.premios = const [],
     this.picks = const [],
+    this.meta = 0,
   });
 
   final int numero, v, d, puestoConferencia;
+
+  /// Victorias que pedía la meta de esa temporada (0: partida vieja, sin meta).
+  final int meta;
 
   /// 'Campeón', 'Final', 'Semifinal', 'Cuartos', 'Octavos' o 'Sin torneo'.
   final String torneo;
@@ -499,6 +504,7 @@ class TemporadaUniv {
     'c': campeon,
     if (premios.isNotEmpty) 'pr': premios,
     if (picks.isNotEmpty) 'pk': picks,
+    if (meta > 0) 'mt': meta,
   };
 
   factory TemporadaUniv.fromJson(Map<String, dynamic> j) => TemporadaUniv(
@@ -510,6 +516,7 @@ class TemporadaUniv {
     campeon: j['c'] as bool? ?? false,
     premios: (j['pr'] as List?)?.cast<String>() ?? const [],
     picks: (j['pk'] as List?)?.cast<String>() ?? const [],
+    meta: j['mt'] as int? ?? 0,
   );
 }
 
@@ -541,7 +548,7 @@ class Egresado {
 
   String get destino => pick == null ? 'Sin draft' : (pick! <= 30 ? 'Pick $pick' : 'Sin draft');
 
-  /// Se lleva a Mi carrera como un jugador creado: sus tres mejores atributos pasan a ser sus fuertes.
+  /// Se lleva a Mi carrera como un jugador creado, conservando atributos, media, pick y edad.
   JugadorCreado get comoCreado {
     final orden = [...Atributo.values]..sort((a, b) => atributos[b].compareTo(atributos[a]));
     return JugadorCreado(
@@ -551,6 +558,10 @@ class Egresado {
       fuertes: orden.take(3).toList(),
       alturaCm: alturaCm,
       pesoKg: pesoKg,
+      // Llega como es: con sus atributos de la universidad, su elección real y la edad de sus años.
+      atributosFijos: atributos,
+      pickFijo: pick,
+      edadInicial: (18 + anios).clamp(19, 23),
     );
   }
 
@@ -570,8 +581,8 @@ class Egresado {
 
   factory Egresado.fromJson(Map<String, dynamic> j) => Egresado(
     nombre: j['n'] as String,
-    posicion: Posicion.values.byName(j['p'] as String),
-    rol: RolCancha.values.byName(j['r'] as String),
+    posicion: Posicion.values.porNombreO(j['p']),
+    rol: RolCancha.values.porNombreO(j['r']),
     atributos: Atributos.fromJson(j['a'] as Map<String, dynamic>),
     alturaCm: j['h'] as int,
     pesoKg: j['w'] as int,
@@ -600,6 +611,11 @@ class EstadoUniv {
     this.egresados = const [],
     this.siguienteId = 1,
   });
+
+  /// Victorias que te pide la facultad esta temporada: crece con tu prestigio (de 15 a 25 de 30).
+  static int metaVictorias(int prestigio) => (14 + prestigio * 0.12).round().clamp(14, 25);
+
+  int get meta => metaVictorias(prestigio);
 
   /// Cantidad de equipos, conferencias, partidos y jornadas.
   static const equipos = 32, porConferencia = 8, jornadas = 30, partidosPorJornada = 16;
@@ -1394,6 +1410,7 @@ class Universitario {
       torneo: e.resultadoTorneoUsuario,
       campeon: campeon,
       premios: premios.deUsuario(),
+      meta: EstadoUniv.metaVictorias(e.prestigio),
     );
     // Prestigio: tu récord y el torneo suben o bajan tu programa; los de la IA se mueven con su récord.
     final bonusTorneo = switch (resumen.torneo) {
@@ -1404,16 +1421,28 @@ class Universitario {
       'Octavos' => 1,
       _ => 0,
     };
-    final nuevoPrestigio = (e.prestigio + ((mia.v - 15) * 0.9).round() + bonusTorneo - (e.prestigio - 45) ~/ 8).clamp(
-      0,
-      100,
-    );
+    // Meta de la temporada: cumplirla suma, quedarse corto resta. El prestigio rinde cada vez menos
+    // (nunca llega a 100: se estabiliza cerca de 85) y la fama trae la presión de la liga.
+    final meta = EstadoUniv.metaVictorias(e.prestigio);
+    final bonusMeta = mia.v >= meta ? 2 : -3;
+    final ganancia = (mia.v - 14) * 0.8 + bonusTorneo + bonusMeta;
+    final nuevoPrestigio =
+        (e.prestigio + ganancia * (1 - e.prestigio / 115) - (e.prestigio > 50 ? (e.prestigio - 50) * 0.12 : 0))
+            .round()
+            .clamp(0, 95);
     final azar = Random(hashUniv('${e.semilla}|pia|${e.temporada}'));
+    // La liga reacciona: cuanto más arriba está tu programa, más se refuerzan los rivales mejor
+    // ubicados (fichan a los que se te escapan) y más cuesta cada victoria.
+    final reaccion = max(0, nuevoPrestigio - 55) / 8.0;
+    final mejoresIA = [for (var i = 1; i < EstadoUniv.equipos; i++) i]
+      ..sort((a, b) => regs[b].porcentaje.compareTo(regs[a].porcentaje));
+    final refuerzan = mejoresIA.take(10).toSet();
     final ia = [
       for (var i = 1; i < EstadoUniv.equipos; i++)
         (e.prestigioDe(i) +
                 ((regs[i].porcentaje - 0.5) * 14).round() +
-                (_gauss(azar) * 3).round() -
+                (_gauss(azar) * 3).round() +
+                (refuerzan.contains(i) ? reaccion.round() : 0) -
                 (e.prestigioDe(i) - 50) ~/ 10)
             .clamp(10, 95),
     ];

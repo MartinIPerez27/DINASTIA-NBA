@@ -135,7 +135,7 @@ Todo se serializa a JSON (`toJson`/`fromJson`); **los campos nuevos son opcional
 ## 5. Datos
 
 ### 5.1 Catálogo de cartas (`assets/database/nba_players.json`, ~4 MB)
-- **11.323 cartas.** Una carta = jugador + franquicia + **década** (con mínimo de 20 partidos en ese tramo). **IDs estables** (`pid-FRANQUICIA-codigoEpoca`, p. ej. `lillada01-POR-act`): **no se deben cambiar ni borrar** (partidas guardadas, álbum y rivales los referencian).
+- **13.031 cartas (v3, ver docs/CATALOGO_V3.md).** Una carta = jugador + franquicia + **ventana de 1–4 temporadas** (tramo real; campo `temporadas`; 5 cartas `legado: true` fuera de los sorteos; mínimo de 20 partidos). **IDs estables** (`pid-FRANQUICIA-codigoEpoca`, p. ej. `lillada01-POR-act`): **no se deben cambiar ni borrar** (partidas guardadas, álbum y rivales los referencian).
 - **Campos por carta:** `id`, `nbaPlayerId` (ID oficial para la foto; negativo si no hay cruce), `nombre`, `franquicia`, `equipo` (identidad de época, p. ej. "SEA" para Seattle SuperSonics), `epoca`, `tier`, `posiciones`, `rol`, `dorsal` (siempre 0), `stats` (11 estadísticas), `fotos`, `media`, `temporadas: [primerAñoDeCierre, últimoAñoDeCierre]`, `draft: [año, pick]` (84,2 % de las cartas), `universidad` (91,9 %, normalizada: "UNC" → "North Carolina"), `nacimiento` (100 %), y `estimadas` (si hay datos estimados).
 - **Épocas (`Epoca`):** `anios40 … anios2010, actualidad`. `actualidad` = **toda la década 2020** (2019-20 en adelante, incluye 2026-27 en curso). Etiquetas visibles: "Años 2020", código "20s", corta "20’" (antes "HOY"). El nombre del enum `actualidad` **no** se renombra (compatibilidad de JSON).
 - **Tiers:** B 8.411 · A 2.704 · S 138 · S+ 70 (v2). **Media** 60–99.

@@ -12,6 +12,7 @@ import '../liga.dart';
 import '../playbook.dart';
 import '../premios.dart';
 import '../versiones.dart';
+import 'carrera_jugador.dart' show ModeloCarrera;
 
 /// Cómo terminó una temporada de la dinastía (para la línea de tiempo y el Salón).
 class TemporadaPasada {
@@ -216,7 +217,11 @@ class EstadoDinastia {
     this.figuraId,
     this.figura = const [],
     this.figuraRetirada = false,
+    this.potencialFigura,
   });
+
+  /// Figura franquicia: techo oculto de la media de tu figura (null en partidas viejas).
+  final int? potencialFigura;
 
   /// Figura franquicia: tu figura (id de carta), sus temporadas jugadas y si ya se retiró.
   final String? figuraId;
@@ -264,6 +269,7 @@ class EstadoDinastia {
       figuraId: d['figuraId'] as String?,
       figura: [for (final x in d['figura'] as List? ?? const []) TemporadaFigura.fromJson(x as Map<String, dynamic>)],
       figuraRetirada: d['figuraRetirada'] as bool? ?? false,
+      potencialFigura: d['potFig'] as int?,
     );
   }
 
@@ -278,6 +284,7 @@ class EstadoDinastia {
     if (figuraId != null) 'figuraId': figuraId,
     if (figura.isNotEmpty) 'figura': [for (final x in figura) x.toJson()],
     if (figuraRetirada) 'figuraRetirada': true,
+    if (potencialFigura != null) 'potFig': potencialFigura,
   };
 }
 
@@ -358,6 +365,13 @@ class CarreraDinastia {
 
   /// Edad con la que llega una carta: según su etapa (Novato 22, Prime 27, Veterano 32).
   int edadInicial(Jugador j) {
+    // Con el año de nacimiento del catálogo, la edad es la real: la del comienzo de su carta (Novato)
+    // o la de la mitad de su tramo (Prime, Veterano).
+    final nac = j.nacimiento, tramo = j.temporadas;
+    if (nac != null && tramo != null) {
+      final anio = _versiones[j.id] == VersionCarta.novato ? tramo.$1 : (tramo.$1 + tramo.$2) ~/ 2;
+      return (anio - nac).clamp(19, 38);
+    }
     final base = switch (_versiones[j.id]) {
       VersionCarta.novato => 22,
       VersionCarta.veterano => 32,
@@ -406,7 +420,7 @@ class CarreraDinastia {
 
   /// Arma 5 + Sexto Hombre: primero los puestos con menos candidatos; en cada uno, el de más media
   /// (o el más cercano a [objetivo]).
-  Plantel? _armar(List<Jugador> pool, {int? objetivo}) {
+  Plantel? _armar(List<Jugador> pool, {int? objetivo, Random? azar}) {
     final ordenadas = [...pool]
       ..sort(
         (a, b) => objetivo == null
@@ -422,8 +436,9 @@ class CarreraDinastia {
             .compareTo(ordenadas.where((j) => j.posiciones.contains(b)).length),
       );
     for (final p in [...puestos, Posicion.sextoHombre]) {
-      final candidato = ordenadas.where((j) => plantel.posicionesDisponiblesPara(j).contains(p)).firstOrNull;
-      if (candidato == null) return null;
+      final candidatos = ordenadas.where((j) => plantel.posicionesDisponiblesPara(j).contains(p)).take(2).toList();
+      if (candidatos.isEmpty) return null;
+      final candidato = candidatos[azar == null ? 0 : azar.nextInt(candidatos.length)];
       plantel = plantel.asignar(candidato, p);
     }
     return plantel;
@@ -470,7 +485,8 @@ class CarreraDinastia {
           for (final j in liga.catalogo)
             if (j.franquiciaId == id && j.epoca == e && !propios.contains(j.nbaPlayerId)) j,
         ];
-        plantel = _armar(pool, objetivo: t.dificultad.mediaRivales);
+        final obj = t.dificultad.mediaRivales;
+        plantel = _armar(pool, objetivo: obj == null ? null : obj + _ajusteDe(t, id));
         usada = e;
         if (plantel != null) break;
       }
@@ -485,6 +501,60 @@ class CarreraDinastia {
         tipo: TipoRival.epoca,
         epoca: usada,
         identidadId: identidad,
+        cartaIds: {for (final p in Posicion.values) p: plantel.en(p)!.id},
+        tactica: recomendar(PerfilPlantel.de(plantel)).tactica,
+      );
+    }
+    return t.copyWith(rivales: rivales);
+  }
+
+  // ---------- La liga reacciona ----------
+
+  /// Cuánto suben (o bajan) los rivales según qué tan fuerte es tu plantel y cuántos títulos ganaste:
+  /// si dominás, se refuerzan; si estás hundido, la liga te da aire (de −6 a +6 de media).
+  int ajusteRivales(Temporada t) {
+    final js = t.plantel.jugadores.toList();
+    if (js.isEmpty) return 0;
+    final promedio = js.fold(0, (a, j) => a + j.media) / js.length;
+    return ((promedio - 80) * 0.7 + EstadoDinastia.de(t).titulos * 0.4).clamp(-6.0, 6.0).round();
+  }
+
+  /// El ajuste de una franquicia rival: el general más su ciclo propio (cada una tiene sus años buenos
+  /// y malos: ±2,5).
+  int _ajusteDe(Temporada t, String rivalId) {
+    final numero = EstadoDinastia.de(t).numero;
+    return ajusteRivales(t) + (2.5 * sin(numero * 0.9 + _hash(rivalId) % 7)).round();
+  }
+
+  /// Dinastía y Figura franquicia: rearma los rivales de la temporada con el ajuste de la liga (cada
+  /// uno conserva su tipo: de época o histórico), con algo de azar entre los dos mejores candidatos.
+  /// Reescribí la historia ya lo hace en [rivalesDeEpoca]. Las dificultades sin media objetivo
+  /// (Leyenda) no cambian: ya son lo mejor de cada franquicia.
+  Temporada reforzarRivales(Temporada t) {
+    final obj = t.dificultad.mediaRivales;
+    if (t.modoJuego == ModoJuego.reescribi || obj == null || t.rivales.isEmpty) return t;
+    final propios = {
+      for (final j in [...t.plantel.jugadores, ...t.suplentes]) j.nbaPlayerId,
+    };
+    final rivales = {...t.rivales};
+    for (final e in t.rivales.entries) {
+      final r = e.value;
+      List<Jugador> pool(bool soloEpoca) => [
+        for (final j in liga.catalogo)
+          if (j.franquiciaId == e.key &&
+              !propios.contains(j.nbaPlayerId) &&
+              (!soloEpoca || r.tipo != TipoRival.epoca || j.epoca == r.epoca))
+            j,
+      ];
+      final azar = Random(_hash('${t.id}-liga-${e.key}'));
+      final objetivo = obj + _ajusteDe(t, e.key);
+      final plantel = _armar(pool(true), objetivo: objetivo, azar: azar) ?? _armar(pool(false), objetivo: objetivo, azar: azar);
+      if (plantel == null) continue;
+      rivales[e.key] = Rival(
+        franquiciaId: e.key,
+        tipo: r.tipo,
+        epoca: r.epoca,
+        identidadId: r.identidadId,
         cartaIds: {for (final p in Posicion.values) p: plantel.en(p)!.id},
         tactica: recomendar(PerfilPlantel.de(plantel)).tactica,
       );
@@ -673,7 +743,7 @@ class CarreraDinastia {
     plantel = plantel.asignar(figura, puesto);
     final pool = [
       for (final j in liga.catalogo)
-        if (j.tier == Tier.b && j.media >= 66 && j.media <= 76 && j.nbaPlayerId != figura.nbaPlayerId) j,
+        if (j.tier == Tier.b && j.media >= 72 && j.media <= 79 && j.nbaPlayerId != figura.nbaPlayerId) j,
     ]..shuffle(r);
     final usados = {figura.nbaPlayerId};
     for (final p in Posicion.values) {
@@ -693,6 +763,7 @@ class CarreraDinastia {
         raiz: id,
         figuraId: figura.id,
         edades: {figura.id: 20},
+        potencialFigura: min(ModeloCarrera.tope, max(ModeloCarrera.potencialDe(id), figura.media + 5)),
       ).toJson(),
     );
   }
@@ -716,6 +787,27 @@ class CarreraDinastia {
         (s.allStar ? 1 : 0);
     final total = porEdad + porJuego + min(2, porPremios);
     return (edad <= 30 ? total.clamp(1, 5) : total.clamp(-5, 2)).toInt();
+  }
+
+  /// Cuánto cambia la media de tu figura al cumplir años, con su [potencial] oculto: sube cada vez menos
+  /// hasta el techo de su edad (nunca llega a 99 antes de los 26), rinde un poco más si jugó bien, y
+  /// de los 29 en adelante baja aunque juegue de maravilla. [forma] es la racha del año (±2).
+  static int cambioConPotencial({
+    required int edad,
+    required int media,
+    required int potencial,
+    required TemporadaFigura s,
+    double forma = 0,
+  }) {
+    final nueva = edad + 1;
+    final valor = s.pts + 0.7 * s.reb + 0.7 * s.ast;
+    final rend = s.pj < 20 ? 0.0 : (valor >= 32 ? 0.6 : (valor >= 22 ? 0.3 : (valor < 10 ? -0.3 : 0.0)));
+    final premios = min(2, (s.premios.contains('MVP') ? 2 : 0) + (s.allStar ? 1 : 0));
+    var dM = max(0, potencial - media) * ModeloCarrera.tasaCrecimiento(nueva) * 2.2 + forma;
+    if (nueva <= 28) dM += rend + premios * 0.3;
+    dM -= ModeloCarrera.declivePorEdad(nueva);
+    final techo = max(ModeloCarrera.techoPorEdad(potencial, nueva), media);
+    return min(dM.round(), techo - media);
   }
 
   /// Arquetipo que gana tu figura por cómo jugó (null: sigue igual).
@@ -783,11 +875,20 @@ class CarreraDinastia {
   EvolucionFigura evolucionFigura(Temporada t, Jugador j, Random azar) {
     final s = temporadaDeFigura(t, j);
     final edadNueva = s.edad + 1;
-    final cambio = crecimientoFigura(s.edad, s);
+    final potencial = EstadoDinastia.de(t).potencialFigura;
+    final cambio = potencial == null
+        ? crecimientoFigura(s.edad, s)
+        : cambioConPotencial(
+            edad: s.edad,
+            media: j.media,
+            potencial: potencial,
+            s: s,
+            forma: (azar.nextDouble() + azar.nextDouble() - 1) * 2.0,
+          );
     final media = (j.media + cambio).clamp(60, 99);
     final retira = media < 70 || (edadNueva >= 35 && azar.nextDouble() < probabilidadRetiro(edadNueva));
     final rol = rolPorJuego(j, s);
-    var nueva = _conMedia(j, media);
+    var nueva = conMediaYEstadisticas(j, media);
     if (rol != null) nueva = Jugador.fromJson({...nueva.toJson(), 'rol': rol.name});
     return EvolucionFigura(jugador: nueva, temporada: s, antes: j.media, despues: media, rolNuevo: rol, retirado: retira);
   }
@@ -819,6 +920,20 @@ class CarreraDinastia {
     final List<Jugador> pool;
     if (t.modoJuego == ModoJuego.reescribi && epoca != null) {
       final siguiente = epoca == Epoca.actualidad ? epoca : Epoca.values[epoca.index + 1];
+      // Camada real: los que salieron del draft de ese año (campo `draft` del catálogo), con su carta más
+      // temprana. Si no alcanzan para el puesto, se completa con los de la década siguiente.
+      final anio = _anioDeDraft(t, epoca);
+      final camada = [
+        for (final j in liga.catalogo)
+          if (j.draft?.$1 == anio && libre(j) && _esLaPrimera(j)) j,
+      ]..shuffle(azar);
+      if (camada.length >= 3) {
+        final vistos = <int>{};
+        return [
+          for (final j in camada)
+            if (vistos.add(j.nbaPlayerId)) j,
+        ].take(3).toList();
+      }
       final propios = [
         for (final j in liga.catalogo)
           if (j.franquiciaId == t.franquiciaUsuarioId && j.epoca == siguiente && libre(j)) j,
@@ -846,11 +961,63 @@ class CarreraDinastia {
     ].take(3).toList();
   }
 
+  /// Año del draft de esta temporada de Reescribí: el comienzo de la década en juego más los años que
+  /// ya pasaron en ella (la década siguiente empieza a los 3).
+  int _anioDeDraft(Temporada t, Epoca epoca) {
+    final e = EstadoDinastia.de(t);
+    final base = epoca == Epoca.actualidad ? 2020 : 1940 + 10 * epoca.index;
+    return base + (epoca == e.epoca ? e.temporadasEnEpoca + 1 : 0);
+  }
+
+  late final Map<int, int> _primerAnio = () {
+    final m = <int, int>{};
+    for (final j in liga.catalogo) {
+      final a = j.temporadas?.$1 ?? 9999;
+      if (a < (m[j.nbaPlayerId] ?? 9999)) m[j.nbaPlayerId] = a;
+    }
+    return m;
+  }();
+
+  bool _esLaPrimera(Jugador j) => (j.temporadas?.$1 ?? 9999) <= (_primerAnio[j.nbaPlayerId] ?? 9999);
+
   /// Media con la que llega un novato: en Reescribí viene de su década de esplendor, así que arranca
   /// más abajo y crece con los años.
   int mediaNovato(Temporada t, Jugador j) => t.modoJuego == ModoJuego.reescribi ? max(65, j.media - 6) : j.media;
 
   static Jugador _conMedia(Jugador j, int media) => media == j.media ? j : j.conMedia(media);
+
+  /// Edad con la que llega un novato al mini-draft: la real (año de su carta menos nacimiento) o 20–22.
+  int _edadNovato(Jugador j) {
+    final nac = j.nacimiento, tramo = j.temporadas;
+    if (nac != null && tramo != null) return (tramo.$1 - nac).clamp(19, 25);
+    return 20 + _hash(j.id) % 3;
+  }
+
+  /// Misma carta con la media nueva y las estadísticas que le corresponden: más producción y acierto
+  /// si sube, menos si baja (con el techo de puntos que aguanta el motor).
+  static Jugador conMediaYEstadisticas(Jugador j, int media) {
+    if (media == j.media) return j;
+    final s = j.stats;
+    final d = (media - j.media).toDouble();
+    final f = ((media - 55) / max(1, j.media - 55)).clamp(0.6, 1.6);
+    double r1(double v) => (v * 10).round() / 10;
+    double r3(double v) => (v * 1000).round() / 1000;
+    final ppp = s.ppp * f;
+    final nuevo = EstadisticasJugador(
+      ppp: r1((ppp <= 14 ? ppp : 14 + 8 * (1 - exp(-(ppp - 14) / 8))).clamp(2.0, 26.0)),
+      rpp: r1((s.rpp * pow(f, 0.8)).clamp(0.8, 18.0)),
+      app: r1((s.app * pow(f, 0.8)).clamp(0.3, 13.0)),
+      robP: r1((s.robP * pow(f, 0.5)).clamp(0.2, 3.0)),
+      tapP: r1((s.tapP * pow(f, 0.5)).clamp(0.0, 4.5)),
+      pctTc: r3((s.pctTc + 0.0015 * d).clamp(0.36, 0.62)),
+      pctT3: s.pctT3 > 0 ? r3((s.pctT3 + 0.001 * d).clamp(0.0, 0.46)) : 0,
+      pctTl: r3((s.pctTl + 0.002 * d).clamp(0.45, 0.95)),
+      minP: r1((s.minP + 0.1 * d).clamp(14.0, 40.0)),
+      perP: r1((s.perP - 0.01 * d).clamp(0.7, 5.0)),
+      iq: (s.iq + (d * 0.5).round()).clamp(1, 99),
+    );
+    return Jugador.fromJson({...j.toJson(), 'media': media, 'stats': nuevo.toJson()});
+  }
 
   String _despedida(Jugador j, int edad, int temporadas, Random azar) {
     final a = apellido(j);
@@ -874,7 +1041,7 @@ class CarreraDinastia {
     final momentos = [for (final x in r.retiros) x.frase];
     for (final e in elegidos.entries) {
       final novato = _conMedia(e.value, mediaNovato(t, e.value));
-      edades[novato.id] = 20 + _hash(novato.id) % 3;
+      edades[novato.id] = _edadNovato(novato);
       if (r.draftParaElBanco) {
         if (suplentes.length < Temporada.maxSuplentes) suplentes = [...suplentes, novato];
       } else {
@@ -901,6 +1068,7 @@ class CarreraDinastia {
       figuraId: estado.figuraId,
       figura: [...estado.figura, ?r.figura?.temporada],
       figuraRetirada: estado.figuraRetirada || (r.figura?.retirado ?? false),
+      potencialFigura: estado.potencialFigura,
     );
     // Plantel: se arma respetando las reglas cuando se puede (novatos en su puesto).
     var nuevo = const Plantel();

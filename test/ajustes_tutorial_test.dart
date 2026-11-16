@@ -35,7 +35,7 @@ void main() {
     var terminado = false;
     await t.pumpWidget(app(TutorialPantalla(onTerminar: () => terminado = true)));
     expect(find.text('ELEGÍ TU FRANQUICIA'), findsOneWidget);
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < 6; i++) {
       await t.tap(find.text('SIGUIENTE'));
       await t.pumpAndSettle();
     }
@@ -50,5 +50,43 @@ void main() {
     await t.pumpWidget(app(TutorialPantalla(onTerminar: () => terminado = true)));
     await t.tap(find.text('Saltar'));
     expect(terminado, isTrue);
+  });
+
+  for (final escala in [1.0, 1.5, 2.0]) {
+    for (final tam in [const Size(360, 640), const Size(412, 915)]) {
+      testWidgets('tutorial: sin desbordes a ${tam.width.toInt()}×${tam.height.toInt()} con texto ×$escala', (t) async {
+        t.view.physicalSize = tam * 2;
+        t.view.devicePixelRatio = 2;
+        t.platformDispatcher.textScaleFactorTestValue = escala;
+        addTearDown(() {
+          t.view.reset();
+          t.platformDispatcher.clearTextScaleFactorTestValue();
+        });
+        await t.pumpWidget(app(TutorialPantalla(onTerminar: () {})));
+        for (var i = 0; i < 6; i++) {
+          expect(t.takeException(), isNull, reason: 'página ${i + 1}');
+          await t.tap(find.text('SIGUIENTE'));
+          await t.pumpAndSettle();
+        }
+        expect(t.takeException(), isNull, reason: 'última página');
+        expect(find.text('EMPEZAR'), findsOneWidget);
+      });
+    }
+  }
+
+  testWidgets('tutorial: cuenta los modos, las fichas y el álbum', (t) async {
+    await t.pumpWidget(app(TutorialPantalla(onTerminar: () {})));
+    final textos = <String>[];
+    for (var i = 0; i < 7; i++) {
+      textos.addAll(t.widgetList<Text>(find.byType(Text)).map((x) => x.data ?? ''));
+      if (i < 6) {
+        await t.tap(find.text('SIGUIENTE'));
+        await t.pumpAndSettle();
+      }
+    }
+    final todo = textos.join(' ');
+    expect(todo, contains('Modos de juego'));
+    expect(todo, contains('tokens'));
+    expect(todo, contains('Álbum'));
   });
 }

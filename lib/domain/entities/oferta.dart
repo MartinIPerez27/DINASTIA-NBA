@@ -1,5 +1,6 @@
 import 'jugador.dart';
 import 'posicion.dart';
+import 'enum_tolerante.dart';
 
 /// Cómo se arma el plantel: tragamonedas de 3 carretes o reparto de 5 cartas por puesto.
 enum ModoDraft {
@@ -29,8 +30,8 @@ class Sobre {
   };
 
   factory Sobre.fromJson(Map<String, dynamic> j) => Sobre(
-    TipoSobre.values.byName(j['tipo'] as String),
-    epoca: j['epoca'] == null ? null : Epoca.values.byName(j['epoca'] as String),
+    TipoSobre.values.porNombreO(j['tipo']),
+    epoca: Epoca.values.porNombre(j['epoca']),
     franquiciaId: j['franquicia'] as String?,
   );
 
@@ -71,7 +72,7 @@ class Oferta {
   bool get sinAbrir => cartaIds.isEmpty && sobres.isNotEmpty;
 
   factory Oferta.fromJson(Map<String, dynamic> j) => Oferta(
-    posicion: Posicion.values.byName(j['posicion'] as String),
+    posicion: Posicion.values.porNombreO(j['posicion']),
     cartaIds: List.unmodifiable((j['cartas'] as List? ?? const []).cast<String>()),
     sobres: [for (final s in j['sobres'] as List? ?? const []) Sobre.fromJson(s as Map<String, dynamic>)],
     sorpresaId: j['sorpresa'] as String?,

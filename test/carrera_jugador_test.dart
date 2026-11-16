@@ -101,10 +101,15 @@ void main() {
 
   group('progresión', () {
     test('costo por nivel y puntos que se gastan', () {
-      expect(ModeloCarrera.costo(60), 1);
-      expect(ModeloCarrera.costo(70), 2);
-      expect(ModeloCarrera.costo(85), 3);
-      var e = carrera.estadoCreado(raiz: 'p1', creado: creado(), pick: 12, franquiciaId: 'CHI');
+      expect(ModeloCarrera.costo(55), 1);
+      expect(ModeloCarrera.costo(60), 2);
+      expect(ModeloCarrera.costo(70), 3);
+      expect(ModeloCarrera.costo(85), 6);
+      expect(ModeloCarrera.costo(95), 14);
+      for (var v = 40; v < 98; v++) {
+        expect(ModeloCarrera.costo(v + 1), greaterThanOrEqualTo(ModeloCarrera.costo(v)), reason: 'cuesta cada vez más');
+      }
+      var e = carrera.estadoCreado(raiz: 'p1', creado: creado(), pick: 12, franquiciaId: 'CHI', potencial: 90);
       e = e.copyWith(phBanco: 4);
       final antes = e.atributos[Atributo.tiro];
       final despues = carrera.subir(e, Atributo.tiro);
@@ -117,7 +122,10 @@ void main() {
     });
 
     test('subir atributos mueve estadísticas y media, y nunca pasa de 99', () {
-      var e = carrera.estadoCreado(raiz: 'p2', creado: creado(), pick: 8, franquiciaId: 'CHI').copyWith(phBanco: 400);
+      // Con un potencial de 99 y edad de pico, el techo no frena.
+      var e = carrera
+          .estadoCreado(raiz: 'p2', creado: creado(), pick: 8, franquiciaId: 'CHI', potencial: 99)
+          .copyWith(phBanco: 4000, edad: 27);
       final base = e.carta;
       for (var i = 0; i < 40; i++) {
         e = carrera.subir(e, Atributo.tiro);
@@ -138,9 +146,11 @@ void main() {
     test('un jugador real arranca igual que su carta (sin doble cuenta)', () {
       final jordan = carrera.candidatosReales(texto: 'Michael Jordan').first;
       final e = carrera.estadoReal(raiz: 'r1', carta: jordan);
-      expect(e.media, jordan.media);
-      expect(e.carta.stats.ppp, jordan.stats.ppp);
-      expect(e.carta.stats.pctT3, jordan.stats.pctT3);
+      // Arranca de novato (no con la carta de su década): menos media y menos producción.
+      expect(e.media, lessThan(jordan.media));
+      expect(e.media, inInclusiveRange(62, 80));
+      expect(e.carta.stats.ppp, lessThan(jordan.stats.ppp));
+      expect(e.potencial, greaterThanOrEqualTo(jordan.media - 1));
       expect(e.carta.nbaPlayerId, jordan.nbaPlayerId);
       expect(e.carta.id, isNot(jordan.id), reason: 'la carta de la carrera tiene su propio id');
       expect(e.carta.idBbref, jordan.idBbref, reason: 'conserva el id de Basketball-Reference (foto y dúos)');
@@ -149,8 +159,8 @@ void main() {
     test('el desarrollo natural: crece joven, cae viejo', () {
       var jovenSuma = 0, viejoSuma = 0;
       for (var k = 0; k < 50; k++) {
-        final joven = ModeloCarrera.desarrolloNatural(21, Random(k));
-        final viejo = ModeloCarrera.desarrolloNatural(35, Random(k));
+        final joven = ModeloCarrera.desarrolloAnual(edad: 21, media: 70, potencial: 90, azar: Random(k));
+        final viejo = ModeloCarrera.desarrolloAnual(edad: 35, media: 85, potencial: 90, azar: Random(k));
         jovenSuma += joven.values.fold(0, (a, b) => a + b);
         viejoSuma += viejo.values.fold(0, (a, b) => a + b);
       }
@@ -357,7 +367,7 @@ void main() {
       final t = carrera.nuevaCarrera(estado: e0, dificultad: Dificultad.normal);
       final yo = t.plantel.jugadores.followedBy(t.suplentes).firstWhere((j) => j.id == e0.jugadorId);
       expect(yo.nbaPlayerId, jordan.nbaPlayerId, reason: 'conserva la foto real');
-      expect(yo.media, jordan.media);
+      expect(yo.media, e0.media, reason: 'arranca como novato, no con la carta de su década');
       expect(t.plantel.completo, isTrue);
       // Ninguna otra carta de Jordan juega en la liga de esta partida.
       for (final r in t.rivales.values) {

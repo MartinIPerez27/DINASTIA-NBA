@@ -161,7 +161,9 @@ PremiosTemporada calcularPremios(Temporada t, Liga liga) {
     masMejorado: mejor((g) {
       final s = g.jugador.stats;
       return (g.por(g.linea.pts) - s.ppp) + 0.5 * (g.por(g.linea.reb) - s.rpp) + 0.5 * (g.por(g.linea.ast) - s.app);
-    }, filtro: (g) => g.por(g.linea.pts) > g.jugador.stats.ppp),
+    },
+        // No se lo damos al MVP ni a un crack que ya estaba arriba: el premio es para el que da el salto.
+        filtro: (g) => g.por(g.linea.pts) > g.jugador.stats.ppp && g.jugadorId != base.first.jugadorId && g.jugador.media < 90),
     allNba: quintetos,
     definitivos: t.calendario.isNotEmpty && t.calendario.every((p) => p.jugado),
   );

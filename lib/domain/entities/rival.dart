@@ -1,6 +1,7 @@
 import 'jugador.dart';
 import 'posicion.dart';
 import 'tactica.dart';
+import 'enum_tolerante.dart';
 
 /// Cómo arma su plantel un rival en esta temporada.
 enum TipoRival {
@@ -34,11 +35,11 @@ class Rival {
 
   factory Rival.fromJson(Map<String, dynamic> j) => Rival(
     franquiciaId: j['franquicia'] as String,
-    tipo: TipoRival.values.byName(j['tipo'] as String),
-    epoca: j['epoca'] == null ? null : Epoca.values.byName(j['epoca'] as String),
+    tipo: TipoRival.values.porNombreO(j['tipo']),
+    epoca: Epoca.values.porNombre(j['epoca']),
     identidadId: j['identidad'] as String,
     cartaIds: {
-      for (final e in (j['cartas'] as Map<String, dynamic>).entries) Posicion.values.byName(e.key): e.value as String,
+      for (final e in (j['cartas'] as Map<String, dynamic>).entries) ?Posicion.values.porNombre(e.key): e.value as String,
     },
     tactica: Tactica.fromJson(j['tactica'] as Map<String, dynamic>),
   );

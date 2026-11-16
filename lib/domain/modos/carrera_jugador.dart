@@ -11,6 +11,7 @@ import '../motor.dart';
 import '../playbook.dart';
 import '../premios.dart';
 import 'dinastia.dart';
+import '../entities/enum_tolerante.dart';
 
 // ===========================================================================================
 // Mi carrera (tipo MyCareer): un jugador, real o creado, del draft al Salón de la Fama.
@@ -250,7 +251,7 @@ class ModeloCarrera {
     double r2(double v) => (v * 10).round() / 10;
     double r3(double v) => (v * 1000).round() / 1000;
     return EstadisticasJugador(
-      ppp: r2(ppp.clamp(2.0, 38.0)),
+      ppp: r2(_pppRealista(ppp).clamp(2.0, 38.0)),
       rpp: r2(rpp.clamp(0.8, 18.0)),
       app: r2(app.clamp(0.3, 13.0)),
       robP: r2(robP.clamp(0.2, 3.0)),
@@ -336,11 +337,110 @@ class ModeloCarrera {
     );
   }
 
-  /// Cuánto cuesta subir un punto un atributo que ya está en [valor] (más caro cuanto más alto).
-  static int costo(int valor) => valor >= 85 ? 3 : (valor >= 70 ? 2 : 1);
+  /// Los puntos por partido de la carta se acercan a un techo (~22) en vez de crecer sin límite: el
+  /// motor reparte los tiros según esa cifra y una carta de 30+ termina promediando 50 por partido.
+  static double _pppRealista(double x) => x <= 14 ? x : 14 + 8 * (1 - exp(-(x - 14) / 8));
 
-  /// Cambio natural de cada atributo en el receso, según la edad que se cumple. Determinístico
-  /// con [azar]: los jóvenes crecen y después del pico el cuerpo cae antes que la cabeza.
+  /// Escala las estadísticas de una carta de [mediaCarta] a un jugador de [media] (el novato que todavía
+  /// no es lo que va a ser): menos producción, menos acierto y menos minutos.
+  static EstadisticasJugador escalar(EstadisticasJugador s, {required int media, required int mediaCarta}) {
+    final f = ((media - 55) / max(1, mediaCarta - 55)).clamp(0.35, 1.0);
+    final falta = 1 - f;
+    return _estadisticas(
+      ppp: s.ppp * f,
+      rpp: s.rpp * (0.55 + 0.45 * f),
+      app: s.app * (0.55 + 0.45 * f),
+      robP: s.robP * (0.7 + 0.3 * f),
+      tapP: s.tapP * (0.7 + 0.3 * f),
+      pctTc: s.pctTc - 0.09 * falta,
+      pctT3: s.pctT3 > 0 ? s.pctT3 - 0.07 * falta : 0,
+      pctTl: s.pctTl - 0.09 * falta,
+      minP: s.minP * (0.7 + 0.3 * f),
+      perP: s.perP * (1 + 0.5 * falta),
+      iq: (s.iq * (0.7 + 0.3 * f)).round(),
+    );
+  }
+
+  /// Cuánto cuesta subir un punto un atributo que ya está en [valor]: cada vez más caro, y de 90 para
+  /// arriba, carísimo.
+  static int costo(int valor) => valor >= 95
+      ? 14
+      : valor >= 90
+      ? 9
+      : valor >= 85
+      ? 6
+      : valor >= 78
+      ? 4
+      : valor >= 70
+      ? 3
+      : valor >= 60
+      ? 2
+      : 1;
+
+  // ---------- Potencial oculto, edad y declive ----------
+
+  /// El techo oculto de un jugador creado (de [semilla]): casi todos terminan entre 84 y 92; el 95 o más
+  /// es excepcional (4 %) y el 99, rarísimo (menos de 1 %).
+  static int potencialDe(String semilla) {
+    final r = Random(_hashTexto('$semilla-potencial'));
+    final u = r.nextDouble();
+    if (u < 0.04) return 95 + r.nextInt(5);
+    if (u < 0.17) return 92 + r.nextInt(3);
+    if (u < 0.85) return 84 + r.nextInt(8);
+    return 77 + r.nextInt(7);
+  }
+
+  /// Cuánto le falta a la media para el techo según la edad: nadie llega a su techo antes de los 26.
+  static int brechaPorEdad(int edad) => switch (edad) {
+    <= 19 => 12,
+    20 => 10,
+    21 => 8,
+    22 => 6,
+    23 => 4,
+    24 => 3,
+    25 => 1,
+    _ => 0,
+  };
+
+  /// La media máxima que puede tener a esa [edad] un jugador con [potencial].
+  /// Pasados los 28, el techo baja con los años aunque gastes todos los puntos: el cuerpo manda.
+  static int techoPorEdad(int potencial, int edad) {
+    var declive = 0.0;
+    for (var x = 29; x <= edad; x++) {
+      declive += declivePorEdad(x) * 0.8;
+    }
+    return max(55, (potencial - brechaPorEdad(edad) - declive).round());
+  }
+
+  /// Qué parte de lo que le falta para el techo recupera solo en un año (sin gastar puntos).
+  static double tasaCrecimiento(int edad) => switch (edad) {
+    <= 20 => 0.12,
+    21 => 0.11,
+    22 => 0.10,
+    23 => 0.09,
+    24 => 0.08,
+    25 => 0.06,
+    26 => 0.05,
+    27 => 0.03,
+    28 => 0.02,
+    _ => 0.0,
+  };
+
+  /// Cuántos puntos de media se pierden al cumplir [edad]: el cuerpo empieza a pasar factura a los 29.
+  static double declivePorEdad(int edad) => switch (edad) {
+    <= 28 => 0,
+    29 => 0.5,
+    30 => 1.0,
+    31 => 1.6,
+    32 => 2.2,
+    33 => 2.8,
+    34 => 3.3,
+    35 => 3.8,
+    36 => 4.2,
+    _ => 4.6,
+  };
+
+  /// Cambio natural simple por edad (lo usa el Modo universitario). Mi carrera usa [desarrolloAnual].
   static Map<Atributo, int> desarrolloNatural(int edad, Random azar) {
     double base(Atributo a) => switch (a) {
       Atributo.tiro => edad <= 24 ? 2 : (edad <= 27 ? 1 : (edad <= 31 ? 0 : (edad <= 34 ? -0.7 : -1.6))),
@@ -351,7 +451,62 @@ class ModeloCarrera {
     };
     return {for (final a in Atributo.values) a: (base(a) + (azar.nextDouble() - 0.5) * 1.2).round()};
   }
+
+  /// Probabilidad de una lesión grave en el año en que cumple [edad]: crece con los años.
+  static double probabilidadLesion(int edad) => 0.04 + max(0, edad - 27) * 0.012;
+
+  /// Cuánto rinde el entrenamiento a esa edad (puntos de habilidad por temporada): de veterano, poco.
+  static double factorEntrenamiento(int edad) => edad <= 27
+      ? 1.0
+      : edad <= 30
+      ? 0.8
+      : edad <= 33
+      ? 0.6
+      : 0.4;
+
+  /// Puntos de habilidad máximos que da el rendimiento en una temporada.
+  static int topeLinea(int edad) => edad <= 23
+      ? 12
+      : edad <= 27
+      ? 11
+      : edad <= 30
+      ? 9
+      : edad <= 33
+      ? 6
+      : 4;
+
+  /// Cambio de cada atributo en el receso, al cumplir [edad]: los jóvenes se acercan a su [potencial]
+  /// (sin pasarse del techo de la edad), después del pico el cuerpo cae antes que la cabeza, y cada año
+  /// trae su racha: a veces un salto, a veces un bajón, a veces una lesión ([lesion]).
+  /// Determinístico con [azar].
+  static Map<Atributo, int> desarrolloAnual({
+    required int edad,
+    required int media,
+    required int potencial,
+    required Random azar,
+    bool lesion = false,
+  }) {
+    final brecha = max(0, potencial - media);
+    final forma = (azar.nextDouble() + azar.nextDouble() - 1) * 2.4;
+    var dM = brecha * tasaCrecimiento(edad) - declivePorEdad(edad) + forma;
+    if (lesion) dM -= 3 + azar.nextInt(4);
+    // Jugador que ya no está en el techo de su edad y es joven: la racha mala no lo hunde.
+    if (edad <= 26 && dM < 0 && media < potencial - 4) dM *= 0.4;
+    final d = dM / 1.5;
+    double mult(Atributo a) => dM >= 0
+        ? 1.0
+        : switch (a) {
+            Atributo.fisico => 1.5,
+            Atributo.finalizacion => 1.2,
+            Atributo.defensa => 1.0,
+            Atributo.tiro => 0.8,
+            Atributo.iq => 0.5,
+          };
+    return {for (final a in Atributo.values) a: (d * mult(a) + (azar.nextDouble() - 0.5) * 1.2).round()};
+  }
 }
+
+int _hashTexto(String s) => s.codeUnits.fold(17, (h, c) => (h * 31 + c) & 0x7fffffff);
 
 // -------------------------------------------------------------------------------------------
 // Jugador creado (reutilizable por otros modos, como el universitario)
@@ -367,6 +522,9 @@ class JugadorCreado {
     this.alturaCm = 198,
     this.pesoKg = 95,
     this.nacimiento,
+    this.atributosFijos,
+    this.pickFijo,
+    this.edadInicial,
   });
 
   final String nombre;
@@ -379,6 +537,11 @@ class JugadorCreado {
   final List<Atributo> fuertes;
   final int alturaCm, pesoKg;
   final int? nacimiento;
+
+  /// Un jugador que ya viene hecho (un egresado del Modo universitario): conserva sus atributos, su
+  /// elección real del draft y su edad, en vez de arrancar de cero como uno recién creado.
+  final Atributos? atributosFijos;
+  final int? pickFijo, edadInicial;
 
   static const alturaMin = 170, alturaMax = 225, pesoMin = 70, pesoMax = 150;
 
@@ -411,6 +574,7 @@ class JugadorCreado {
   /// Atributos de arranque: el perfil del arquetipo con tu físico, nivelado a ~61 de promedio
   /// ponderado (media ~69) y +4 en cada punto fuerte.
   Atributos get atributos {
+    if (atributosFijos != null) return atributosFijos!;
     var a = ModeloCarrera.desdePerfil(rol, posicion, 58.5, altura: alturaCm, peso: pesoKg);
     for (final f in fuertes) {
       a = a.con(f, a[f] + 4);
@@ -449,16 +613,22 @@ class JugadorCreado {
     'altura': alturaCm,
     'peso': pesoKg,
     if (nacimiento != null) 'nacimiento': nacimiento,
+    if (atributosFijos != null) 'atrFijos': atributosFijos!.toJson(),
+    if (pickFijo != null) 'pickFijo': pickFijo,
+    if (edadInicial != null) 'edadInicial': edadInicial,
   };
 
   factory JugadorCreado.fromJson(Map<String, dynamic> j) => JugadorCreado(
     nombre: j['nombre'] as String,
-    posicion: Posicion.values.byName(j['pos'] as String),
-    rol: RolCancha.values.byName(j['rol'] as String),
-    fuertes: [for (final f in j['fuertes'] as List) Atributo.values.byName(f as String)],
+    posicion: Posicion.values.porNombreO(j['pos']),
+    rol: RolCancha.values.porNombreO(j['rol']),
+    fuertes: [for (final f in j['fuertes'] as List) ?Atributo.values.porNombre(f)],
     alturaCm: j['altura'] as int? ?? 198,
     pesoKg: j['peso'] as int? ?? 95,
     nacimiento: j['nacimiento'] as int?,
+    atributosFijos: j['atrFijos'] == null ? null : Atributos.fromJson(j['atrFijos'] as Map<String, dynamic>),
+    pickFijo: j['pickFijo'] as int?,
+    edadInicial: j['edadInicial'] as int?,
   );
 }
 
@@ -535,7 +705,7 @@ class ObjetivoTemporada {
   Map<String, dynamic> toJson() => {'t': tipo.name, 'm': meta};
 
   factory ObjetivoTemporada.fromJson(Map<String, dynamic> j) =>
-      ObjetivoTemporada(TipoObjetivo.values.byName(j['t'] as String), (j['m'] as num).toDouble());
+      ObjetivoTemporada(TipoObjetivo.values.porNombreO(j['t']), (j['m'] as num).toDouble());
 }
 
 /// Lo que va haciendo el jugador en la temporada (por partido) y el equipo.
@@ -772,7 +942,11 @@ class EstadoCarrera {
     this.retirado = false,
     this.prensaHecha = 0,
     this.pidioTraspaso = false,
-  });
+    int? potencial,
+    this.confBase,
+    this.moralBase,
+    this.fansBase,
+  }) : _potencial = potencial;
 
   /// Id de la primera temporada: las siguientes son `<raiz>-t2`…
   final String raiz;
@@ -821,6 +995,15 @@ class EstadoCarrera {
   /// Conferencias de prensa ya hechas en este receso.
   final int prensaHecha;
   final bool pidioTraspaso;
+
+  /// Techo oculto de la media de este jugador (null en partidas viejas: se estima con lo que tiene).
+  final int? _potencial;
+
+  /// Confianza, ánimo y fans con los que arrancó la temporada: el rendimiento del año se mide contra
+  /// ellos (no suma por cada tanda de partidos que se guarda: el resultado no depende de cómo simulás).
+  final int? confBase, moralBase, fansBase;
+
+  int get potencial => _potencial ?? min(ModeloCarrera.tope, max(ModeloCarrera.potencialDe(raiz), media + 2));
 
   bool get esReal => creado == null;
   String get nombre => base.nombre;
@@ -940,6 +1123,10 @@ class EstadoCarrera {
     bool? retirado,
     int? prensaHecha,
     bool? pidioTraspaso,
+    int? potencial,
+    int? confBase,
+    int? moralBase,
+    int? fansBase,
   }) => EstadoCarrera(
     raiz: raiz,
     base: base ?? this.base,
@@ -972,6 +1159,10 @@ class EstadoCarrera {
     retirado: retirado ?? this.retirado,
     prensaHecha: prensaHecha ?? this.prensaHecha,
     pidioTraspaso: pidioTraspaso ?? this.pidioTraspaso,
+    potencial: potencial ?? _potencial,
+    confBase: confBase ?? this.confBase,
+    moralBase: moralBase ?? this.moralBase,
+    fansBase: fansBase ?? this.fansBase,
   );
 
   /// Lo que se guarda en [Temporada.datosModo]. `raiz` y `numero` quedan arriba para que los
@@ -1010,6 +1201,10 @@ class EstadoCarrera {
     if (retirado) 'retirado': true,
     if (prensaHecha > 0) 'prensa': prensaHecha,
     if (pidioTraspaso) 'traspaso': true,
+    if (_potencial != null) 'pot': _potencial,
+    if (confBase != null) 'cb': confBase,
+    if (moralBase != null) 'mb': moralBase,
+    if (fansBase != null) 'fb': fansBase,
   };
 
   factory EstadoCarrera.fromJson(Map<String, dynamic> j) => EstadoCarrera(
@@ -1020,7 +1215,7 @@ class EstadoCarrera {
     edad: j['edad'] as int,
     anioBase: j['anioBase'] as int,
     franquiciaId: j['franq'] as String,
-    rolEquipo: RolEquipo.values.byName(j['rol'] as String),
+    rolEquipo: RolEquipo.values.porNombreO(j['rol']),
     confianza: j['conf'] as int,
     contrato: j['contrato'] as int,
     pick: j['pick'] as int,
@@ -1048,6 +1243,10 @@ class EstadoCarrera {
     retirado: j['retirado'] as bool? ?? false,
     prensaHecha: j['prensa'] as int? ?? 0,
     pidioTraspaso: j['traspaso'] as bool? ?? false,
+    potencial: j['pot'] as int?,
+    confBase: j['cb'] as int?,
+    moralBase: j['mb'] as int?,
+    fansBase: j['fb'] as int?,
   );
 
   /// El estado de una partida de Mi carrera (null si no es una).
@@ -1156,7 +1355,7 @@ class CarreraJugador {
     ];
     final promedio = pruebas.fold(0, (s, p) => s + p.nota) / pruebas.length;
     final puntaje = 0.65 * jc.media + 0.35 * promedio;
-    final pick = (18 - (puntaje - 67) * 1.6 + (azar.nextDouble() - 0.5) * 8).round().clamp(1, 60);
+    final pick = jc.pickFijo ?? (18 - (puntaje - 67) * 1.6 + (azar.nextDouble() - 0.5) * 8).round().clamp(1, 60);
     return ResultadoCombine(pruebas: pruebas, puntaje: puntaje, pick: pick);
   }
 
@@ -1177,8 +1376,31 @@ class CarreraJugador {
   /// Temporadas de contrato de novato: 4 en primera ronda, 2 en segunda o sin draft.
   static int contratoNovato(int pick) => pick <= 30 ? 4 : 2;
 
-  /// Qué tan fuerte es el equipo que te elige: los peores equipos eligen primero.
-  static double nivelEquipoPorPick(int pick) => 74 + (pick.clamp(1, 30) - 1) * 0.4;
+  /// Qué tan fuerte es el equipo que te elige: los peores equipos eligen primero (y con los años
+  /// el equipo se acerca al nivel de la liga: ver [siguiente]).
+  static double nivelEquipoPorPick(int pick) => 76 + (pick.clamp(1, 30) - 1) * 0.15;
+
+  /// Nivel al que tiende un equipo con los años.
+  static const nivelLiga = 79.0;
+
+  /// Techo oculto de un jugador real: la media de su mejor carta (con una pizca de variación por
+  /// persona). Un 99 real conserva su techo, pero arranca como novato.
+  int potencialReal(Jugador carta) {
+    var mejor = carta.media;
+    for (final j in liga.catalogo) {
+      if (j.nbaPlayerId == carta.nbaPlayerId && j.media > mejor) mejor = j.media;
+    }
+    return (mejor + (_hash('${carta.nbaPlayerId}-pot') % 3) - 1).clamp(70, ModeloCarrera.tope);
+  }
+
+  /// Media con la que arranca un real que va a llegar a [potencial]: un novato razonable, que sube
+  /// con los años, y no la carta de su década. Un draft alto trae un poco más. Nunca más que su carta
+  /// más temprana (que ya es su versión de novato cuando tiene varias).
+  static int mediaNovato({required int potencial, required int pick, required int mediaCarta}) {
+    final bonus = pick <= 5 ? 3 : (pick <= 14 ? 1.5 : (pick <= 30 ? 0 : -2));
+    final formula = (64 + (potencial - 70) * 0.5 + bonus).round().clamp(62, 80);
+    return min(formula, mediaCarta);
+  }
 
   static RolEquipo rolPorConfianza(int confianza) => confianza >= 60
       ? RolEquipo.titular
@@ -1193,12 +1415,21 @@ class CarreraJugador {
     final anioBase = draft?.$1 ?? ((carta.temporadas?.$1 ?? 2025) - 1);
     final edad = carta.nacimiento == null ? 20 : (anioBase - carta.nacimiento!).clamp(18, 24);
     final pos = carta.posiciones.first;
-    final objetivo = 55 + (carta.media - 60) / 1.5;
+    final potencial = potencialReal(carta);
+    final media = mediaNovato(potencial: potencial, pick: eleccion, mediaCarta: carta.media);
+    // La carta de arranque es el novato: la misma persona, con la producción que tiene a esa edad.
+    final novato = Jugador.fromJson({
+      ...carta.toJson(),
+      'media': media,
+      'stats': ModeloCarrera.escalar(carta.stats, media: media, mediaCarta: carta.media).toJson(),
+    });
+    final objetivo = 55 + (media - 60) / 1.5;
     final a0 = ModeloCarrera.desdePerfil(carta.rol, pos, objetivo);
-    final confianza = confianzaInicial(eleccion, carta.media);
+    final confianza = confianzaInicial(eleccion, media);
     return EstadoCarrera(
       raiz: raiz,
-      base: carta,
+      base: novato,
+      potencial: potencial,
       atributosBase: a0,
       atributos: a0,
       edad: edad,
@@ -1222,17 +1453,22 @@ class CarreraJugador {
     required int pick,
     required String franquiciaId,
     int anioBase = 2026,
-    int edad = 20,
+    int? edad,
+    int? potencial,
   }) {
     final a0 = creado.atributos;
     final carta = creado.comoCarta(id: 'mc-$raiz', franquiciaId: franquiciaId, anio: anioBase + 1);
     final confianza = confianzaInicial(pick, carta.media);
+    final edadInicial = edad ?? creado.edadInicial ?? 20;
+    // El techo no puede quedar por debajo de lo que ya tiene (un egresado que llega con 89).
+    final techo = max(potencial ?? ModeloCarrera.potencialDe(raiz), min(ModeloCarrera.tope, carta.media + 3));
     return EstadoCarrera(
       raiz: raiz,
       base: carta,
+      potencial: techo,
       atributosBase: a0,
       atributos: a0,
-      edad: edad,
+      edad: edadInicial,
       anioBase: anioBase,
       franquiciaId: franquiciaId,
       rolEquipo: rolPorConfianza(confianza),
@@ -1258,7 +1494,7 @@ class CarreraJugador {
   /// Arma la primera temporada: compañeros, plantel, táctica, calendario y rivales.
   Temporada nuevaCarrera({required EstadoCarrera estado, required Dificultad dificultad}) {
     final azar = Random(_hash('${estado.raiz}-companeros'));
-    final objetivoEquipo = estado.esReal ? 80.0 : nivelEquipoPorPick(estado.pick);
+    final objetivoEquipo = nivelEquipoPorPick(estado.pick);
     final companeros = armarCompaneros(
       franquiciaId: estado.franquiciaId,
       epoca: estado.epoca,
@@ -1282,7 +1518,13 @@ class CarreraJugador {
   }) {
     final yo = estado.carta;
     final (plantel, suplentes, rol) = ubicar(yo, estado.companeros, estado.rolEquipo);
-    final e = estado.copyWith(rolEquipo: rol);
+    // Con qué ánimo arranca la temporada: el rendimiento del año se mide contra eso.
+    final e = estado.copyWith(
+      rolEquipo: rol,
+      confBase: estado.confianza,
+      moralBase: estado.moral,
+      fansBase: estado.fans,
+    );
     final t = Temporada(
       id: id,
       franquiciaUsuarioId: franquiciaId,
@@ -1430,17 +1672,46 @@ class CarreraJugador {
 
   // ---------- Durante la temporada ----------
 
-  /// Puntos de habilidad que da una línea de temporada: 0,1 por partido y el rendimiento sobre 6.
-  static double phDeLinea(LineaEstadistica? l) {
+  /// Puntos de habilidad que da una línea de temporada: 0,1 por partido y el rendimiento sobre 6, con un
+  /// tope que baja con la edad ([ModeloCarrera.topeLinea]).
+  static double phDeLinea(LineaEstadistica? l, {int edad = 24}) {
     if (l == null || l.pj == 0) return 0;
     final valor = (l.pts + 0.7 * l.reb + 0.7 * l.ast + l.rob + l.tap - l.per) / l.pj;
-    return min(24.0, l.pj * 0.1 + max(0.0, valor - 6) * 0.25);
+    return min(ModeloCarrera.topeLinea(edad).toDouble(), l.pj * 0.1 + max(0.0, valor - 6) * 0.25);
   }
 
   static double _valorTotal(LineaEstadistica l) => l.pts + 0.7 * l.reb + 0.7 * l.ast + l.rob + l.tap - l.per;
 
-  /// Se llama en cada guardado de la temporada: acredita puntos, mueve la confianza, el ánimo y los
-  /// fans según los partidos nuevos, y reubica a tu jugador si cambió su rol.
+  /// Confianza, ánimo y fans a esta altura de la temporada (con [l] y el récord [victorias]-[derrotas]).
+  ///
+  /// Sale SOLO de lo acumulado en el año y del ánimo con el que arrancó: guardar de a 1, de a 6 o todo
+  /// junto da exactamente lo mismo. Cada valor tiende a un "mérito" (cómo rindió, cómo ganó el equipo y
+  /// cuánto más que sus compañeros es tu jugador), así que no se pegan al 100 ni al piso.
+  (int, int, int) animoDeLaTemporada(EstadoCarrera e, LineaEstadistica? l, int victorias, int derrotas) {
+    final c0 = (e.confBase ?? e.confianza).toDouble();
+    final m0 = (e.moralBase ?? e.moral).toDouble();
+    final f0 = (e.fansBase ?? e.fans).toDouble();
+    if (l == null || l.pj == 0) return (c0.round(), m0.round(), f0.round());
+    final promedio = _valorTotal(l) / l.pj;
+    final esperado = max(4.0, (e.media - 58) * 0.75);
+    final ratio = (promedio / esperado).clamp(0.0, 2.5);
+    final tasa = victorias + derrotas == 0 ? 0.5 : victorias / (victorias + derrotas);
+    final peso = min(1.0, l.pj / 40.0);
+    final nivel = e.companeros.isEmpty ? e.media.toDouble() : _nivelPropio(e).toDouble();
+    final sobreElEquipo = ((e.media - nivel) * 1.2).clamp(-15.0, 30.0);
+    final meritoConfianza = (50 + (ratio - 1) * 40 + (tasa - 0.5) * 20 + sobreElEquipo).clamp(10.0, 96.0);
+    final meritoMoral = (55 + (ratio - 1) * 25 + (tasa - 0.5) * 70).clamp(15.0, 95.0);
+    final meritoFans = (40 + (ratio - 0.9) * 30 + (tasa - 0.5) * 30 + max(0.0, sobreElEquipo) * 0.6).clamp(10.0, 95.0);
+    return (
+      (c0 + (meritoConfianza - c0) * 0.55 * peso).round(),
+      (m0 + (meritoMoral - m0) * 0.6 * peso).round(),
+      (f0 + (meritoFans - f0) * 0.5 * peso).round(),
+    );
+  }
+
+  /// Se llama en cada guardado de la temporada: acredita puntos y actualiza la confianza, el ánimo y
+  /// los fans con lo acumulado del año (no depende de cada cuántos partidos se guarda). El rol no
+  /// cambia en plena temporada: el DT lo revisa en el receso.
   Temporada alGuardar(Temporada t) {
     final e = EstadoCarrera.de(t);
     if (e == null || e.retirado) return t;
@@ -1448,28 +1719,18 @@ class CarreraJugador {
     final registro = t.registroUsuario;
     var ne = e;
     if (l != null && l.pj > e.snapPj) {
-      final nuevos = l.pj - e.snapPj;
-      final promedio = (_valorTotal(l) - e.snapValor) / nuevos;
-      final esperado = max(4.0, (e.media - 58) * 0.75);
-      final ratio = promedio / esperado;
-      final paso = min(nuevos, 6) / 6.0;
-      final victorias = registro.victorias - e.snapVictorias, derrotas = registro.derrotas - e.snapDerrotas;
-      final tasa = victorias + derrotas == 0 ? 0.5 : victorias / (victorias + derrotas);
-      final dConfianza = ((ratio - 1) * 10).clamp(-6.0, 6.0) * paso + (e.moral - 50) / 50.0 * paso;
-      final dMoral = (ratio > 1.1 ? 2.0 : (ratio < 0.7 ? -2.0 : 0.0)) * paso + (tasa - 0.5) * 6 * paso;
-      final dFans = (ratio - 0.9) * 2 * paso + (tasa - 0.5) * 2 * paso;
-      final acreditar = max(0, phDeLinea(l).floor() - e.phAcreditados);
+      final (confianza, moral, fans) = animoDeLaTemporada(e, l, registro.victorias, registro.derrotas);
+      final acreditar = max(0, phDeLinea(l, edad: e.edad).floor() - e.phAcreditados);
       ne = e.copyWith(
-        confianza: (e.confianza + dConfianza).round(),
-        moral: (e.moral + dMoral).round(),
-        fans: (e.fans + dFans).round(),
+        confianza: confianza,
+        moral: moral,
+        fans: fans,
         phBanco: e.phBanco + acreditar,
         phAcreditados: e.phAcreditados + acreditar,
         snapPj: l.pj,
         snapValor: _valorTotal(l),
         snapVictorias: registro.victorias,
         snapDerrotas: registro.derrotas,
-        rolEquipo: _rolConHisterecis(e.rolEquipo, (e.confianza + dConfianza).round()),
       );
     } else if (e.snapVictorias != registro.victorias || e.snapDerrotas != registro.derrotas) {
       ne = e.copyWith(snapVictorias: registro.victorias, snapDerrotas: registro.derrotas);
@@ -1483,6 +1744,9 @@ class CarreraJugador {
     RolEquipo.sexto => confianza >= 65 ? RolEquipo.titular : (confianza < 30 ? RolEquipo.banco : RolEquipo.sexto),
     RolEquipo.banco => confianza >= 40 ? RolEquipo.sexto : RolEquipo.banco,
   };
+
+  /// Rol que el DT te daría hoy, con la confianza actual (el cambio se hace en el receso).
+  static RolEquipo rolProyectado(EstadoCarrera e) => _rolConHisterecis(e.rolEquipo, e.confianza);
 
   /// Lo que lleva tu jugador en la temporada y cómo va el equipo.
   MarcaTemporada marca(Temporada t, EstadoCarrera e) {
@@ -1514,7 +1778,23 @@ class CarreraJugador {
   // ---------- Puntos de habilidad ----------
 
   bool puedeSubir(EstadoCarrera e, Atributo a) =>
-      e.atributos[a] < ModeloCarrera.tope && e.phBanco >= ModeloCarrera.costo(e.atributos[a]);
+      e.atributos[a] < ModeloCarrera.tope && e.phBanco >= ModeloCarrera.costo(e.atributos[a]) && !enTecho(e, a);
+
+  /// Subir un punto de [a] pasaría el techo de tu jugador: su potencial oculto, o lo que da la edad
+  /// (a los 20 nadie está en su techo).
+  bool enTecho(EstadoCarrera e, Atributo a) {
+    if (e.atributos[a] >= ModeloCarrera.tope) return false;
+    final tras = e.copyWith(atributos: e.atributos.con(a, e.atributos[a] + 1));
+    return tras.media > ModeloCarrera.techoPorEdad(e.potencial, e.edad);
+  }
+
+  /// Por qué no se puede seguir mejorando (null: todavía se puede, o no hay puntos).
+  String? motivoTecho(EstadoCarrera e) {
+    if (!Atributo.values.every((a) => enTecho(e, a) || e.atributos[a] >= ModeloCarrera.tope)) return null;
+    return e.media >= e.potencial
+        ? 'Llegaste a tu techo: ya no da para más.'
+        : 'Todavía no tenés edad para más: seguí entrenando y el cuerpo te acompaña con los años.';
+  }
 
   /// Sube un punto de [a] gastando lo que cuesta. Si no alcanza, devuelve el mismo estado.
   EstadoCarrera subir(EstadoCarrera e, Atributo a) {
@@ -1529,25 +1809,33 @@ class CarreraJugador {
 
   // ---------- Objetivos ----------
 
-  /// Tres objetivos del DT: uno de estadística según tu puesto, uno de equipo y uno personal.
+  /// Tres objetivos del DT: uno de estadística según tu puesto, uno de equipo y uno personal. La meta
+  /// de estadística sale de lo que hiciste el año pasado (un poco más): sube con vos.
   List<ObjetivoTemporada> objetivosPara(EstadoCarrera e, Random azar) {
     final s = e.carta.stats;
-    double medio(double v) => max(0.5, (v * 0.95 * 2).round() / 2);
+    final ultima = e.historial.isEmpty ? null : e.historial.last;
+    double medio(double v) => max(0.5, (v * 2).round() / 2);
     final ObjetivoTemporada stat = switch (e.carta.rol) {
       RolCancha.baseDefensivo ||
       RolCancha.cerrojoDefensivo ||
       RolCancha.protectorAro ||
       RolCancha.especialista3D ||
-      RolCancha.inyeccionEnergia => ObjetivoTemporada(TipoObjetivo.defensa, medio(s.robP + s.tapP)),
+      RolCancha.inyeccionEnergia => ObjetivoTemporada(TipoObjetivo.defensa, medio((s.robP + s.tapP) * 1.0)),
       _ => switch (e.posicion) {
-        Posicion.base => ObjetivoTemporada(TipoObjetivo.asistencias, medio(s.app)),
-        Posicion.alaPivot || Posicion.pivot => ObjetivoTemporada(TipoObjetivo.rebotes, medio(s.rpp)),
-        _ => ObjetivoTemporada(TipoObjetivo.puntos, medio(s.ppp)),
+        Posicion.base => ObjetivoTemporada(
+          TipoObjetivo.asistencias,
+          medio(ultima != null ? ultima.ast * 1.03 : s.app * 1.0),
+        ),
+        Posicion.alaPivot || Posicion.pivot => ObjetivoTemporada(
+          TipoObjetivo.rebotes,
+          medio(ultima != null ? ultima.reb * 1.03 : s.rpp * 1.0),
+        ),
+        _ => ObjetivoTemporada(TipoObjetivo.puntos, medio(ultima != null ? ultima.pts * 1.03 : s.ppp * 1.1)),
       },
     };
     final equipo = e.numero.isOdd
         ? const ObjetivoTemporada(TipoObjetivo.playoffs, 1)
-        : const ObjetivoTemporada(TipoObjetivo.victorias, 44);
+        : ObjetivoTemporada(TipoObjetivo.victorias, e.media >= 88 ? 58 : (e.media >= 80 ? 52 : 44));
     final personal = e.media >= 84
         ? const ObjetivoTemporada(TipoObjetivo.allStar, 1)
         : const ObjetivoTemporada(TipoObjetivo.partidos, 65);
@@ -1565,13 +1853,33 @@ class CarreraJugador {
     final premios = t.calendario.isEmpty ? const <String>[] : _premiosDe(t, e);
     final resultados = [for (final o in e.objetivos) (o, o.avance(marcaFinal).$2)];
     final cumplidos = resultados.where((r) => r.$2).length;
-    final phBase = max(0, phDeLinea(l).floor() - e.phAcreditados);
-    final phObjetivos = cumplidos * 3;
-    final phPremios = (resumen.campeon ? 4 : 0) + premios.length * 2 + (marcaFinal.allStar ? 2 : 0);
+    final phBase = max(0, phDeLinea(l, edad: e.edad).floor() - e.phAcreditados);
+    final entrena = ModeloCarrera.factorEntrenamiento(e.edad);
+    final phObjetivos = (cumplidos * 2 * entrena).floor();
+    final phPremios = (min(6, (resumen.campeon ? 2 : 0) + premios.length + (marcaFinal.allStar ? 1 : 0)) * entrena)
+        .floor();
     final azar = Random(_hash('${e.raiz}-cierre-${e.numero}'));
     final edadNueva = e.edad + 1;
-    final desarrollo = ModeloCarrera.desarrolloNatural(edadNueva, azar);
-    final atributosNuevos = e.atributos.sumar(desarrollo);
+    final lesion = azar.nextDouble() < ModeloCarrera.probabilidadLesion(edadNueva);
+    final crecimiento = ModeloCarrera.desarrolloAnual(
+      edad: edadNueva,
+      media: e.media,
+      potencial: e.potencial,
+      azar: azar,
+      lesion: lesion,
+    );
+    // Nadie crece por encima del techo de su edad (ni de su potencial): se recorta lo que sobre.
+    var atributosNuevos = e.atributos.sumar(crecimiento);
+    final techo = max(ModeloCarrera.techoPorEdad(e.potencial, edadNueva), e.media).toInt();
+    final pesos = ModeloCarrera.pesos(e.posicion);
+    while (e.copyWith(atributos: atributosNuevos).media > techo) {
+      final mayor = Atributo.values
+          .where((a) => atributosNuevos[a] > e.atributos[a])
+          .fold<Atributo?>(null, (m, a) => m == null || pesos[a]! * atributosNuevos[a] > pesos[m]! * atributosNuevos[m] ? a : m);
+      if (mayor == null) break;
+      atributosNuevos = atributosNuevos.con(mayor, atributosNuevos[mayor] - 1);
+    }
+    final desarrollo = {for (final a in Atributo.values) a: atributosNuevos[a] - e.atributos[a]};
     final insigniasNuevas = [
       for (final i in Insignia.de(atributosNuevos))
         if (!e.insignias.contains(i)) i,
@@ -1600,11 +1908,20 @@ class CarreraJugador {
       if (resumen.campeon) '${e.etiquetaTemporada}: ¡campeón con ${_nombre(t.franquiciaUsuarioId)}!',
       for (final p in premios) '${e.etiquetaTemporada}: $p.',
       if (marcaFinal.allStar) '${e.etiquetaTemporada}: elegido para el All-Star.',
+      if (lesion) '${e.etiquetaTemporada}: una lesión grave le cuesta el físico. Le va a costar volver.',
     ];
-    final dConfianza = (cumplidos - (resultados.length - cumplidos)) * 2 + (resumen.campeon ? 4 : 0);
-    final dMoral = (resumen.campeon ? 8 : 0) + (cumplidos >= 2 ? 4 : -3) + (resumen.victorias >= 50 ? 3 : 0);
+    // El ánimo del año sale de lo acumulado (no de cuántas veces se guardó); lo del cierre suma poco.
+    final (confianzaAnio, moralAnio, fansAnio) = animoDeLaTemporada(
+      e,
+      l,
+      marcaFinal.victorias,
+      marcaFinal.derrotas,
+    );
+    final sinJugar = (l?.pj ?? 0) == 0 ? 4 : 0;
+    final dConfianza = (cumplidos - (resultados.length - cumplidos)) * 2 + (resumen.campeon ? 3 : 0) + sinJugar;
+    final dMoral = (resumen.campeon ? 4 : 0) + (cumplidos >= 2 ? 2 : -2) + (resumen.victorias >= 50 ? 1 : 0);
     final dFans =
-        (marcaFinal.allStar ? 6 : 0) + (resumen.campeon ? 8 : 0) + premios.length * 3 + (cumplidos >= 2 ? 2 : -1);
+        (marcaFinal.allStar ? 3 : 0) + (resumen.campeon ? 4 : 0) + min(3, premios.length) + (cumplidos >= 2 ? 1 : -1);
     final estado = e.copyWith(
       atributos: atributosNuevos,
       edad: edadNueva,
@@ -1613,9 +1930,9 @@ class CarreraJugador {
       phAcreditados: 0,
       historial: [...e.historial, temporada],
       hitos: hitos,
-      confianza: e.confianza + dConfianza,
-      moral: e.moral + dMoral,
-      fans: e.fans + dFans,
+      confianza: (confianzaAnio + dConfianza).clamp(0, 98).toInt(),
+      moral: (moralAnio + dMoral).clamp(0, 97).toInt(),
+      fans: (fansAnio + dFans).clamp(0, 98).toInt(),
       cerrada: true,
       prensaHecha: 0,
     );
@@ -1784,7 +2101,7 @@ class CarreraJugador {
           franquiciaId: e.franquiciaId,
           rol: _rolOferta(e.media, rival?.$2, e.confianza),
           anios: 2 + azar.nextInt(3),
-          nivelEquipo: _nivelPropio(t, e),
+          nivelEquipo: _nivelPropio(e),
           rival: rival,
           renovacion: true,
         ),
@@ -1816,7 +2133,7 @@ class CarreraJugador {
     return j == null ? null : (j.nombre, j.media);
   }
 
-  int _nivelPropio(Temporada t, EstadoCarrera e) {
+  int _nivelPropio(EstadoCarrera e) {
     final ms = [for (final j in e.companeros) j.media]..sort();
     return ms.isEmpty ? 75 : (ms.reduce((a, b) => a + b) / ms.length).round();
   }
@@ -1872,7 +2189,7 @@ class CarreraJugador {
     var ne = e;
     var rol = e.rolEquipo;
     final mudanza = oferta != null && oferta.franquiciaId != e.franquiciaId;
-    final nivelPropio = _nivelPropio(t, e);
+    final nivelPropio = _nivelPropio(e);
     var hitos = [...e.hitos];
     if (oferta != null) {
       rol = oferta.rol.rolEquipo;
@@ -1892,9 +2209,11 @@ class CarreraJugador {
     } else if (e.contrato <= 0) {
       ne = ne.copyWith(contrato: 1);
     }
+    // El equipo tiende al nivel de la liga (los malos mejoran, los buenos se desarman) y un crack ayuda
+    // un poco; cada año trae su suerte en el armado.
     final objetivoEquipo = mudanza
         ? oferta.nivelEquipo.toDouble()
-        : nivelPropio + (e.media - e.base.media) * 0.15 + (azar.nextDouble() - 0.4) * 2;
+        : (nivelPropio * 0.6 + nivelLiga * 0.4 + (e.media - 80) * 0.08 + (azar.nextDouble() - 0.5) * 5).clamp(68.0, 86.0);
     final era = EstadoCarrera.epocaDeCierre(e.anioBase + numero);
     if (mudanza) {
       companeros = armarCompaneros(

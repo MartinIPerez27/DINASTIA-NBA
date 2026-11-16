@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/estado_app.dart';
 import '../../domain/entities/ajustes.dart';
+import 'fotos_pantalla.dart';
 
 /// Ajustes del jugador. Cada cambio se avisa con [onCambio] (la app lo guarda).
 class AjustesPantalla extends StatefulWidget {
@@ -89,6 +90,13 @@ class _AjustesPantallaState extends State<AjustesPantalla> {
                   subtitle: const Text('Al anotar, al revelar cartas y en los botones.'),
                   value: _a.vibracion,
                   onChanged: (v) => _cambiar(_a.copyWith(vibracion: v)),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text('Fotos de jugadores'),
+                  subtitle: const Text('Descargalas una vez y quedan en el celular, sin internet.'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const FotosPantalla())),
                 ),
                 ListTile(
                   leading: const Icon(Icons.school_outlined),

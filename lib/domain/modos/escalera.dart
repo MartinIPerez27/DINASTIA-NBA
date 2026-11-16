@@ -11,6 +11,7 @@ import '../modificadores.dart';
 import '../motor.dart';
 import '../playbook.dart';
 import '../quimica.dart';
+import '../entities/enum_tolerante.dart';
 
 /// Rival de un modo de escalera: un plantel armado a medida (no es una franquicia de la liga).
 class RivalEscalera {
@@ -37,7 +38,7 @@ class RivalEscalera {
     identidadId: j['identidad'] as String,
     etiqueta: j['etiqueta'] as String,
     cartaIds: {
-      for (final e in (j['cartas'] as Map<String, dynamic>).entries) Posicion.values.byName(e.key): e.value as String,
+      for (final e in (j['cartas'] as Map<String, dynamic>).entries) ?Posicion.values.porNombre(e.key): e.value as String,
     },
     tactica: Tactica.fromJson(j['tactica'] as Map<String, dynamic>),
     media: (j['media'] as num).toDouble(),
@@ -702,8 +703,8 @@ class Escalera {
   factory Escalera.fromJson(Map<String, dynamic> j) => Escalera(
     cruces: [for (final c in j['cruces'] as List? ?? const []) Cruce.fromJson(c as Map<String, dynamic>)],
     total: j['total'] as int?,
-    ofrecidas: [for (final v in j['ofrecidas'] as List? ?? const []) VentajaCamino.values.byName(v as String)],
-    elegidas: [for (final v in j['elegidas'] as List? ?? const []) VentajaCamino.values.byName(v as String)],
+    ofrecidas: [for (final v in j['ofrecidas'] as List? ?? const []) ?VentajaCamino.values.porNombre(v)],
+    elegidas: [for (final v in j['elegidas'] as List? ?? const []) ?VentajaCamino.values.porNombre(v)],
     insignias: [for (final v in j['insignias'] as List? ?? const []) ?InsigniaCamino.values.asNameMap()[v]],
     insigniasOfrecidas: [
       for (final v in j['insigniasOfrecidas'] as List? ?? const []) ?InsigniaCamino.values.asNameMap()[v],

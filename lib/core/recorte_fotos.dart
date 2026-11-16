@@ -1,48 +1,35 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_selfie_segmentation/google_mlkit_selfie_segmentation.dart';
-import 'package:path_provider/path_provider.dart';
 
-import 'cache_imagenes.dart';
-
-final _recortes = <String, Future<File?>>{};
 Future<void> _cola = Future.value();
 
-/// Alto mínimo del recorte guardado: las fotos de Basketball-Reference miden 120×180 y, mostradas
-/// grandes, se pixelan; se agrandan con filtrado de calidad antes de guardarlas.
+/// Alto mínimo del recorte guardado: las fotos de archivo (Wikipedia, Commons) pueden ser chicas y,
+/// mostradas grandes, se pixelan; se agrandan con filtrado de calidad antes de guardarlas.
 const _altoMinimo = 480;
 
-/// Foto de archivo (Basketball-Reference, Wikipedia) sin fondo, como los recortes de la NBA.
-/// El fondo se quita en el celular con ML Kit (gratis y sin internet: el modelo viene en la app)
-/// y el PNG queda guardado (agrandado, con bordes suaves y recortado a la silueta), así cada foto
-/// se procesa una sola vez.
-/// Devuelve null si no se pudo (sin persona en la foto, error, o plataforma sin ML Kit).
-Future<File?> recorteSinFondo(String url) => _recortes.putIfAbsent(url, () {
+/// Foto de archivo (Wikipedia, Commons) sin fondo, como los recortes de la NBA, lista para guardar.
+/// El fondo se quita en el celular con ML Kit (gratis y sin internet: el modelo viene en la app); la
+/// parte pesada en Dart (aplicar la máscara, suavizar bordes, recortar a la silueta) corre en un
+/// `Isolate`, así que no traba la interfaz. Devuelve los bytes del PNG (el gestor de fotos los
+/// guarda en disco para siempre) o null si no se pudo (sin persona en la foto, error, o plataforma
+/// sin ML Kit).
+Future<Uint8List?> recortarFotoDeArchivo(File original) {
   if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) return Future.value();
-  // De a una: la grilla de la ruleta no dispara decenas de segmentaciones a la vez.
-  final resultado = _cola.then((_) => _recortar(url));
+  // De a una: ML Kit no se dispara con decenas de segmentaciones a la vez.
+  final resultado = _cola.then((_) => _recortar(original));
   _cola = resultado.then((_) {}, onError: (_) {});
   return resultado;
-});
+}
 
-Future<File?> _recortar(String url) async {
+Future<Uint8List?> _recortar(File original) async {
   SelfieSegmenter? segmentador;
   try {
-    // v2: la versión anterior descartaba los primeros planos (la cara ocupa casi toda la foto)
-    // y los marcaba como fallidos para siempre; con otra carpeta se vuelven a procesar.
-    final carpeta = Directory('${(await getApplicationSupportDirectory()).path}/recortes_v2');
-    final destino = File('${carpeta.path}/${_clave(url)}.png');
-    final fallido = File('${carpeta.path}/${_clave(url)}.sin');
-    if (await destino.exists()) return destino;
-    if (await fallido.exists()) return null;
-    await carpeta.create(recursive: true);
-
-    final original = await cacheHeadshots.getSingleFile(url);
     final codec = await ui.instantiateImageCodec(await original.readAsBytes());
     final cuadro = (await codec.getNextFrame()).image;
 
@@ -58,7 +45,7 @@ Future<File?> _recortar(String url) async {
     final rgba = await agrandarParaRecorte(cuadro, ancho, alto);
     cuadro.dispose();
 
-    final png = await recortarConMascara(
+    return await recortarConMascara(
       rgba,
       ancho,
       alto,
@@ -66,14 +53,8 @@ Future<File?> _recortar(String url) async {
       mascara.width,
       mascara.height,
     );
-    if (png == null) {
-      await fallido.writeAsString('');
-      return null;
-    }
-    await destino.writeAsBytes(png, flush: true);
-    return destino;
   } catch (e) {
-    debugPrint('Sin recorte para $url: $e');
+    debugPrint('Sin recorte para ${original.path}: $e');
     return null;
   } finally {
     await segmentador?.close();
@@ -98,6 +79,8 @@ Future<Uint8List> agrandarParaRecorte(ui.Image imagen, int ancho, int alto) asyn
 /// Aplica la máscara de ML Kit como transparencia y devuelve el PNG recortado a la silueta.
 /// La máscara se suaviza (desenfoque 3×3) y se interpola, así los bordes no quedan dentados
 /// aunque la foto original sea chica. Devuelve null si no hay una persona clara (<4 % de la foto).
+/// El trabajo por píxel (12–76 ms por foto) corre en un `Isolate`; solo la codificación del PNG
+/// pasa por el motor gráfico.
 Future<Uint8List?> recortarConMascara(
   Uint8List rgba,
   int ancho,
@@ -106,6 +89,26 @@ Future<Uint8List?> recortarConMascara(
   int anchoMascara,
   int altoMascara,
 ) async {
+  final recorte = await Isolate.run(() => recortarPixeles(rgba, ancho, alto, confianzas, anchoMascara, altoMascara));
+  if (recorte == null) return null;
+  final completado = Completer<ui.Image>();
+  ui.decodeImageFromPixels(recorte.rgba, recorte.ancho, recorte.alto, ui.PixelFormat.rgba8888, completado.complete);
+  final imagen = await completado.future;
+  final png = await imagen.toByteData(format: ui.ImageByteFormat.png);
+  imagen.dispose();
+  return png?.buffer.asUint8List();
+}
+
+/// Parte pura (sin `dart:ui`) de [recortarConMascara]: pone la máscara como alfa y recorta a la
+/// silueta con un margen chico. Es función de nivel superior para poder correr en un `Isolate`.
+({Uint8List rgba, int ancho, int alto})? recortarPixeles(
+  Uint8List rgba,
+  int ancho,
+  int alto,
+  List<double> confianzas,
+  int anchoMascara,
+  int altoMascara,
+) {
   final suave = _desenfocar(confianzas, anchoMascara, altoMascara);
   double muestra(double mx, double my) {
     final x0 = mx.floor().clamp(0, anchoMascara - 1), y0 = my.floor().clamp(0, altoMascara - 1);
@@ -152,13 +155,7 @@ Future<Uint8List?> recortarConMascara(
     final desde = ((arriba + y) * ancho + izq) * 4;
     recorte.setRange(y * w * 4, (y + 1) * w * 4, rgba, desde);
   }
-
-  final completado = Completer<ui.Image>();
-  ui.decodeImageFromPixels(recorte, w, h, ui.PixelFormat.rgba8888, completado.complete);
-  final imagen = await completado.future;
-  final png = await imagen.toByteData(format: ui.ImageByteFormat.png);
-  imagen.dispose();
-  return png?.buffer.asUint8List();
+  return (rgba: recorte, ancho: w, alto: h);
 }
 
 List<double> _desenfocar(List<double> c, int w, int h) {
@@ -181,14 +178,4 @@ List<double> _desenfocar(List<double> c, int w, int h) {
     }
   }
   return salida;
-}
-
-/// Nombre de archivo estable por URL (FNV-1a de 64 bits en hex).
-String _clave(String url) {
-  var h = 0xcbf29ce484222325;
-  for (final b in utf8.encode(url)) {
-    h ^= b;
-    h *= 0x100000001b3; // desborda en 64 bits, como corresponde a FNV
-  }
-  return h.toUnsigned(64).toRadixString(16);
 }

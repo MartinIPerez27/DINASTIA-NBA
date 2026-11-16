@@ -55,8 +55,155 @@ class Progreso {
     Dificultad.leyenda => 1.5,
   };
 
+  /// Metajuego en dos capas. La específica de cada modo ([_especifica]: XP, trofeos, logros y marcas
+  /// propias) y la común ([_comun]: evoluciones, misiones, pase y subida de nivel), que corre SIEMPRE,
+  /// en todos los modos. Las partidas importadas son "de exhibición": no dan nada.
   (PerfilEntrenador, List<Novedad>) aplicar(PerfilEntrenador perfil, Temporada? antes, Temporada despues) {
     if (antes == null || antes.id != despues.id) return (perfil, const []);
+    if (despues.importada) return (perfil, const []);
+    final (p, novedades) = _especifica(perfil, antes, despues);
+    return _comun(perfil, p, antes, despues, novedades);
+  }
+
+  /// Si el modo lleva sus propios partidos (en su estado, no en el calendario de la temporada).
+  static bool _modoPropio(ModoJuego m) =>
+      PartidaAmigos.esModoDeAmigos(m) ||
+      esPartidaArmada(m) ||
+      esPartidaCompetitiva(m) ||
+      m == ModoJuego.universitario ||
+      m == ModoJuego.fantasy;
+
+  /// (ganados, perdidos) del usuario entre [antes] y [despues], en cualquier modo.
+  static (int, int) partidosNuevos(Temporada antes, Temporada despues) {
+    try {
+      final m = despues.modoJuego;
+      if (esPartidaArmada(m)) {
+        final (va, pa) = PartidaArmada.de(antes)?.recordUsuario ?? (0, 0);
+        final (vd, pd) = PartidaArmada.de(despues)?.recordUsuario ?? (0, 0);
+        return (max(0, vd - va), max(0, pd - pa));
+      }
+      if (esPartidaCompetitiva(m)) {
+        switch (m) {
+          case ModoJuego.divisiones:
+            final a = EstadoDivisiones.de(antes), d = EstadoDivisiones.de(despues);
+            if (a == null || d == null) return (0, 0);
+            return (max(0, d.victorias - a.victorias), max(0, d.derrotas - a.derrotas));
+          case ModoJuego.conquista:
+            final a = EstadoConquista.de(antes), d = EstadoConquista.de(despues);
+            if (a == null || d == null) return (0, 0);
+            return (max(0, d.victorias - a.victorias), max(0, d.derrotas - a.derrotas));
+          default:
+            final a = Torneo.de(antes), d = Torneo.de(despues);
+            if (a == null || d == null || !d.conUsuario) return (0, 0);
+            final (va, da) = a.recordUsuario;
+            final (vd, dd) = d.recordUsuario;
+            return (max(0, vd - va), max(0, dd - da));
+        }
+      }
+      if (m == ModoJuego.universitario) {
+        final a = EstadoUniv.de(antes), d = EstadoUniv.de(despues);
+        if (a == null || d == null || a.temporada != d.temporada) return (0, 0);
+        final (va, da) = (a.registros()[0].v, a.registros()[0].d);
+        final (vd, dd) = (d.registros()[0].v, d.registros()[0].d);
+        return (max(0, vd - va), max(0, dd - da));
+      }
+      if (m == ModoJuego.fantasy) {
+        final a = PartidaFantasy.de(antes), d = PartidaFantasy.de(despues);
+        if (d == null) return (0, 0);
+        var ganadas = 0, jugadas = 0;
+        for (final s in d.semanas.skip(a?.semanas.length ?? 0)) {
+          jugadas++;
+          for (final c in s.cruces) {
+            if ((c.a == PartidaFantasy.usuario || c.b == PartidaFantasy.usuario) && c.ganador == PartidaFantasy.usuario) {
+              ganadas++;
+            }
+          }
+        }
+        return (ganadas, jugadas - ganadas);
+      }
+      if (PartidaAmigos.esModoDeAmigos(m)) return (0, 0);
+    } catch (_) {
+      return (0, 0); // un estado de modo que no se puede leer no debe tumbar el metajuego
+    }
+    // Resto: calendario de la temporada y series de playoffs.
+    final usuario = despues.franquiciaUsuarioId;
+    final jugadosAntes = {
+      for (final x in antes.calendario)
+        if (x.jugado) x.id,
+    };
+    var ganados = 0, perdidos = 0;
+    for (final x in despues.calendario) {
+      if (!x.jugado || jugadosAntes.contains(x.id) || !x.participa(usuario)) continue;
+      x.ganadorId == usuario ? ganados++ : perdidos++;
+    }
+    for (final s in despues.series) {
+      if (s.altoId != usuario && s.bajoId != usuario) continue;
+      final previa = antes.series.where((a) => a.ronda == s.ronda && a.altoId == s.altoId && a.bajoId == s.bajoId);
+      final (vA, dA) = previa.isEmpty ? (0, 0) : _victoriasDe(previa.first, usuario);
+      final (v, d) = _victoriasDe(s, usuario);
+      ganados += v - vA;
+      perdidos += d - dA;
+    }
+    return (ganados, perdidos);
+  }
+
+  static (int, int) _victoriasDe(SeriePlayoff s, String usuario) => s.altoId == usuario
+      ? (s.victoriasAlto, s.victoriasBajo)
+      : s.bajoId == usuario
+      ? (s.victoriasBajo, s.victoriasAlto)
+      : (0, 0);
+
+  /// Capa común a todos los modos: evoluciones, misiones, pase y nivel. [original] es el perfil antes
+  /// de este paso; [p] el que dejó la capa específica.
+  (PerfilEntrenador, List<Novedad>) _comun(
+    PerfilEntrenador original,
+    PerfilEntrenador p,
+    Temporada antes,
+    Temporada despues,
+    List<Novedad> novedades,
+  ) {
+    final (ganados, perdidos) = partidosNuevos(antes, despues);
+    // Evoluciones de cartas del álbum: progreso con lo que jugaron tus cartas.
+    p = avanzarEvoluciones(p, antes, despues, ganadosModo: ganados, jugadosModo: ganados + perdidos);
+    // Misiones y pase. Los modos con partidos propios no dejan huella en el calendario: sus victorias
+    // se suman acá (los demás ya las cuenta `Misiones.diferencias`: no se cuenta dos veces).
+    final sumas = Misiones.diferencias(antes, despues);
+    if (_modoPropio(despues.modoJuego) && ganados > 0) {
+      sumas[TipoMision.ganarPartidos] = (sumas[TipoMision.ganarPartidos] ?? 0) + ganados;
+    }
+    final meta = Misiones.avanzar(Misiones.alDia(p.metajuego, reloj?.call() ?? DateTime.now()), sumas);
+    final puntosJuego = ganados * PaseTemporada.puntosVictoria + perdidos * PaseTemporada.puntosDerrota;
+    p = p.copyWith(metajuego: meta.copyWith(puntosPase: meta.puntosPase + puntosJuego));
+    for (final m in p.metajuego.misiones) {
+      final antesM = original.metajuego.misiones.where((x) => x.id == m.id).firstOrNull;
+      if (m.cumplida && !m.reclamada && !(antesM?.cumplida ?? false)) {
+        novedades.add(Novedad('Misión cumplida', detalle: '${m.texto}: cobrala en Misiones'));
+      }
+    }
+    final nivelAntes = original.nivel;
+    if (p.nivel > nivelAntes) {
+      final nuevas = [
+        for (final v in Ventaja.values)
+          if (v.nivel > nivelAntes && v.nivel <= p.nivel) v.descripcion,
+      ];
+      novedades.add(
+        Novedad(
+          '¡Nivel ${p.nivel}!',
+          detalle: [
+            if (nuevas.isNotEmpty) 'Nueva ventaja: ${nuevas.join(' · ')}',
+            for (final c in Cosmetico.values)
+              if (c.nivelEntrenador != null && c.nivelEntrenador! > nivelAntes && c.nivelEntrenador! <= p.nivel)
+                'Nuevo en el vestuario: ${c.nombre}',
+          ].join(' · ').ifEmptyNull,
+          destacada: true,
+        ),
+      );
+    }
+    return (p, novedades);
+  }
+
+  /// Capa específica de cada modo (lo que antes eran los retornos tempranos de `aplicar`).
+  (PerfilEntrenador, List<Novedad>) _especifica(PerfilEntrenador perfil, Temporada antes, Temporada despues) {
     // Entre amigos (draft en grupo, duelo): sin récords ni títulos para tu carrera; solo un poco de
     // XP por jugarla entera.
     if (PartidaAmigos.esModoDeAmigos(despues.modoJuego)) return _amigos(perfil, antes, despues);
@@ -69,7 +216,6 @@ class Progreso {
     // Fantasy NBA: XP por semana ganada y el podio de la liga.
     if (despues.modoJuego == ModoJuego.fantasy) return premiarFantasy(perfil, antes, despues);
     final novedades = <Novedad>[];
-    final nivelAntes = perfil.nivel;
     var p = perfil;
     // Álbum: lo que fichás en el draft queda en tu colección.
     final nuevas = {for (final j in despues.plantel.jugadores) j.id}.difference(p.coleccion);
@@ -196,6 +342,10 @@ class Progreso {
     // Momentos clutch: cada final real que cambiás suma; todos, un logro.
     logrosDeHistoria(antes, despues).forEach(lograr);
     p = premiarHistoria(p, antes, despues, novedades);
+    // Todos los momentos (contando los de partidas anteriores que ya se borraron): el logro.
+    if (despues.modoJuego == ModoJuego.ultimoCuarto && p.momentosClutch.length >= momentosClutch.length) {
+      lograr(Logro.clutchHistorico);
+    }
     p = p.copyWith(logros: logros);
     p = premiarVariante(p, antes, despues, novedades);
 
@@ -208,20 +358,14 @@ class Progreso {
       }
     }
 
-    // Evoluciones de cartas del álbum: progreso con lo que jugaron tus cartas.
-    p = avanzarEvoluciones(p, antes, despues);
-
-    // Misiones, pase de temporada y rivalidades ("Revancha").
-    final sumas = Misiones.diferencias(antes, despues);
-    Misiones.cobrarPendientes().forEach((k, v) => sumas[k] = (sumas[k] ?? 0) + v);
+    // Rivalidades ("Revancha").
     final (meta, revanchas) = Rivalidades.registrar(
-      Misiones.avanzar(Misiones.alDia(p.metajuego, reloj?.call() ?? DateTime.now()), sumas),
+      p.metajuego,
       antes,
       despues,
       numero: p.historial.length + (p.temporadasCerradas.contains(despues.id) ? 0 : 1),
     );
-    final puntosJuego = ganados * PaseTemporada.puntosVictoria + perdidos * PaseTemporada.puntosDerrota;
-    p = p.copyWith(metajuego: meta.copyWith(puntosPase: meta.puntosPase + puntosJuego));
+    p = p.copyWith(metajuego: meta);
     for (final id in revanchas) {
       final nombre = liga.franquicias.where((f) => f.id == id).firstOrNull?.nombreCompleto ?? id;
       novedades.add(Novedad('¡Revancha cumplida!', detalle: 'Eliminaste a $nombre', destacada: true));
@@ -232,31 +376,6 @@ class Progreso {
       );
       lograr(Logro.revancha);
       p = p.copyWith(logros: logros);
-    }
-    for (final m in p.metajuego.misiones) {
-      final antesM = perfil.metajuego.misiones.where((x) => x.id == m.id).firstOrNull;
-      if (m.cumplida && !m.reclamada && !(antesM?.cumplida ?? false)) {
-        novedades.add(Novedad('Misión cumplida', detalle: '${m.texto}: cobrala en Misiones'));
-      }
-    }
-
-    if (p.nivel > nivelAntes) {
-      final nuevas = [
-        for (final v in Ventaja.values)
-          if (v.nivel > nivelAntes && v.nivel <= p.nivel) v.descripcion,
-      ];
-      novedades.add(
-        Novedad(
-          '¡Nivel ${p.nivel}!',
-          detalle: [
-            if (nuevas.isNotEmpty) 'Nueva ventaja: ${nuevas.join(' · ')}',
-            for (final c in Cosmetico.values)
-              if (c.nivelEntrenador != null && c.nivelEntrenador! > nivelAntes && c.nivelEntrenador! <= p.nivel)
-                'Nuevo en el vestuario: ${c.nombre}',
-          ].join(' · ').ifEmptyNull,
-          destacada: true,
-        ),
-      );
     }
     return (p, novedades);
   }

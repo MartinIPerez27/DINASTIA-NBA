@@ -2,6 +2,8 @@
 /// rivalidades. Vive dentro del perfil del entrenador ([PerfilEntrenador.metajuego]).
 library;
 
+import 'enum_tolerante.dart';
+
 enum TipoMision {
   ganarPartidos('Ganá {n} partidos', 'partidos ganados'),
   ganarPorMargen('Ganá {n} partidos por 15 o más', 'palizas'),
@@ -53,7 +55,7 @@ class Mision {
 
   factory Mision.fromJson(Map<String, dynamic> j) => Mision(
     id: j['id'] as String,
-    tipo: TipoMision.values.byName(j['tipo'] as String),
+    tipo: TipoMision.values.porNombreO(j['tipo']),
     objetivo: j['obj'] as int,
     semanal: j['sem'] as bool? ?? false,
     progreso: j['p'] as int? ?? 0,
@@ -211,7 +213,12 @@ class Metajuego {
     this.cosmeticos = const {},
     this.elegidos = const {},
     this.rivalidades = const {},
+    this.ultimaFecha = 0,
   });
+
+  /// Última fecha (aaaammdd) con la que se renovaron las misiones: si el reloj del teléfono se
+  /// atrasa, se sigue usando esta (así no se pueden volver a cobrar las misiones de días ya vividos).
+  final int ultimaFecha;
 
   /// Misiones vigentes (3 del día y 3 de la semana).
   final List<Mision> misiones;
@@ -238,7 +245,9 @@ class Metajuego {
     Set<Cosmetico>? cosmeticos,
     Map<CategoriaCosmetico, Cosmetico>? elegidos,
     Map<String, Rivalidad>? rivalidades,
+    int? ultimaFecha,
   }) => Metajuego(
+    ultimaFecha: ultimaFecha ?? this.ultimaFecha,
     misiones: misiones ?? this.misiones,
     pase: pase ?? this.pase,
     puntosPase: puntosPase ?? this.puntosPase,
@@ -249,7 +258,11 @@ class Metajuego {
   );
 
   factory Metajuego.fromJson(Map<String, dynamic> j) => Metajuego(
-    misiones: [for (final m in j['misiones'] as List? ?? const []) Mision.fromJson(m as Map<String, dynamic>)],
+    misiones: [
+      for (final m in j['misiones'] as List? ?? const [])
+        if (TipoMision.values.porNombre((m as Map<String, dynamic>)['tipo']) != null) Mision.fromJson(m),
+    ],
+    ultimaFecha: j['ultimaFecha'] as int? ?? 0,
     pase: j['pase'] as String? ?? '',
     puntosPase: j['puntos'] as int? ?? 0,
     nivelesReclamados: {...(j['reclamados'] as List? ?? const []).cast<int>()},
@@ -274,5 +287,6 @@ class Metajuego {
     if (cosmeticos.isNotEmpty) 'cosmeticos': [for (final c in cosmeticos) c.name],
     if (elegidos.isNotEmpty) 'elegidos': {for (final e in elegidos.entries) e.key.name: e.value.name},
     if (rivalidades.isNotEmpty) 'rivalidades': [for (final r in rivalidades.values) r.toJson()],
+    if (ultimaFecha > 0) 'ultimaFecha': ultimaFecha,
   };
 }

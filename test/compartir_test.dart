@@ -111,7 +111,7 @@ void main() {
       expect(Reto.codigoDe(coleccion), isNull);
       final aceptada = Reto.aceptar(c, id: 'y', fichasExtra: 1);
       expect(aceptada.modoJuego, ModoJuego.reto);
-      expect(aceptada.rerollsRestantes, 4);
+      expect(aceptada.rerollsRestantes, 2, reason: 'el kit del reto es fijo: las ventajas de nivel no cuentan');
       expect(Reto.aceptadoEn(Temporada.fromJson(aceptada.toJson()))!.semilla, c.semilla);
     });
   });

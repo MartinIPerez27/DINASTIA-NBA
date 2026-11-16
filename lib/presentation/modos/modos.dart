@@ -14,6 +14,7 @@ import 'epocas.dart';
 import 'escalera.dart';
 import 'fantasy.dart';
 import 'historia.dart';
+import 'menu_modos.dart';
 import 'perfil_perfecto.dart';
 import 'universitario.dart';
 import 'reto.dart';
@@ -83,76 +84,19 @@ Future<Widget?> pantallaDeModo(Temporada t, ContextoModos c) async {
   return null;
 }
 
-/// Menú de modos, agrupado. Devuelve el modo elegido.
+/// Menú de modos: primer nivel con "Seguir jugando" y las categorías, cada una con su submenú
+/// (ver `menu_modos.dart`). Devuelve el modo elegido en [onElegir].
 class ModosPantalla extends StatelessWidget {
-  const ModosPantalla({super.key, required this.onElegir});
+  const ModosPantalla({super.key, required this.onElegir, this.guardada, this.onSeguir});
 
   final ValueChanged<ModoJuego> onElegir;
 
-  static IconData icono(ModoJuego m) => switch (m) {
-    ModoJuego.clasico => Icons.emoji_events_outlined,
-    ModoJuego.dinastia => Icons.account_tree_outlined,
-    ModoJuego.reescribi => Icons.history_edu,
-    ModoJuego.soloEntrenador => Icons.assignment_ind_outlined,
-    ModoJuego.desafioDelDia => Icons.today,
-    ModoJuego.escenario => Icons.theaters_outlined,
-    ModoJuego.caminoAlAnillo => Icons.stairs_outlined,
-    ModoJuego.extremo => Icons.local_fire_department_outlined,
-    ModoJuego.leyendaUnica => Icons.star_outline,
-    ModoJuego.espejo => Icons.flip,
-    ModoJuego.racha => Icons.all_inclusive,
-    ModoJuego.mejoresEquipos => Icons.military_tech_outlined,
-    ModoJuego.mundial => Icons.public,
-    ModoJuego.draftEnGrupo => Icons.groups_outlined,
-    ModoJuego.duelo => Icons.sports_kabaddi,
-    ModoJuego.reto => Icons.qr_code_2,
-    ModoJuego.temporadaReal => Icons.event_note,
-    ModoJuego.queHubiera => Icons.alt_route,
-    ModoJuego.ultimoCuarto => Icons.timer_outlined,
-    ModoJuego.guantelete => Icons.hourglass_bottom,
-    ModoJuego.camadas => Icons.school_outlined,
-    ModoJuego.universidades => Icons.account_balance_outlined,
-    ModoJuego.topeSalarial => Icons.attach_money,
-    ModoJuego.desafiosArmado => Icons.extension_outlined,
-    ModoJuego.ligaIA => Icons.smart_toy_outlined,
-    ModoJuego.figuraFranquicia => Icons.person_pin_outlined,
-    ModoJuego.adivina => Icons.quiz_outlined,
-    ModoJuego.carreraJugador => Icons.sports_basketball,
-    ModoJuego.universitario => Icons.school,
-    ModoJuego.divisiones => Icons.leaderboard_outlined,
-    ModoJuego.creadorTorneos => Icons.account_tree,
-    ModoJuego.conquista => Icons.map_outlined,
-    ModoJuego.fantasy => Icons.groups_2_outlined,
-    ModoJuego.perfilPerfecto => Icons.psychology_alt_outlined,
-  };
+  /// Última partida guardada y cómo seguirla (si hay, es la primera tarjeta).
+  final Temporada? guardada;
+  final VoidCallback? onSeguir;
+
+  static IconData icono(ModoJuego m) => iconoModo(m);
 
   @override
-  Widget build(BuildContext context) {
-    final tema = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Modos de juego')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-        children: [
-          for (final g in GrupoModo.values) ...[
-            Padding(
-              padding: const EdgeInsets.only(top: 16, bottom: 4),
-              child: Text(g.etiqueta.toUpperCase(), style: tema.textTheme.labelLarge?.copyWith(letterSpacing: 1)),
-            ),
-            for (final m in ModoJuego.values.where((m) => m.grupo == g))
-              Card(
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                child: ListTile(
-                  leading: Icon(icono(m), color: tema.colorScheme.primary),
-                  title: Text(m.nombre),
-                  subtitle: Text(m.descripcion),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => onElegir(m),
-                ),
-              ),
-          ],
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => MenuModos(onElegir: onElegir, guardada: guardada, onSeguir: onSeguir);
 }

@@ -1,10 +1,10 @@
+import '../../domain/coleccion.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 import '../../data/estado_app.dart';
 import '../../data/franquicias.dart';
-import '../../domain/draft.dart';
 import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/entities/modo_juego.dart';
@@ -18,6 +18,7 @@ import '../widgets/elegir_modo.dart';
 import '../widgets/texto_led.dart';
 import 'carrera_pantallas.dart';
 import 'modos.dart';
+import 'reemplazo.dart';
 
 /// Modos de carrera: varias temporadas seguidas con el mismo club.
 bool esModoCarrera(ModoJuego m) =>
@@ -35,7 +36,7 @@ Future<void> iniciarCarrera(ModoJuego m, Franquicia enfocada, ContextoModos c) a
     final regla = await elegirRegla(
       contexto,
       modo: modo,
-      coleccionAlcanza: c.liga().then((l) => Draft.coleccionAlcanza(l.catalogo, perfilApp.value.coleccion)),
+      coleccionAlcanza: c.liga().then((l) => coleccionLlenaPuestos(l.catalogo, perfilApp.value.coleccion)),
     );
     if (regla == null || !contexto.mounted) return;
     final dificultad = await elegirDificultad(contexto);
@@ -188,7 +189,7 @@ Future<Widget?> pantallaCarrera(Temporada t, ContextoModos c) async {
         temporada: t,
         onConfirmar: (x) async {
           var lista = x.calendario.isEmpty ? liga.iniciar(x) : x;
-          lista = carrera.rivalesDeEpoca(lista);
+          lista = carrera.reforzarRivales(carrera.rivalesDeEpoca(lista));
           await c.guardar(lista);
           await c.abrirTemporada(lista, reemplazar: true);
         },
@@ -220,13 +221,12 @@ Future<void> _abrirReceso(Temporada t, Liga liga, ContextoModos c) async {
         carrera: CarreraDinastia(liga),
         nombreDe: nombreFranquicia,
         onArrancar: (nueva) async {
-          // La temporada terminada queda en la historia de la dinastía: se reemplaza por la nueva.
-          try {
-            await c.db?.borrarTemporada(t.id);
-          } catch (_) {}
-          await c.guardar(nueva);
+          // La temporada terminada queda en la historia de la dinastía: se reemplaza por la nueva,
+          // guardando primero la nueva (si falla, la vieja no se toca).
+          final guardada = await reemplazarTemporada(c, t, nueva);
+          if (guardada == null) return;
           if (contexto.mounted) Navigator.of(contexto).pop();
-          await c.abrirTemporada(nueva, reemplazar: true);
+          await c.abrirTemporada(guardada, reemplazar: true);
         },
       ),
     ),

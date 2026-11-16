@@ -59,20 +59,23 @@ La app arranca en el tablero: recorré las franquicias en la cinta LED, la app s
 
 ## Catálogo de cartas
 
-`assets/database/nba_players.json` trae **11.323 cartas** de toda la historia (desde 1946-47): 74 S+, 161 S,
-3004 A y 8084 B, unas 53 por franquicia y época. Las genera `tools/catalogo_bbref.py` desde datos públicos de
-Basketball-Reference ([sumitrodatta/bball-reference-datasets](https://github.com/sumitrodatta/bball-reference-datasets)).
+`assets/database/nba_players.json` trae **13031 cartas** de toda la historia (desde 1946-47 hasta 2025-26; los datos
+parciales de la temporada en curso no entran): 81 S+, 187 S, 3097 A y 9656 B. Las genera `tools/catalogo_bbref.py`
+desde datos públicos de Basketball-Reference
+([sumitrodatta/bball-reference-datasets](https://github.com/sumitrodatta/bball-reference-datasets)). Diseño en
+[`docs/CATALOGO_V3.md`](docs/CATALOGO_V3.md).
 
-Cada carta es **jugador + franquicia + década** con al menos 20 partidos en ese tramo, y todo se calcula solo
-con esas temporadas:
+Cada carta es un **tramo real: jugador + franquicia + ventana de 1 a 4 temporadas** (racha continua con el mismo
+equipo, dentro de una década, partida donde cambia el rendimiento), con al menos 20 partidos. Todo se calcula solo
+con esas temporadas y la carta dice cuáles son (`temporadas`): el Curry de 2015–16 no es el de 2023–26.
 
 | Campo | Cómo se calcula |
 | --- | --- |
-| Identidad | El equipo con el que jugó: Thunder en los 90 es **Seattle SuperSonics**; también Bullets, Royals, Braves, New Jersey Nets y los extintos de los 40/50 (Chicago Stags…). |
+| Identidad | El equipo con el que jugó (por ventana): Thunder en los 90 es **Seattle SuperSonics**; también Bullets, Royals, Braves, New Jersey Nets y los extintos de los 40/50 (Chicago Stags…). |
 | Estadísticas | Totales del tramo ÷ partidos. Lo que la NBA no registraba (robos/tapones antes de 1974, pérdidas antes de 1978, rebotes y minutos en los 40) se estima por posición y se marca con "~". Sin triples antes de 1980. |
 | Posiciones | Las que jugó en esas temporadas + la vecina que su perfil cubre. |
-| Tier | **S+/S/A** por premios (MVP, MVP de Finales, All-NBA, DPOY, 6.º Hombre, All-Star); sin premios, **A** si fue titular productivo y **B (Rotación)** si no. |
-| Media (60–99) | Eficiencia corregida por época + premios. |
+| Tier | **S+/S/A/B** por la media de la ventana y sus premios por temporada (MVP, MVP de Finales, All-NBA, DPOY, 6.º Hombre, All-Star). |
+| Media (60–99) | Media v3: impacto por minuto (BPM / Win Shares) de la ventana, regresado a la media según los partidos + minutos + premios, repartido por ranking dentro de cada época. |
 | Arquetipo | Uno de los 24 del GDD según su perfil por 36 minutos (+ correcciones a mano para leyendas). |
 | Foto | 1) CDN de la NBA (si no es la silueta genérica), 2) Basketball-Reference, 3) Wikipedia (la busca la app desde el celular), 4) iniciales. Las fotos de archivo se recortan en el celular con ML Kit (gratis, sin internet) para que no tengan fondo. |
 

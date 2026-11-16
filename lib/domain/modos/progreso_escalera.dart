@@ -61,8 +61,8 @@ List<Logro> logrosDeEscalera(ProgresoEscalera pe, Temporada t) => [
     },
 ];
 
-/// En los escenarios, Leyenda única y Solo entrenador el plantel te lo dan (no lo fichaste): no
-/// entra al álbum.
+/// En los escenarios, Leyenda única, Solo entrenador, Temporada real, ¿Qué hubiera pasado si…? y Modo
+/// espejo el plantel te lo dan (no lo fichaste): no entra al álbum.
 bool sumaAlAlbum(Temporada t) =>
     !const {
       ModoJuego.escenario,
@@ -72,4 +72,10 @@ bool sumaAlAlbum(Temporada t) =>
       ModoJuego.guantelete,
       ModoJuego.camadas,
       ModoJuego.universidades,
+      // Historia: el plantel es el real de aquella temporada (Jordan, Pippen…), no lo ficharon vos.
+      ModoJuego.temporadaReal,
+      ModoJuego.queHubiera,
+      ModoJuego.ultimoCuarto,
+      // Modo espejo: jugás con el plantel que armó la IA en tu contra.
+      ModoJuego.espejo,
     }.contains(t.modoJuego);

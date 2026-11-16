@@ -35,7 +35,7 @@ class _TutorialPantallaState extends State<TutorialPantalla> {
     _Pagina(
       'ARMÁ TU PLANTEL',
       'Ruleta: tirá franquicia, época y rareza, y retené hasta 2 carretes. Cartas: abrí sobres y elegí. '
-          'Tenés fichas para volver a tirar.',
+          'Tenés fichas (tokens) para volver a tirar: se ganan subiendo de nivel.',
       _Carretes(),
     ),
     _Pagina(
@@ -49,6 +49,18 @@ class _TutorialPantallaState extends State<TutorialPantalla> {
       'Mirá cada partido en vivo o simulalo. En vivo podés pausar, pedir tiempo muerto, acelerar el ritmo '
           'y meter presión alta.',
       _Marcador(),
+    ),
+    _Pagina(
+      'MUCHAS FORMAS DE JUGAR',
+      'Tocá "Modos de juego" en el inicio: Carrera (Mi carrera, Dinastía), Desafíos, Historia y torneos, '
+          'Con amigos y Minijuegos. "Seguir jugando" te lleva a tu última partida.',
+      _Iconos([Icons.timeline, Icons.local_fire_department_outlined, Icons.groups_outlined]),
+    ),
+    _Pagina(
+      'ÁLBUM Y TIENDA',
+      'Tus cartas se guardan en el Álbum. Con las monedas que ganás comprás sobres en la Tienda: '
+          'los dos están en el ícono de cartas del inicio.',
+      _Iconos([Icons.style_outlined, Icons.toll, Icons.inventory_2_outlined]),
     ),
     _Pagina(
       'TU CARRERA',
@@ -103,21 +115,31 @@ class _TutorialPantallaState extends State<TutorialPantalla> {
                     onPageChanged: (i) => setState(() => _actual = i),
                     children: [
                       for (final p in _paginas)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SizedBox(height: 160, child: Center(child: p.ilustracion)),
-                              const SizedBox(height: 32),
-                              Text(p.titulo, textAlign: TextAlign.center, style: tema.textTheme.headlineMedium),
-                              const SizedBox(height: 12),
-                              Text(
-                                p.texto,
-                                textAlign: TextAlign.center,
-                                style: tema.textTheme.bodyLarge?.copyWith(color: esquema.onSurfaceVariant),
+                        // Con poca altura o letra grande la página se desplaza en vez de desbordarse.
+                        LayoutBuilder(
+                          builder: (context, c) => SingleChildScrollView(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(minHeight: c.maxHeight),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    height: 160,
+                                    child: FittedBox(fit: BoxFit.scaleDown, child: p.ilustracion),
+                                  ),
+                                  const SizedBox(height: 32),
+                                  Text(p.titulo, textAlign: TextAlign.center, style: tema.textTheme.headlineMedium),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    p.texto,
+                                    textAlign: TextAlign.center,
+                                    style: tema.textTheme.bodyLarge?.copyWith(color: esquema.onSurfaceVariant),
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
                     ],

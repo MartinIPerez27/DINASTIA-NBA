@@ -12,6 +12,7 @@ import '../widgets/elegir_modo.dart';
 import 'carrera_jugador_pantallas.dart';
 import 'creador_jugador.dart';
 import 'modos.dart';
+import 'reemplazo.dart';
 
 /// Mi carrera: un jugador, real o creado, del draft al Salón de la Fama.
 /// [creadoInicial]: un jugador ya creado (p. ej. un egresado del Modo universitario): salta la
@@ -201,6 +202,15 @@ Future<Widget?> pantallaCarreraJugador(Temporada t, ContextoModos c) async {
         onCambio: guardar,
         acciones: acciones(),
         onSiguienteTemporada: (x) async {
+          // Si ya cerraste esta temporada (y volviste a los playoffs), el receso retoma lo guardado: no se
+          // recalcula el cierre ni se pisa lo que ya gastaste.
+          final previo = EstadoCarrera.de(actual);
+          if (previo != null && previo.cerrada && actual.id == x.id) {
+            await c.navegador.currentState?.push(
+              MaterialPageRoute<void>(builder: (_) => _receso(actual, previo, null, carrera, c, apilado: true)),
+            );
+            return;
+          }
           final e = EstadoCarrera.de(x) ?? estado;
           final cierre = carrera.cerrar(x, e, _nombreDe);
           final cerrada = x.copyWith(datosModo: cierre.estado.aDatos());
@@ -227,14 +237,23 @@ Widget _receso(
   required bool apilado,
 }) {
   var actual = t;
+  // Paso del receso en que está el usuario: se guarda junto al estado (si cierra la app, retoma ahí).
+  String? paso = t.datosModo['pasoReceso'] as String?;
+  Map<String, dynamic> datos(EstadoCarrera e) => {...e.aDatos(), 'pasoReceso': ?paso};
   return Builder(
     builder: (contexto) => RecesoJugadorPantalla(
       temporada: t,
       estado: estado,
       carrera: carrera,
       cierre: cierre,
+      pasoInicial: paso,
+      onPaso: (p) {
+        paso = p;
+        actual = actual.copyWith(datosModo: datos(EstadoCarrera.de(actual) ?? estado));
+        c.guardar(actual);
+      },
       onEstado: (e) {
-        actual = actual.copyWith(datosModo: e.aDatos());
+        actual = actual.copyWith(datosModo: datos(e));
         c.guardar(actual);
       },
       onRetirar: (e) async {
@@ -246,13 +265,12 @@ Widget _receso(
       },
       onSeguir: (e, oferta) async {
         final nueva = carrera.siguiente(actual.copyWith(datosModo: e.aDatos()), e, oferta: oferta);
-        // La temporada terminada queda en la historia de tu carrera: se reemplaza por la nueva.
-        try {
-          await c.db?.borrarTemporada(t.id);
-        } catch (_) {}
-        await c.guardar(nueva);
+        // La temporada terminada queda en la historia de tu carrera: se reemplaza por la nueva,
+        // guardando primero la nueva (si falla, la vieja no se toca).
+        final guardada = await reemplazarTemporada(c, t, nueva);
+        if (guardada == null) return;
         if (apilado && contexto.mounted) Navigator.of(contexto).pop();
-        await c.abrirTemporada(nueva, reemplazar: true);
+        await c.abrirTemporada(guardada, reemplazar: true);
       },
     ),
   );

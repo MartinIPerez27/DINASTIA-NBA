@@ -1,4 +1,5 @@
 import 'jugador.dart';
+import 'enum_tolerante.dart';
 
 /// Los 3 carretes del tragamonedas (GDD §4.2).
 enum Carrete {
@@ -31,8 +32,8 @@ class Tirada {
 
   factory Tirada.fromJson(Map<String, dynamic> j) => Tirada(
     franquiciaId: j['franquicia'] as String,
-    epoca: Epoca.values.byName(j['epoca'] as String),
-    tier: Tier.values.byName(j['tier'] as String),
+    epoca: Epoca.values.porNombreO(j['epoca']),
+    tier: Tier.values.porNombreO(j['tier']),
   );
 
   Map<String, dynamic> toJson() => {'franquicia': franquiciaId, 'epoca': epoca.name, 'tier': tier.name};

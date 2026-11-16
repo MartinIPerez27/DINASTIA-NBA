@@ -1,21 +1,25 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/cache_imagenes.dart';
-import '../../core/foto_wikipedia.dart';
-import '../../core/recorte_fotos.dart';
+import '../../core/fotos/fuentes_foto.dart';
+import '../../core/fotos/gestor_fotos.dart';
+import '../../core/fotos/indice_fotos.dart';
+import '../../core/nba_cdn.dart';
 import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/jugador.dart';
-import '../tema/tema_franquicia.dart';
+import 'avatar_ilustrado.dart';
 
-/// Foto del jugador (cacheada en disco). Prueba sus fuentes en orden (NBA, Basketball-Reference,
-/// Wikipedia). Las iniciales aparecen solo mientras carga o si no hay ninguna foto: nunca debajo de
-/// una foto (las de la NBA tienen fondo transparente y se verían superpuestas).
-/// Las fotos de archivo (con fondos de cualquier tipo) se recortan en el celular para quitarles el
-/// fondo y quedan sobre el panel negro como las de la NBA; si no se pueden recortar, se pasa a la
-/// fuente siguiente (nunca se muestra una foto con su fondo).
+/// Foto del jugador. Lee primero del índice local (fotos descargadas una vez y guardadas para siempre
+/// en el celular por el [GestorFotos]); lo que falta lo pide el gestor, con ritmo y sin repetir los
+/// 404. Mientras tanto (o si no hay foto) se ve un retrato ilustrado propio con la camiseta de la
+/// franquicia: nunca una foto con las iniciales debajo (las de la NBA tienen fondo transparente).
+/// Las fotos de archivo (Wikipedia, Commons) llegan ya recortadas (sin fondo) desde el gestor y quedan
+/// sobre el panel negro como las de la NBA. Las de la NBA se muestran desde la red al instante si
+/// todavía no se bajaron.
 /// Con [recortar], llena su caja mostrando cabeza y hombros (para miniaturas cuadradas).
 class JugadorAvatar extends StatelessWidget {
   const JugadorAvatar({super.key, required this.jugador, required this.franquicia, this.recortar = false});
@@ -32,24 +36,25 @@ class JugadorAvatar extends StatelessWidget {
   static bool usarRed = true;
 
   /// Solo para capturas: resuelve cada URL a una imagen local (las de la NBA, tal cual; las de
-  /// archivo, ya recortadas) para ver el encuadre real sin red ni ML Kit.
+  /// archivo, ya recortadas) para ver el encuadre real sin red ni ML Kit. Las de archivo llegan como
+  /// `prueba:archivo/<idBbref>`.
   static Future<ImageProvider?> Function(String url)? imagenesDePrueba;
 
   @override
   Widget build(BuildContext context) {
     final panel = Theme.of(context).colorScheme.surfaceContainerLowest;
-    final iniciales = _AvatarIniciales(jugador: jugador, franquicia: franquicia);
+    final ilustrado = AvatarIlustrado(jugador: jugador, franquicia: franquicia, iniciales: !recortar);
     final foto = ColoredBox(
       color: panel,
       child: usarRed
-          ? _FotoEnCadena(
-              urls: jugador.urlsFoto,
+          ? _FotoPersona(
+              jugador: jugador,
               recortar: recortar,
               animar: !MediaQuery.disableAnimationsOf(context),
-              sinFoto: iniciales,
+              sinFoto: ilustrado,
               panel: panel,
             )
-          : iniciales,
+          : ilustrado,
     );
     return Semantics(
       label: jugador.nombre,
@@ -59,128 +64,113 @@ class JugadorAvatar extends StatelessWidget {
   }
 }
 
-/// Prueba la primera URL; si falla, la siguiente; sin ninguna, muestra [sinFoto].
-class _FotoEnCadena extends StatelessWidget {
-  const _FotoEnCadena({
-    required this.urls,
+/// Foto de la persona: del índice local si está; si no, la pide al gestor.
+class _FotoPersona extends StatefulWidget {
+  const _FotoPersona({
+    required this.jugador,
     required this.recortar,
     required this.animar,
     required this.sinFoto,
     required this.panel,
   });
 
-  final List<String> urls;
+  final Jugador jugador;
   final bool recortar;
   final bool animar;
   final Widget sinFoto;
   final Color panel;
 
   @override
-  Widget build(BuildContext context) {
-    if (urls.isEmpty) return sinFoto;
-    final siguiente = _FotoEnCadena(
-      urls: urls.sublist(1),
-      recortar: recortar,
-      animar: animar,
-      sinFoto: sinFoto,
-      panel: panel,
-    );
-    final url = urls.first;
-    if (url.startsWith('wiki:')) {
-      return FutureBuilder<String?>(
-        future: fotoWikipedia(url.substring(5)),
-        builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) return sinFoto;
-          final resuelta = snap.data;
-          return resuelta == null
-              ? siguiente
-              : _FotoEnCadena(
-                  urls: [resuelta, ...urls.sublist(1)],
-                  recortar: recortar,
-                  animar: animar,
-                  sinFoto: sinFoto,
-                  panel: panel,
-                );
-        },
-      );
-    }
-    final prueba = JugadorAvatar.imagenesDePrueba;
-    if (prueba != null && url.contains('cdn.nba.com')) {
-      return FutureBuilder<ImageProvider?>(
-        future: prueba(url),
-        builder: (context, snap) => snap.data == null
-            ? sinFoto
-            : Image(
-                image: snap.data!,
-                fit: recortar ? BoxFit.cover : BoxFit.contain,
-                alignment: recortar ? const Alignment(0, -0.6) : Alignment.bottomCenter,
-                width: double.infinity,
-                height: double.infinity,
-              ),
-      );
-    }
-    if (!url.contains('cdn.nba.com')) {
-      return FutureBuilder<ImageProvider?>(
-        future: prueba != null ? prueba(url) : recorteSinFondo(url).then((f) => f == null ? null : FileImage(f)),
-        builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) return sinFoto;
-          final recorte = snap.data;
-          if (recorte == null) return siguiente;
-          return _RecorteArchivo(
-            imagen: recorte,
-            recortar: recortar,
-            animar: animar,
-            panel: panel,
-            siguiente: siguiente,
-          );
-        },
-      );
-    }
-    return CachedNetworkImage(
-      imageUrl: url,
-      cacheManager: cacheHeadshots,
-      fadeInDuration: animar ? const Duration(milliseconds: 180) : Duration.zero,
-      fadeInCurve: Curves.easeOut,
-      placeholder: (_, _) => sinFoto,
-      errorWidget: (_, _, _) => siguiente,
-      imageBuilder: (_, imagen) => Image(
-        image: imagen,
-        fit: recortar ? BoxFit.cover : BoxFit.contain,
-        alignment: recortar ? const Alignment(0, -0.6) : Alignment.bottomCenter,
-        width: double.infinity,
-        height: double.infinity,
-      ),
-    );
-  }
+  State<_FotoPersona> createState() => _FotoPersonaState();
 }
 
-/// Sin foto: el panel del tablero con las iniciales encendidas en el LED de la franquicia de la carta.
-class _AvatarIniciales extends StatelessWidget {
-  const _AvatarIniciales({required this.jugador, required this.franquicia});
-
-  final Jugador jugador;
-  final Franquicia franquicia;
+class _FotoPersonaState extends State<_FotoPersona> {
+  late final PersonaFoto? _persona = GestorFotos.personaDe(widget.jugador);
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, c) => ColoredBox(
-      color: Theme.of(context).colorScheme.surfaceContainerLowest,
-      child: Center(
-        child: ExcludeSemantics(
-          child: Text(
-            jugador.iniciales,
-            style: TextStyle(
-              fontFamily: Fuentes.estadio,
-              fontVariations: const [FontVariation.weight(800)],
-              color: colorLed(franquicia),
-              fontSize: c.biggest.shortestSide * 0.42,
-              height: 1,
-            ),
-          ),
-        ),
-      ),
-    ),
+  void initState() {
+    super.initState();
+    final persona = _persona, gestor = GestorFotos.instancia;
+    if (persona != null && gestor != null && JugadorAvatar.imagenesDePrueba == null) {
+      // Fuera del build: pedir una foto notifica al gestor.
+      scheduleMicrotask(() => gestor.solicitar(persona));
+    }
+  }
+
+  Widget _imagenNba(ImageProvider imagen) => Image(
+    image: imagen,
+    fit: widget.recortar ? BoxFit.cover : BoxFit.contain,
+    alignment: widget.recortar ? const Alignment(0, -0.6) : Alignment.bottomCenter,
+    width: double.infinity,
+    height: double.infinity,
+    errorBuilder: (_, _, _) => widget.sinFoto,
   );
+
+  Widget _recorte(ImageProvider imagen) => _RecorteArchivo(
+    imagen: imagen,
+    recortar: widget.recortar,
+    animar: widget.animar,
+    panel: widget.panel,
+    siguiente: widget.sinFoto,
+  );
+
+  Widget _redNba(String url) => CachedNetworkImage(
+    imageUrl: url,
+    cacheManager: cacheHeadshots,
+    fadeInDuration: widget.animar ? const Duration(milliseconds: 180) : Duration.zero,
+    fadeInCurve: Curves.easeOut,
+    placeholder: (_, _) => widget.sinFoto,
+    errorWidget: (_, _, _) => widget.sinFoto,
+    imageBuilder: (_, imagen) => _imagenNba(imagen),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final persona = _persona;
+    if (persona == null) return widget.sinFoto;
+
+    final prueba = JugadorAvatar.imagenesDePrueba;
+    if (prueba != null) return _deprueba(prueba, persona);
+
+    final gestor = GestorFotos.instancia;
+    final urlNba = persona.usaNba && persona.nbaPlayerId > 0 ? NbaCdn.headshot(persona.nbaPlayerId) : null;
+    if (gestor == null) return urlNba == null ? widget.sinFoto : _redNba(urlNba);
+
+    return ListenableBuilder(
+      listenable: gestor.escuchar(persona.clave),
+      builder: (context, _) {
+        final fila = gestor.de(persona.clave);
+        final archivo = gestor.archivoMostrable(persona.clave);
+        if (archivo != null) {
+          return fila!.esNba ? _imagenNba(FileImage(archivo)) : _recorte(FileImage(archivo));
+        }
+        // Aún sin archivo local: la NBA se ve al instante desde la red (y el gestor la baja); lo
+        // demás espera el retrato ilustrado hasta que el gestor la tenga.
+        if (urlNba != null && fila?.estado != EstadoFoto.sin) return _redNba(urlNba);
+        return widget.sinFoto;
+      },
+    );
+  }
+
+  Widget _deprueba(Future<ImageProvider?> Function(String) prueba, PersonaFoto persona) {
+    final urls = [if (persona.usaNba) NbaCdn.headshot(persona.nbaPlayerId), 'prueba:archivo/${persona.clave}'];
+    return FutureBuilder<(String, ImageProvider)?>(
+      future: _primera(prueba, urls),
+      builder: (context, snap) {
+        final r = snap.data;
+        if (r == null) return widget.sinFoto;
+        return r.$1.contains('cdn.nba.com') ? _imagenNba(r.$2) : _recorte(r.$2);
+      },
+    );
+  }
+
+  Future<(String, ImageProvider)?> _primera(Future<ImageProvider?> Function(String) prueba, List<String> urls) async {
+    for (final u in urls) {
+      final i = await prueba(u);
+      if (i != null) return (u, i);
+    }
+    return null;
+  }
 }
 
 /// Recorte de una foto de archivo, encuadrado como los headshots de la NBA: cabeza arriba, del mismo

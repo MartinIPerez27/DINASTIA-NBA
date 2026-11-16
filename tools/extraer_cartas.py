@@ -1,4 +1,4 @@
-"""Genera assets/database/nba_players.json desde stats.nba.com con nba_api (GDD §9.4).
+"""Pipeline VIEJO (stats.nba.com con nba_api, GDD §9.4). El catálogo actual lo genera tools/catalogo_bbref.py, que solo reutiliza las funciones de este módulo (stats, perfil, roles, IQ).
 
 Una carta = un jugador + una franquicia + una época. Estadísticas, posiciones, Tier, Rol e IQ
 se calculan SOLO con las temporadas de esa franquicia en esa época: el LeBron de Cleveland
@@ -293,7 +293,7 @@ def asignar_iq(cartas):
     componentes = [
         (0.35, [c["_perfil"]["ast_per"] or mediana_ast for c in cartas]),
         (0.35, [c["_perfil"]["ts"] - media_ts[c["epoca"]] for c in cartas]),
-        (0.15, [c["_puntos"] for c in cartas]),
+        (0.15, [c.get("_puntos_iq", c["_puntos"]) for c in cartas]),
         (0.15, [c["_perfil"]["stl"] + c["_perfil"]["blk"] for c in cartas]),
     ]
     rangos = [(peso, _percentiles(vals)) for peso, vals in componentes]

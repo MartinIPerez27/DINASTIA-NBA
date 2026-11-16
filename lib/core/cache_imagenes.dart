@@ -1,7 +1,8 @@
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
-/// Caché en disco de fotos del CDN. El default de flutter_cache_manager expira a los 30 días;
-/// acá se guardan ~10 años para que, una vez vista la carta, funcione siempre sin internet.
+/// Caché en disco SOLO para mostrar al instante las fotos del CDN de la NBA mientras el gestor de
+/// fotos (`core/fotos/gestor_fotos.dart`) las baja a su carpeta definitiva. Lo que queda para siempre
+/// en el celular no depende de este caché: vive en la carpeta del gestor y en su índice SQLite.
 final cacheHeadshots = CacheManager(
-  Config('headshots_nba', stalePeriod: const Duration(days: 3650), maxNrOfCacheObjects: 2000),
+  Config('headshots_nba', stalePeriod: const Duration(days: 3650), maxNrOfCacheObjects: 6000),
 );

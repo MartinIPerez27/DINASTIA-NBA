@@ -189,7 +189,17 @@ PerfilEntrenador registrarEvolucion(PerfilEntrenador p, String cartaId, MetricaE
 /// `Progreso.aplicar`): líneas de tus jugadores, victorias y noches de 30. Los partidos de 30+ solo
 /// se detectan cuando se jugó un único partido entre los dos estados (en vivo); una simulación en
 /// bloque cuenta puntos, triples, etc., pero no noches de 30.
-PerfilEntrenador avanzarEvoluciones(PerfilEntrenador p, Temporada antes, Temporada despues) {
+///
+/// [ganadosModo] y [jugadosModo] son los partidos nuevos de un modo que lleva sus propios partidos
+/// (Divisiones, Fantasy, Liga de 8…): ahí no hay calendario ni líneas, así que cuentan los partidos y
+/// las victorias del equipo para las cartas del plantel.
+PerfilEntrenador avanzarEvoluciones(
+  PerfilEntrenador p,
+  Temporada antes,
+  Temporada despues, {
+  int ganadosModo = 0,
+  int jugadosModo = 0,
+}) {
   if (p.evoluciones.isEmpty) return p;
   var evo = PerfilEvoluciones.de(p);
   if (evo.cartas.isEmpty) return p;
@@ -217,7 +227,12 @@ PerfilEntrenador avanzarEvoluciones(PerfilEntrenador p, Temporada antes, Tempora
       if (l != null) d.sumar(l);
     }
     final pj = d.pj - a.pj;
-    if (pj <= 0) continue;
+    if (pj <= 0) {
+      if (jugados == 0 && jugadosModo > 0) {
+        evo = evo.sumar(id, MetricaEvo.partidos, jugadosModo).sumar(id, MetricaEvo.victorias, ganadosModo);
+      }
+      continue;
+    }
     evo = evo
         .sumar(id, MetricaEvo.partidos, pj)
         .sumar(id, MetricaEvo.puntos, d.pts - a.pts)

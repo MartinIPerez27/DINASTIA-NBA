@@ -12,7 +12,7 @@ import '../motor.dart';
 import '../playbook.dart';
 import '../progreso.dart' show Novedad;
 
-/// Campeones reales por temporada (año de cierre) → franquicia actual. 2026 en adelante: sin dato.
+/// Campeones reales por temporada (año de cierre) → franquicia actual. 2027 en adelante: sin dato (temporada en curso).
 const campeonesReales = <int, String>{
   1977: 'POR',
   1978: 'WAS',
@@ -63,6 +63,7 @@ const campeonesReales = <int, String>{
   2023: 'DEN',
   2024: 'BOS',
   2025: 'OKC',
+  2026: 'NYK', // Knicks 4-1 a San Antonio; MVP de las Finales: Jalen Brunson
 };
 
 /// "1995-96" para el año de cierre 1996.
@@ -659,9 +660,13 @@ List<Logro> logrosDeHistoria(Temporada antes, Temporada despues) =>
     : const [];
 
 PerfilEntrenador premiarHistoria(PerfilEntrenador p, Temporada antes, Temporada despues, List<Novedad> novedades) {
-  final nuevos = _nuevosSuperados(antes, despues);
-  if (nuevos.isEmpty) return p;
+  if (despues.modoJuego != ModoJuego.ultimoCuarto) return p;
+  // Lo superado queda en el perfil: borrar la partida no lo reinicia ni lo vuelve a pagar.
+  final superados = HistoriaNba.superados(despues);
+  final nuevos = _nuevosSuperados(antes, despues).where((id) => !p.momentosClutch.contains(id)).toList();
+  final conocidos = {...p.momentosClutch, ...superados};
+  if (nuevos.isEmpty) return conocidos.length == p.momentosClutch.length ? p : p.copyWith(momentosClutch: conocidos);
   final xp = xpMomentoClutch * nuevos.length, monedas = monedasMomentoClutch * nuevos.length;
   novedades.add(Novedad('Momento clutch: +$xp XP · +$monedas monedas', destacada: true));
-  return p.copyWith(xp: p.xp + xp, monedas: p.monedas + monedas);
+  return p.copyWith(xp: p.xp + xp, monedas: p.monedas + monedas, momentosClutch: conocidos);
 }

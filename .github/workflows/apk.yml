@@ -32,6 +32,16 @@ jobs:
           channel: stable
           cache: true
 
+      # Caché de paquetes de pub y de Gradle (la compilación del APK baja mucho menos).
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: deps-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'android/gradle/wrapper/gradle-wrapper.properties', 'android/**/*.gradle*') }}
+          restore-keys: deps-${{ runner.os }}-
+
       - name: Dependencias
         run: flutter pub get
 
@@ -39,7 +49,7 @@ jobs:
         run: |
           flutter analyze
           flutter test
-          python3 -m pip install --quiet nba_api
+          python3 -m pip install --quiet nba_api==1.12.0
           python3 -m unittest discover tools
 
       - name: Compilar APK
@@ -50,9 +60,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp build/app/outputs/flutter-apk/app-release.apk dinastia-nba.apk
-          gh release delete ultima --cleanup-tag --yes || true
-          gh release create ultima dinastia-nba.apk \
-            --title "Última versión (build ${{ github.run_number }})" \
-            --notes "Compilado automáticamente desde ${GITHUB_SHA::7}. Descargá dinastia-nba.apk desde el celular e instalalo." \
-            --target "$GITHUB_SHA" \
-            --latest
+          # Primero se sube el APK nuevo y recién después se toca el release: si algo falla, el APK
+          # anterior sigue disponible (antes se borraba el release antes de crear el nuevo).
+          TITULO="Última versión (build ${{ github.run_number }})"
+          NOTAS="Compilado automáticamente desde ${GITHUB_SHA::7}. Descargá dinastia-nba.apk desde el celular e instalalo."
+          if gh release view ultima >/dev/null 2>&1; then
+            gh release upload ultima dinastia-nba.apk --clobber
+            gh release edit ultima --title "$TITULO" --notes "$NOTAS" --latest
+          else
+            gh release create ultima dinastia-nba.apk \
+              --title "$TITULO" \
+              --notes "$NOTAS" \
+              --target "$GITHUB_SHA" \
+              --latest
+          fi

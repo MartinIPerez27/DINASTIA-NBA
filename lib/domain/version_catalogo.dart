@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'entities/jugador.dart';
+
 /// Versión del catálogo de cartas cargado: un hash FNV-1a de 32 bits del JSON tal cual viene en la
 /// app. Cambia sola cuando se regenera el catálogo (medias, roles, cartas nuevas), así los códigos
 /// de reto y el Desafío del día saben si se armaron con las mismas cartas. 0 = desconocida (pruebas).
@@ -13,3 +15,7 @@ int versionDe(String json) {
   }
   return h;
 }
+
+/// Cartas `legado` del catálogo (las del catálogo anterior que no se pueden recalcular). No salen en los
+/// sorteos, pero una partida o un álbum viejo que las guardó las sigue encontrando por id.
+Map<String, Jugador> cartasLegado = const {};
