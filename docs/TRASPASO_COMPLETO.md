@@ -469,3 +469,10 @@ Ver `docs/AUDITORIA_PROPIA.md` para el análisis punto por punto. Resumen: aplic
 - **Relato**: dupla Relator/Comentarista, decisiones en vivo, historias, rivalidades y tensión (escaleras y playoffs).
 - **Animación**: figuras, cámara, repetición, tribuna, marcador vivo; `Cancha94.borde` 6 pies. Sin medición de 60 fps en dispositivo real.
 - **Pendiente**: `ContextoNarrativo` no alimenta aún el `ContextoRelato` del partido en vivo; tensión en modos no-escalera; `playoffs: true` no se pasa a la escena; ramas viejas sin limpiar.
+
+### Después de la ronda 2
+- Franquicia pura: los carretes giran solo entre tiradas posibles (`Draft.tiradasPosibles`); `test/franquicia_pura_test.dart`. Si aparecen cartas de otro equipo en la mano (no solo en la animación), reportar con el modo de draft y la fase.
+- Ícono de la app: marcador LED "82-0", generado con `python3 tools/icono.py` (assets/icono y android/.../res/mipmap-*).
+- Ramas viejas de GitHub: no se pudieron borrar desde la sesión (el proxy da 403). Borrar a mano: catalogo-v2-wip, mejoras-v4(-wip), modos-v3(-wip), ronda2(-wip), tanda-2, tanda-4a, tanda-4b, tanda-5(-wip), tanda-6(-wip). Todo está en `main`.
+- Compilar: `flutter build apk --debug` (firma debug, a propósito). Flutter en /opt/flutter/bin.
+- Pendientes: ver "Pendiente" de la sección ronda 2 más arriba (relato con historias/rivalidades, tensión en modos no-escalera, escena de playoffs, probar fluidez en dispositivo real, menores heredados).
