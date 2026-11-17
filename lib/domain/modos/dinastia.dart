@@ -491,6 +491,8 @@ class CarreraDinastia {
         if (plantel != null) break;
       }
       if (plantel == null) continue;
+      // Una persona no juega en dos rivales: los de este plantel quedan vedados para los que siguen.
+      propios.addAll(plantel.jugadores.map((j) => j.nbaPlayerId));
       final identidades = <String, int>{};
       for (final j in pool) {
         identidades[j.equipo] = (identidades[j.equipo] ?? 0) + 1;
@@ -539,10 +541,16 @@ class CarreraDinastia {
     final rivales = {...t.rivales};
     for (final e in t.rivales.entries) {
       final r = e.value;
+      // Tampoco las personas de los demás rivales (una persona no está en dos planteles de la liga).
+      final vedados = {
+        ...propios,
+        for (final o in rivales.values)
+          if (o.franquiciaId != e.key) for (final id in o.cartaIds.values) ?liga.jugador(id)?.nbaPlayerId,
+      };
       List<Jugador> pool(bool soloEpoca) => [
         for (final j in liga.catalogo)
           if (j.franquiciaId == e.key &&
-              !propios.contains(j.nbaPlayerId) &&
+              !vedados.contains(j.nbaPlayerId) &&
               (!soloEpoca || r.tipo != TipoRival.epoca || j.epoca == r.epoca))
             j,
       ];

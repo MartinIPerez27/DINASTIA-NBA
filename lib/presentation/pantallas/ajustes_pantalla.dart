@@ -70,13 +70,42 @@ class _AjustesPantallaState extends State<AjustesPantalla> {
                   value: _a.sonido,
                   onChanged: (v) => _cambiar(_a.copyWith(sonido: v)),
                 ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Relato', style: tema.textTheme.bodyLarge),
+                      const SizedBox(height: 6),
+                      SegmentedButton<ModoRelato>(
+                        segments: [for (final m in ModoRelato.values) ButtonSegment(value: m, label: Text(m.nombre))],
+                        selected: {_a.modoRelato},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (s) => _cambiar(_a.copyWith(modoRelato: s.first)),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${_a.modoRelato.descripcion} El Relator es técnico y el Comentarista pone el color.',
+                        style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
                 SwitchListTile(
-                  title: const Text('Voz del relator'),
+                  title: const Text('Voz del relato'),
                   subtitle: const Text(
-                    'El relator lee las jugadas con la voz del celular (sin internet; necesita la voz en español instalada).',
+                    'Relator y Comentarista leen las jugadas con dos voces del celular (sin internet; necesita voces en español instaladas).',
                   ),
                   value: _a.vozRelator,
                   onChanged: (v) => _cambiar(_a.copyWith(vozRelator: v)),
+                ),
+                SwitchListTile(
+                  title: const Text('Decisiones sugeridas'),
+                  subtitle: const Text(
+                    'El partido se frena en los momentos clave (parcial en contra, faltas, último tiro, entretiempo) para que elijas. Podés ignorarlas.',
+                  ),
+                  value: _a.decisiones,
+                  onChanged: (v) => _cambiar(_a.copyWith(decisiones: v)),
                 ),
                 SwitchListTile(
                   title: const Text('Efectos reducidos'),

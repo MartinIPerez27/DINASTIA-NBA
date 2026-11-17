@@ -1,3 +1,4 @@
+import '../../domain/relato/contexto_temporada.dart';
 import 'package:flutter/material.dart';
 
 import '../../domain/misiones.dart';
@@ -10,6 +11,9 @@ import '../../domain/entities/rival.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/liga.dart';
 import '../../domain/motor.dart';
+import '../../domain/rivalidades.dart';
+import '../../domain/tension.dart';
+import '../widgets/ficha_rival.dart';
 import '../compartir/tarjeta_compartir.dart';
 import '../modos/reto.dart';
 import '../tema/tema_franquicia.dart';
@@ -95,7 +99,7 @@ class _PlayoffsPantallaState extends State<PlayoffsPantalla> {
     final ahoraPropias = ahora.altoId == _t.franquiciaUsuarioId ? ahora.victoriasAlto : ahora.victoriasBajo;
     final gano = ahoraPropias > antesPropias;
     return jugados - (antes.victoriasAlto + antes.victoriasBajo) == 1
-        ? '${gano ? 'Ganaste' : 'Perdiste'} el Juego $jugados. Serie ${_marcador(ahora)}.'
+        ? '${gano ? 'Ganaste' : 'Perdiste'} el Juego $jugados. ${consecuenciaDeSerie(antes, ahora, _t.franquiciaUsuarioId) ?? 'Serie ${_marcador(ahora)}.'}'
         : 'Serie ${_marcador(ahora)}.';
   }
 
@@ -111,6 +115,7 @@ class _PlayoffsPantallaState extends State<PlayoffsPantalla> {
           franquiciaUsuario: franquiciaPorId(_t.franquiciaUsuarioId),
           identidadLocal: _identidad(p.localId),
           identidadVisitante: _identidad(p.visitanteId),
+          contexto: contextoDeTemporada(antes, p, serie: s),
           onTerminado: (MotorPartido m) => _guardar(_liga.registrarPlayoff(antes, s, m)),
         ),
       ),
@@ -217,6 +222,12 @@ class _PlayoffsPantallaState extends State<PlayoffsPantalla> {
                               _t,
                               serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId,
                             ),
+                            relato: Rivalidades.relato(
+                              perfilApp.value,
+                              _t,
+                              serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId,
+                              _identidad(serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId).nombre,
+                            ),
                             local: _liga.partidoDeSerie(serie).localId == _t.franquiciaUsuarioId,
                             ocupado: _ocupado,
                             onVivo: () => _vivo(serie),
@@ -289,6 +300,12 @@ class _PlayoffsPantallaState extends State<PlayoffsPantalla> {
                         perfilApp.value,
                         _t,
                         serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId,
+                      ),
+                      relato: Rivalidades.relato(
+                        perfilApp.value,
+                        _t,
+                        serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId,
+                        _identidad(serie.altoId == _t.franquiciaUsuarioId ? serie.bajoId : serie.altoId).nombre,
                       ),
                       local: _liga.partidoDeSerie(serie).localId == _t.franquiciaUsuarioId,
                       ocupado: _ocupado,
@@ -444,7 +461,11 @@ class _SerieActual extends StatelessWidget {
     required this.onSimular,
     required this.onSimularSerie,
     this.revancha,
+    this.relato,
   });
+
+  /// Rivalidad persistente (mala sangre) con este rival.
+  final RelatoRivalidad? relato;
 
   /// "Te eliminaron en…": cuenta pendiente con este rival de otra partida tuya.
   final String? revancha;
@@ -490,7 +511,13 @@ class _SerieActual extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text('vs $nombreRival', style: tema.textTheme.titleMedium),
-          if (revancha case final r?)
+          if (presionDeSerie(serie, usuarioId) case final p?) ...[
+            const SizedBox(height: 8),
+            BannerTension(presion: p),
+          ],
+          if (relato != null && relato!.nivel != NivelRivalidad.fria)
+            Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: ChipRivalidad(relato: relato!))
+          else if (revancha case final r?)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Container(

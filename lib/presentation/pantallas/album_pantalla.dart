@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 
 import '../../data/estado_app.dart';
 import '../../data/franquicias.dart';
+import '../../domain/album.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/entities/perfil.dart';
 import '../../domain/tienda.dart';
 import '../tema/tema_franquicia.dart';
 import '../widgets/carta_vertical.dart';
+import '../widgets/disposicion.dart';
 import 'evoluciones_vista.dart';
 import '../widgets/escudo.dart';
 import '../widgets/haptica.dart';
@@ -91,35 +93,62 @@ class _AlbumPantallaState extends State<AlbumPantalla> {
     ),
   );
 
+  /// Versión elegida por persona en esta sesión (solo de pantalla: el perfil guarda ids de carta).
+  final _versionElegida = <String, String>{};
+
+  Future<void> _verVersiones(JugadorAlbum p, Jugador actual) async {
+    final elegida = await showModalBottomSheet<Jugador>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (_) => _HojaVersiones(persona: p, actual: actual),
+    );
+    if (elegida != null && mounted) setState(() => _versionElegida[p.personaId] = elegida.id);
+  }
+
   Widget _coleccion(BuildContext context, PerfilEntrenador perfil) {
     final tema = Theme.of(context);
     final esquema = tema.colorScheme;
-    final porFranquicia = <String, (int, int)>{};
-    for (final j in widget.catalogo) {
-      final (tengo, total) = porFranquicia[j.franquiciaId] ?? (0, 0);
-      porFranquicia[j.franquiciaId] = (tengo + (perfil.coleccion.contains(j.id) ? 1 : 0), total + 1);
-    }
-    final mias =
-        widget.catalogo
-            .where((j) => perfil.coleccion.contains(j.id) && (_franquicia == null || j.franquiciaId == _franquicia))
-            .toList()
-          ..sort((a, b) => b.media.compareTo(a.media));
+    final album = AlbumPorJugador(widget.catalogo, perfil.coleccion);
+    final resumen = album.resumen;
+    final mias = album.deLaFranquicia(_franquicia);
     final ancho = MediaQuery.sizeOf(context).width;
-    final columnas = max(3, (ancho / 130).floor());
+    final tablet = esTabletApaisada(context);
+    // Grilla amplia en tablet horizontal: tarjetas de ~170 dp, más columnas que en el teléfono.
+    final delegado = SliverGridDelegateWithMaxCrossAxisExtent(
+      maxCrossAxisExtent: tablet ? 170 : max(112, ancho / 3 - 12),
+      childAspectRatio: 0.54,
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
+    );
+    final franquiciaElegida = _franquicia == null ? null : franquicias.where((f) => f.id == _franquicia).firstOrNull;
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: EdgeInsets.fromLTRB(tablet ? 24 : 16, 16, tablet ? 24 : 16, 8),
           sliver: SliverToBoxAdapter(
             child: Row(
               children: [
-                TextoLed('${perfil.coleccion.length}', tamano: 36),
+                TextoLed(miles(resumen.personasTengo), tamano: 36),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    'de ${widget.catalogo.length} cartas. Fichar en un draft o abrir sobres suma cartas; '
-                    'con la regla "Mi colección" jugás solo con ellas.',
-                    style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'de ${miles(resumen.personasTotal)} jugadores · '
+                        '${miles(resumen.versionesTengo)} ${resumen.versionesTengo == 1 ? 'versión' : 'versiones'}',
+                        key: const ValueKey('album-resumen'),
+                        style: tema.textTheme.titleSmall,
+                      ),
+                      Text(
+                        'Una tarjeta por jugador, con sus versiones adentro (equipo, años y media). '
+                        'Fichar en un draft o abrir sobres suma cartas; con la regla "Mi colección" jugás solo con ellas.',
+                        style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -135,12 +164,14 @@ class _AlbumPantallaState extends State<AlbumPantalla> {
               children: [
                 for (final f in franquicias)
                   () {
-                    final (tengo, total) = porFranquicia[f.id] ?? (0, 0);
+                    final r = album.deFranquicia(f.id);
                     final elegida = _franquicia == f.id;
                     return Semantics(
                       button: true,
                       selected: elegida,
-                      label: '${f.nombreCompleto}: $tengo de $total',
+                      label:
+                          '${f.nombreCompleto}: ${r.personasTengo} de ${r.personasTotal} jugadores, '
+                          '${r.versionesTengo} versiones',
                       child: ExcludeSemantics(
                         child: InkWell(
                           onTap: () => setState(() => _franquicia = elegida ? null : f.id),
@@ -159,7 +190,7 @@ class _AlbumPantallaState extends State<AlbumPantalla> {
                               children: [
                                 Escudo(f, tamano: 30),
                                 const SizedBox(height: 4),
-                                Text('$tengo/$total', style: tema.textTheme.labelSmall),
+                                Text('${r.personasTengo}/${miles(r.personasTotal)}', style: tema.textTheme.labelSmall),
                               ],
                             ),
                           ),
@@ -171,6 +202,17 @@ class _AlbumPantallaState extends State<AlbumPantalla> {
             ),
           ),
         ),
+        if (franquiciaElegida != null)
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(tablet ? 24 : 16, 8, tablet ? 24 : 16, 0),
+            sliver: SliverToBoxAdapter(
+              child: Text(
+                '${franquiciaElegida.nombreCompleto}: ${album.deFranquicia(_franquicia!).texto}',
+                key: const ValueKey('album-resumen-franquicia'),
+                style: tema.textTheme.labelLarge?.copyWith(color: esquema.primary),
+              ),
+            ),
+          ),
         if (mias.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
@@ -188,16 +230,15 @@ class _AlbumPantallaState extends State<AlbumPantalla> {
           )
         else
           SliverPadding(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(tablet ? 24 : 12),
             sliver: SliverGrid.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: columnas,
-                childAspectRatio: 0.64,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-              ),
+              gridDelegate: delegado,
               itemCount: mias.length,
-              itemBuilder: (_, i) => CartaVertical(jugador: mias[i]),
+              itemBuilder: (_, i) {
+                final p = mias[i];
+                final actual = p.tengo.where((j) => j.id == _versionElegida[p.personaId]).firstOrNull ?? p.principal;
+                return _TarjetaAlbum(persona: p, actual: actual, onVersiones: () => _verVersiones(p, actual));
+              },
             ),
           ),
       ],
@@ -369,6 +410,126 @@ class _AperturaDialogoState extends State<_AperturaDialogo> {
           onPressed: _vistas >= a.cartas.length ? () => Navigator.of(context).pop() : null,
           child: const Text('LISTO'),
         ),
+      ],
+    );
+  }
+}
+
+
+/// Una persona del álbum: su carta (la versión elegida, por defecto la de mayor media que tenés) y el selector
+/// de versiones debajo ("CHI 1995–98 · 98 · 2/5").
+class _TarjetaAlbum extends StatelessWidget {
+  const _TarjetaAlbum({required this.persona, required this.actual, required this.onVersiones});
+
+  final JugadorAlbum persona;
+  final Jugador actual;
+  final VoidCallback onVersiones;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final linea = '${actual.tramoConEquipo} · ${actual.media}';
+    return Column(
+      children: [
+        Expanded(child: CartaVertical(jugador: actual)),
+        const SizedBox(height: 4),
+        if (persona.tieneVarias)
+          Semantics(
+            button: true,
+            label:
+                '${persona.nombre}: ${persona.tengo.length} de ${persona.total.length} versiones. Mostrando $linea. '
+                'Tocá para cambiar de versión.',
+            child: ExcludeSemantics(
+              child: InkWell(
+                key: ValueKey('versiones-${persona.personaId}'),
+                onTap: onVersiones,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  height: 34,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: esquema.outlineVariant.withValues(alpha: 0.6)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(actual.tramoConEquipo, maxLines: 1, overflow: TextOverflow.ellipsis, style: tema.textTheme.labelSmall),
+                            Text(
+                              'media ${actual.media} · ${persona.tengo.length}/${persona.total.length}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: tema.textTheme.labelSmall?.copyWith(color: esquema.onSurfaceVariant, fontSize: 10),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.unfold_more, size: 16, color: esquema.primary),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            height: 34,
+            child: Center(
+              child: Text(linea, maxLines: 1, overflow: TextOverflow.ellipsis, style: tema.textTheme.labelSmall),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Todas las versiones de una persona: las que tenés se pueden mostrar; las que faltan, aparecen apagadas.
+class _HojaVersiones extends StatelessWidget {
+  const _HojaVersiones({required this.persona, required this.actual});
+
+  final JugadorAlbum persona;
+  final Jugador actual;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final tengo = {for (final j in persona.tengo) j.id};
+    return ListView(
+      shrinkWrap: true,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      children: [
+        Text(persona.nombre, style: tema.textTheme.titleLarge),
+        Text(
+          '${persona.tengo.length} de ${persona.total.length} versiones en tu álbum. '
+          'Cada una es una carta distinta (equipo, años y media propios).',
+          style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        for (final j in persona.total)
+          Builder(
+            builder: (context) {
+              final es = tengo.contains(j.id);
+              return ListTile(
+                key: ValueKey('version-${j.id}'),
+                enabled: es,
+                selected: j.id == actual.id,
+                contentPadding: EdgeInsets.zero,
+                leading: SizedBox(width: 44, child: TextoLed('${j.media}', tamano: 22)),
+                title: Text(j.tramoConEquipo),
+                subtitle: Text(es ? '${j.tier.etiqueta} · en tu álbum' : '${j.tier.etiqueta} · sin conseguir'),
+                trailing: j.id == actual.id
+                    ? Icon(Icons.check, color: esquema.primary)
+                    : (es ? null : const Icon(Icons.lock_outline, size: 18)),
+                onTap: es ? () => Navigator.of(context).pop(j) : null,
+              );
+            },
+          ),
       ],
     );
   }

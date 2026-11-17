@@ -5,6 +5,7 @@ import 'package:flutter/animation.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/motor.dart';
 import 'cancha_partido.dart';
+import 'jugadores_animados.dart';
 
 /// Aceleración y frenado de una carrera (seno exacto: el pico es π/2 veces la velocidad media).
 double _suave(double u) => (1 - cos(pi * u)) / 2;
@@ -49,23 +50,45 @@ class _Ruta {
 }
 
 /// Un tramo del balón: en la mano de alguien, en el aire, o quieto (pelota muerta).
+/// Cómo viaja la pelota en un pase: al pecho, picado (pica en el medio), globo (alto y lento) o por
+/// detrás de la espalda (curva hacia un costado).
+enum EstiloPase { pecho, picado, globo, detras }
+
 class _Tramo {
   const _Tramo.lleva(this.s0, this.s1, this.poseedor)
     : desde = Offset.zero,
       hasta = Offset.zero,
       arco = 0,
       de = null,
-      a = null;
-  const _Tramo.vuelo(this.s0, this.s1, this.desde, this.hasta, this.arco, {this.de, this.a}) : poseedor = null;
+      a = null,
+      estilo = EstiloPase.pecho,
+      curva = 0;
+  const _Tramo.vuelo(
+    this.s0,
+    this.s1,
+    this.desde,
+    this.hasta,
+    this.arco, {
+    this.de,
+    this.a,
+    this.estilo = EstiloPase.pecho,
+    this.curva = 0,
+  }) : poseedor = null;
   const _Tramo.quieta(this.s0, this.s1, Offset p)
     : desde = p,
       hasta = p,
       arco = 0,
       poseedor = null,
       de = null,
-      a = null;
+      a = null,
+      estilo = EstiloPase.pecho,
+      curva = 0;
 
   final double s0, s1;
+  final EstiloPase estilo;
+
+  /// Desvío lateral máximo (pies) del pase por detrás.
+  final double curva;
   final Offset desde, hasta;
   final double arco; // altura máxima: ~0.15 pase, 1 tiro
   final String? poseedor;
@@ -145,6 +168,22 @@ class Coreografia {
   /// Saltos de la jugada: (jugador, desde, hasta) en segundos (tapón, volcada, salto entre dos…).
   final _saltos = <(String, double, double)>[];
 
+  /// Saltitos (el que se tira a robar, el que cierra sobre el tirador): la mitad de alto.
+  final _saltosChicos = <(String, double, double)>[];
+
+  /// Poses de acción: (jugador, desde, hasta, pose) en segundos. La última que cubre el instante manda.
+  final _poses = <(String, double, double, Pose)>[];
+
+  /// Giro completo del cuerpo en el aire (volcada de 360°): (jugador, desde, hasta).
+  final _giros = <(String, double, double)>[];
+
+  /// Órdenes a un defensor: (índice, desde, hasta, punto) en segundos. Mientras valen, en vez de
+  /// seguir a su marca va a ese punto (cierre sobre el tirador, ayuda, bloqueo, protección del aro).
+  final _ordenes = <(int, double, double, Offset)>[];
+
+  /// Pantallas: (desde, hasta, el que la pone, el que la usa) en segundos.
+  final _pantallas = <(double, double, String, String)>[];
+
   /// Cuánto está saltando [id] en el instante t (0 = en el piso, 1 = en lo más alto).
   double salto(String id, double t) {
     final s = t * duracion;
@@ -152,6 +191,10 @@ class Coreografia {
     for (final (quien, s0, s1) in _saltos) {
       if (quien != id || s < s0 || s > s1) continue;
       altura = max(altura, sin(pi * (s - s0) / (s1 - s0)));
+    }
+    for (final (quien, s0, s1) in _saltosChicos) {
+      if (quien != id || s < s0 || s > s1) continue;
+      altura = max(altura, 0.5 * sin(pi * (s - s0) / (s1 - s0)));
     }
     return altura;
   }
@@ -176,6 +219,15 @@ class Coreografia {
 
   Offset _p(Offset o) => Offset(o.dx, haciaArriba ? o.dy : Cancha94.largo - o.dy);
   Offset _banco(int i, bool atacante) => Offset(-1.2, 41 + i * 2.6 + (atacante ? 0 : 14));
+
+  /// Centro del corrillo de cada equipo en un tiempo muerto (junto a su banco, sobre la línea lateral).
+  static Offset _centroCorrillo(bool atacante) => Offset(1.6, atacante ? 47 : 61);
+
+  /// Lugar de cada jugador en el corrillo: en ronda alrededor del técnico.
+  Offset _corrillo(int i, bool atacante) {
+    final ang = -pi / 2 + (i + (atacante ? 0 : 0.5)) * 2 * pi / 5;
+    return _centroCorrillo(atacante) + Offset(cos(ang), sin(ang)) * 2.5;
+  }
   Offset _unidad(Offset o) => o.distance == 0 ? Offset.zero : o / o.distance;
   double _vuelo(Offset a, Offset b) => 0.3 + (a - b).distance / 55;
 
@@ -201,9 +253,19 @@ class Coreografia {
   }
 
   Offset _destinoDefensa(int i, double s) {
-    if (_pausa) return _banco(i, false);
+    if (_pausa) return _corrillo(i, false);
     if (_desdeCarriles >= 0 && s >= _desdeCarriles - 0.6) return _p(_carrilDefensa[i % _carrilDefensa.length]);
+    for (final (quien, s0, s1, punto) in _ordenes) {
+      if (quien == i && s >= s0 && s <= s1) return punto;
+    }
     final marca = _rutas[atacantes[min(i, atacantes.length - 1)].id]!.en(s);
+    // Bloqueo: el que marca al que usa la pantalla se queda enganchado detrás del que la pone.
+    for (final (s0, s1, pone, usa) in _pantallas) {
+      if (s < s0 + 0.25 || s > s1 + 0.5) continue;
+      if (atacantes[min(i, atacantes.length - 1)].id != usa) continue;
+      final p = _rutas[pone]!.en(s);
+      return p + _unidad(marca - aro) * 1.1;
+    }
     return marca + _unidad(aro - marca) * 4.4;
   }
 
@@ -282,9 +344,17 @@ class Coreografia {
         if (e.contraataque) {
           _contraataque(s, conductor);
         } else if (segundaOportunidad && conductor == e.jugadorId) {
-          final punto = _ruta(conductor, s).en(s);
-          _tramos.add(_Tramo.lleva(s, s + 0.45, conductor));
-          _tirar(s + 0.45, punto, conductor);
+          if (e.volcada) {
+            // Tap-in de volcada: sube hasta el aro antes de clavarla (no la tira desde lejos).
+            final destino = _p(Offset(25 + (_azar.nextBool() ? 2.2 : -2.2), 3.2));
+            final llega = _ruta(conductor, s).mover(s, s + 0.45, destino);
+            _tramos.add(_Tramo.lleva(s, llega, conductor));
+            _tirar(llega, destino, conductor);
+          } else {
+            final punto = _ruta(conductor, s).en(s);
+            _tramos.add(_Tramo.lleva(s, s + 0.45, conductor));
+            _tirar(s + 0.45, punto, conductor);
+          }
         } else {
           (s, conductor) = _subir(s, conductor);
           _armarTiro(s, conductor);
@@ -304,10 +374,10 @@ class Coreografia {
         _tramos.add(_Tramo.quieta(0, 1.7, balonDesde));
       case TipoEvento.tiempoMuerto || TipoEvento.finCuarto || TipoEvento.finPartido:
         for (final (i, j) in atacantes.indexed) {
-          _rutas[j.id]!.mover(0, 1.6, _banco(i, true));
+          _rutas[j.id]!.mover(0, 1.6, _corrillo(i, true));
         }
         _tramos.add(_Tramo.vuelo(0, 0.8, balonDesde, const Offset(25, 47), 0.1));
-        _tramos.add(_Tramo.quieta(0.8, e.tipo == TipoEvento.tiempoMuerto ? 2.4 : 2.8, const Offset(25, 47)));
+        _tramos.add(_Tramo.quieta(0.8, e.tipo == TipoEvento.tiempoMuerto ? 3.1 : 2.8, const Offset(25, 47)));
     }
   }
 
@@ -335,12 +405,31 @@ class Coreografia {
   }
 
   /// Pase de [de] a [a] que llega a [destino]; devuelve el segundo en que la recibe.
-  double _pasar(double s, String de, String a, Offset destino, {double arco = 0.15}) {
+  double _pasar(double s, String de, String a, Offset destino, {double arco = 0.15, EstiloPase? estilo}) {
     final origen = _en(de, s);
-    // El globo del alley-oop vuela más alto y más lento.
-    final vuelo = _vuelo(origen, destino) * (arco > 0.5 ? 1.5 : 1);
+    final distancia = (origen - destino).distance;
+    // Variedad: picado en distancias cortas, globo (o por detrás) cuando hay tiempo. El alley-oop
+    // (arco alto) siempre es un globo.
+    estilo ??= arco > 0.5
+        ? EstiloPase.globo
+        : distancia < 11
+        ? switch (_azar.nextInt(10)) {
+            < 4 => EstiloPase.picado,
+            < 5 => EstiloPase.detras,
+            _ => EstiloPase.pecho,
+          }
+        : (_azar.nextInt(10) < 3 ? EstiloPase.globo : EstiloPase.pecho);
+    final alto = arco > 0.5;
+    final vuelo = _vuelo(origen, destino) * (alto ? 1.5 : (estilo == EstiloPase.globo ? 1.2 : 1));
     final llega = _ruta(a, s).mover(s, s + vuelo, destino);
-    _tramos.add(_Tramo.vuelo(s, llega, origen, destino, arco, de: de, a: a));
+    final altura = switch (estilo) {
+      EstiloPase.picado => 0.16,
+      EstiloPase.globo => alto ? arco : 0.5,
+      _ => arco,
+    };
+    final curva = estilo == EstiloPase.detras ? (_azar.nextBool() ? 1.0 : -1.0) * 1.1 : 0.0;
+    _tramos.add(_Tramo.vuelo(s, llega, origen, destino, altura, de: de, a: a, estilo: estilo, curva: curva));
+    _poses.add((de, s - 0.14, s + 0.3, Pose.pasa));
     return llega;
   }
 
@@ -389,6 +478,14 @@ class Coreografia {
     cadena.add(tirador);
     var quien = conductor;
     var t = s;
+    // Bloqueo directo en un ataque armado (no en la volcada ni el alley-oop, que ya son de por sí).
+    final pantalleros = [
+      for (final j in atacantes)
+        if (j.id != quien && j.id != tirador) j.id,
+    ];
+    if (!e.volcada && !e.alleyOop && pantalleros.isNotEmpty && s < 4.5 && _azar.nextInt(100) < 35) {
+      t = _pantalla(t, quien, pantalleros[_azar.nextInt(pantalleros.length)]);
+    }
     for (final receptor in cadena) {
       if (receptor == quien) continue;
       // Se pasa cuando el receptor ya llegó a su lugar.
@@ -407,8 +504,50 @@ class Coreografia {
       // Alley-oop: la toma en el aire y la clava sin pisar el piso.
       final listo = e.alleyOop ? t + 0.05 : _rutas[tirador]!.mover(t, t + (cadena.length > 1 ? 0.3 : 0.5), punto);
       _tramos.add(_Tramo.lleva(t, listo, tirador));
+      _cierre(i, punto, listo);
       _tirar(listo, punto, tirador);
     }
+  }
+
+  /// Bloqueo directo: [pone] se clava junto al defensor de [usa], que lo bordea y ataca; el que
+  /// defendía al que pone la pantalla ayuda, y el bloqueador se abre al aro. Devuelve cuándo termina.
+  double _pantalla(double s, String usa, String pone) {
+    final inicio = max(s, _rutas[pone]!.ultimo);
+    final u = _rutas[usa]!.en(inicio);
+    final haciaAro = _unidad(aro - u);
+    final lado = u.dx < Cancha94.ancho / 2 ? 1.0 : -1.0;
+    final perp = Offset(-haciaAro.dy, haciaAro.dx) * lado;
+    final punto = u + haciaAro * 2.9 + perp * 1.5;
+    final destinoUsa = u + haciaAro * 5.5 + perp * 2.4;
+    final rueda = aro + _unidad(u - aro) * 7.5 - perp * 2.2;
+    final iPone = atacantes.indexWhere((j) => j.id == pone);
+    final llega = inicio + 0.8 + (_rutas[pone]!.en(inicio) - punto).distance / 22;
+    _pantallas.add((llega - 0.2, llega + 0.9, pone, usa));
+    if (iPone >= 0 && iPone < defensores.length) {
+      _ordenes.add((iPone, llega + 0.2, llega + 1.4, destinoUsa + _unidad(aro - destinoUsa) * 3.4));
+    }
+    _olvidarMarcas();
+    _rutas[pone]!.mover(inicio, llega, punto);
+    _poses.add((pone, llega - 0.25, llega + 0.6, Pose.pantalla));
+    final sale = llega + 0.05;
+    _rutas[usa]!.mover(sale, sale + 0.9, destinoUsa);
+    _rutas[pone]!.mover(llega + 0.35, llega + 1.4, rueda);
+    final fin = sale + 0.9;
+    _tramos.add(_Tramo.lleva(s, fin, usa));
+    return fin;
+  }
+
+  /// El defensor del tirador cierra sobre él con la mano arriba (a veces con un saltito tardío).
+  void _cierre(int marca, Offset punto, double tiro) {
+    final e = evento;
+    if (e.taponado || e.interferencia || marca >= defensores.length) return;
+    final id = defensores[marca].id;
+    if (e.defensorId == id) return;
+    final cierra = punto + _unidad(aro - punto) * (1.9 + _azar.nextDouble() * 0.8);
+    _ordenes.add((marca, tiro - 1.1, tiro + 0.5, cierra));
+    _olvidarMarcas();
+    _poses.add((id, tiro - 0.4, tiro + 0.5, Pose.contesta));
+    if (_azar.nextInt(10) < 4) _saltosChicos.add((id, tiro - 0.1, tiro + 0.4));
   }
 
   /// Lugar del tiro: la zona habitual del jugador, con variedad (el triple sobre el arco, el doble
@@ -445,9 +584,30 @@ class Coreografia {
       _tramos.add(_Tramo.vuelo(pase, llega - 0.35, origen, destino, 0.25, de: conductor, a: tirador));
       _tramos.add(_Tramo.lleva(llega - 0.35, llega, tirador));
     }
-    for (final (i, j) in atacantes.indexed) {
+    // Hasta tres en carrera: un compañero abre el carril del otro lado y el conductor (si pasó) el suyo.
+    final lado = bandeja.dx < Cancha94.ancho / 2 ? 1.0 : -1.0;
+    final carril = <String, Offset>{};
+    var nCarril = 0;
+    for (final j in atacantes) {
       if (j.id == tirador || j.id == conductor) continue;
-      _rutas[j.id]!.mover(s + 0.1 * i, llega + 1.2, _p(_formacion[i]));
+      if (nCarril++ == 0) carril[j.id] = _p(Offset(25 + lado * 13, 15));
+    }
+    if (conductor != tirador) carril[conductor] = _p(Offset(25 - lado * 12, 18));
+    for (final (i, j) in atacantes.indexed) {
+      if (j.id == tirador) continue;
+      if (carril[j.id] case final c?) {
+        final desde = j.id == conductor ? s + 0.35 : s + 0.1 * i;
+        _rutas[j.id]!.mover(desde, llega, c);
+        _rutas[j.id]!.mover(llega, llega + 1.2, _p(_formacion[i]));
+      } else {
+        _rutas[j.id]!.mover(s + 0.1 * i, llega + 1.2, _p(_formacion[i]));
+      }
+    }
+    // Un defensor vuelve corriendo a proteger el aro.
+    final marca = atacantes.indexWhere((j) => j.id == tirador);
+    if (marca >= 0 && marca < defensores.length && !(evento.taponado && evento.defensorId == defensores[marca].id)) {
+      _ordenes.add((marca, s + 0.1, llega + 0.5, bandeja + _unidad(aro - bandeja) * 2.4));
+      _olvidarMarcas();
     }
     _tirar(llega, bandeja, tirador);
   }
@@ -458,7 +618,15 @@ class Coreografia {
     final distancia = (punto - aro).distance;
     _inicioTiro = s;
     puntoTiro = punto;
+    _poses.add((
+      tirador,
+      s - (e.volcada ? 0.3 : 0.25),
+      s + (e.volcada ? 0.55 : 0.4),
+      e.volcada ? Pose.clava : (distancia < 6 && distancia <= 21 ? Pose.bandeja : Pose.tira),
+    ));
+    if (e.volcada && _azar.nextInt(100) < 25) _giros.add((tirador, s - 0.2, s + 0.4));
     if (e.taponado && e.defensorId != null) {
+      _poses.add((e.defensorId!, s - 0.15, s + 0.55, Pose.contesta));
       // Tapón: el defensor salta al tiro y la manda lejos, hacia un costado.
       final tapa = s + 0.24;
       final cerca = punto + _unidad(aro - punto) * 1.4;
@@ -502,7 +670,9 @@ class Coreografia {
     if (e.convertido || e.reboteId == null) {
       _canasta = _finTiro;
       _tramos.add(_Tramo.vuelo(_finTiro, _finTiro + 0.35, aro, aro + Offset(0, haciaArriba ? -1.5 : 1.5), 0));
-      _tramos.add(_Tramo.quieta(_finTiro + 0.35, _finTiro + 0.7, aro + Offset(0, haciaArriba ? -1.5 : 1.5)));
+      // Las jugadas grandes dejan un rato para el festejo.
+      final festejo = e.volcada || e.alleyOop ? 1.0 : (e.triple ? 0.8 : 0.7);
+      _tramos.add(_Tramo.quieta(_finTiro + 0.35, _finTiro + festejo, aro + Offset(0, haciaArriba ? -1.5 : 1.5)));
     } else {
       _golpeAro = _finTiro;
       _rebote(_finTiro, aro);
@@ -521,6 +691,27 @@ class Coreografia {
     final atrapa = max(vuelo, _ruta(quien, _inicioTiro + 0.1).mover(_inicioTiro + 0.15, vuelo, lugar));
     _tramos.add(_Tramo.vuelo(s, atrapa, desdeBalon, lugar, 0.3, a: quien));
     _tramos.add(_Tramo.lleva(atrapa, atrapa + 0.4, quien));
+    // Rebote disputado: uno de cada equipo pelea la pelota y todos saltan juntos.
+    final pelean = <String>[quien];
+    for (final equipo in [atacantes, defensores]) {
+      final candidatos = [
+        for (final j in equipo)
+          if (j.id != quien && j.id != e.jugadorId && j.id != e.defensorId) j,
+      ];
+      if (candidatos.isEmpty) continue;
+      final j = candidatos[_azar.nextInt(candidatos.length)];
+      final destino = lugar + Offset(_azar.nextDouble() * 3.4 - 1.7, _azar.nextDouble() * 3.4 - 1.7);
+      if (equipo == atacantes) {
+        _rutas[j.id]!.mover(_inicioTiro + 0.2, atrapa - 0.3, destino);
+      } else {
+        _ruta(j.id, _inicioTiro + 0.1).mover(_inicioTiro + 0.2, atrapa - 0.3, destino);
+      }
+      pelean.add(j.id);
+    }
+    for (final id in pelean) {
+      _saltos.add((id, atrapa - 0.42, atrapa + 0.18));
+      _poses.add((id, atrapa - 0.45, atrapa + 0.25, Pose.rebotea));
+    }
   }
 
   /// Tiros libres (los que diga el evento; 2 si no lo dice) desde el segundo [desde].
@@ -547,9 +738,15 @@ class Coreografia {
       _tramos.add(_Tramo.vuelo(desde, recibe, inicio, linea, 0.12, de: enMano ? poseedor : null, a: tirador));
       _tramos.add(_Tramo.lleva(recibe, llega + 0.5, tirador));
     }
+    // Rutina: pica la pelota, respira, flexiona las rodillas y tira (un instante de silencio).
     var s = llega + 0.5;
-    _inicioTiro = s;
-    for (var i = 0; i < cantidad - 1; i++) {
+    for (var i = 0; i < cantidad; i++) {
+      final rutina = i == 0 ? 0.6 : 0.45;
+      _tramos.add(_Tramo.lleva(s, s + rutina, tirador));
+      _poses.add((tirador, s, s + rutina, Pose.libre));
+      s += rutina;
+      if (i == 0) _inicioTiro = s;
+      if (i == cantidad - 1) break;
       _tramos.add(_Tramo.vuelo(s, s + 0.8, linea, aro, 0.8, de: tirador));
       _tramos.add(_Tramo.vuelo(s + 0.8, s + 1.3, aro, linea, 0.12, a: tirador));
       _tramos.add(_Tramo.lleva(s + 1.3, s + 1.8, tirador));
@@ -695,12 +892,17 @@ class Coreografia {
         final corte = Offset.lerp(origen, destino, 0.55)!;
         final atrapa = _escapar(ladron, s + 0.1, s + 0.4 + _vuelo(origen, corte), corte, otroAro);
         _tramos.add(_Tramo.vuelo(s + 0.4, atrapa, origen, corte, 0.12, de: conductor, a: ladron));
+        // Lo vio venir: se tira a la línea de pase con el brazo estirado.
+        _poses.add((ladron, atrapa - 0.4, atrapa + 0.12, Pose.roba));
+        _saltosChicos.add((ladron, atrapa - 0.3, atrapa + 0.12));
       case TipoPerdida.robo when ladron != null:
         // Manotazo: le roba el dribbling al conductor.
         final punto = _en(conductor, s + 0.6);
         final atrapa = _escapar(ladron, s, s + 0.6, punto + _unidad(otroAro - punto) * 1.5, otroAro);
         _tramos.add(_Tramo.lleva(s, atrapa - 0.15, conductor));
         _tramos.add(_Tramo.vuelo(atrapa - 0.15, atrapa, punto, punto, 0.05, de: conductor, a: ladron));
+        _poses.add((ladron, atrapa - 0.4, atrapa + 0.1, Pose.roba));
+        _saltosChicos.add((ladron, atrapa - 0.25, atrapa + 0.1));
       case TipoPerdida.robo || TipoPerdida.afuera:
         // Pase (o dribbling) que se va afuera.
         final origen = _en(conductor, s + 0.4);
@@ -805,7 +1007,18 @@ class Coreografia {
     // En el aire la pelota va a velocidad constante; la altura dibuja el arco.
     final desde = tr.de == null ? tr.desde : _mano(tr.de!, tr.s0);
     final hasta = tr.a == null ? tr.hasta : _mano(tr.a!, tr.s1);
-    return (Offset.lerp(desde, hasta, u)!, tr.arco * sin(pi * u), null);
+    var pos = Offset.lerp(desde, hasta, u)!;
+    var altura = tr.arco * sin(pi * u);
+    switch (tr.estilo) {
+      case EstiloPase.picado:
+        // Pica en el medio del camino: la altura vuelve a cero a mitad de vuelo.
+        altura = tr.arco * sin(2 * pi * u).abs();
+      case EstiloPase.detras:
+        final ida = hasta - desde;
+        if (ida.distance > 0.01) pos += _unidad(Offset(-ida.dy, ida.dx)) * (tr.curva * sin(pi * u));
+      case _:
+    }
+    return (pos, altura, null);
   }
 
   Offset _mano(String id, double s) => _en(id, s) + const Offset(0.9, 0.5);
@@ -842,4 +1055,208 @@ class Coreografia {
     if (_pausa) return Cancha94.largo / 2;
     return balon(t).$1.dy * 0.5 + (aro.dy + (haciaArriba ? 16 : -16)) * 0.5;
   }
+
+  // ---------------------------------------------------------------- cuerpo y ánimo
+
+  static const _pasoRecorrido = 1 / 20;
+  final _recorridos = <String, List<double>>{};
+
+  /// Pies recorridos por [id] hasta el segundo [s] (para el ciclo de la carrera).
+  double _recorrido(String id, double s) {
+    final tabla = _recorridos.putIfAbsent(id, () {
+      final r = <double>[0];
+      var previa = _en(id, 0);
+      for (var k = 1; k * _pasoRecorrido <= duracion + _pasoRecorrido; k++) {
+        final p = _en(id, k * _pasoRecorrido);
+        r.add(r.last + (p - previa).distance);
+        previa = p;
+      }
+      return r;
+    });
+    final x = (s / _pasoRecorrido).clamp(0.0, tabla.length - 1.0);
+    final k = x.floor();
+    return tabla[k] + (tabla[min(k + 1, tabla.length - 1)] - tabla[k]) * (x - k);
+  }
+
+  /// Cómo está parado [id] en el instante t: hacia dónde mira (corre de frente; parado, mira la
+  /// pelota o el aro), cómo mueve las piernas, qué hace con los brazos y cómo se siente.
+  PosturaJugador postura(String id, double t) {
+    final s = (t * duracion).clamp(0.0, duracion);
+    final pos = _en(id, s);
+    const h = 0.12;
+    final a0 = max(0.0, s - h), a1 = min(duracion, s + h);
+    final velocidad = a1 > a0 ? (_en(id, a1) - _en(id, a0)).distance / (a1 - a0) : 0.0;
+    final b0 = max(0.0, s - 0.3), b1 = min(duracion, s + 0.3);
+    final mov = b1 > b0 ? (_en(id, b1) - _en(id, b0)) / (b1 - b0) : Offset.zero;
+    final (balonPos, _, poseedor) = balon(t);
+    final esAtacante = _rutas.containsKey(id);
+    final iDef = defensores.indexWhere((j) => j.id == id);
+    // Hacia dónde mira quieto: el que tiene la pelota, al aro; el resto, a la pelota; en el
+    // corrillo, al técnico.
+    final Offset objetivo;
+    if (_pausa) {
+      objetivo = _centroCorrillo(esAtacante);
+    } else if (poseedor == id) {
+      objetivo = aro;
+    } else if (iDef >= 0 && poseedor != null && _rutas.containsKey(poseedor)) {
+      objetivo = _en(poseedor, s);
+    } else {
+      objetivo = balonPos;
+    }
+    final mira = (objetivo - pos).distance < 0.5 ? (haciaArriba ? 0.0 : pi) : rumboHacia(pos, objetivo);
+    final w = ((mov.distance - 2.0) / 3.0).clamp(0.0, 1.0);
+    var rumbo = w == 0 ? mira : mezclarAngulo(mira, rumboHacia(Offset.zero, mov), w);
+
+    Pose? pose;
+    var avance = 0.0;
+    for (final (quien, s0, s1, p) in _poses.reversed) {
+      if (quien == id && s >= s0 && s <= s1) {
+        pose = p;
+        avance = (s - s0) / (s1 - s0);
+        break;
+      }
+    }
+    final alto = salto(id, t);
+    if (pose == null) {
+      if (_pausa) {
+        pose = Pose.parado;
+      } else if (alto > 0.08) {
+        pose = esAtacante && enTiro(t) ? Pose.tira : (esAtacante ? Pose.rebotea : Pose.contesta);
+      } else if (poseedor == id) {
+        pose = Pose.dribla;
+      } else if (iDef >= 0 &&
+          poseedor != null &&
+          _rutas.containsKey(poseedor) &&
+          (_en(poseedor, s) - pos).distance < 8 &&
+          velocidad < 15) {
+        pose = Pose.defiende;
+      } else {
+        pose = velocidad > 3 ? Pose.corre : Pose.parado;
+      }
+    }
+    // Al tirar o clavar, el cuerpo mira al aro.
+    if (pose == Pose.tira || pose == Pose.bandeja || pose == Pose.clava) {
+      rumbo = mezclarAngulo(rumbo, rumboHacia(pos, aro), 0.85);
+    }
+    var giro = 0.0;
+    for (final (quien, s0, s1) in _giros) {
+      if (quien == id && s >= s0 && s <= s1) giro = 2 * pi * _suave((s - s0) / (s1 - s0));
+    }
+    final (animo, intensidad) = this.animo(id, t);
+    return PosturaJugador(
+      rumbo: rumbo,
+      velocidad: velocidad,
+      fase: _recorrido(id, s) / 4.2 * pi,
+      pose: pose,
+      avance: avance,
+      animo: animo,
+      intensidad: intensidad,
+      giro: giro,
+    );
+  }
+
+  /// Festejo, bronca o manos a la cabeza tras lo que pasó en la jugada (solo en las jugadas que
+  /// valen: canasta grande, tapón, pérdida, falta, tiro errado importante).
+  (Animo, double) animo(String id, double t) {
+    final s = t * duracion;
+    final e = evento;
+    double rampa(double desde) => ((s - desde) / 0.3).clamp(0.0, 1.0);
+    final iAt = atacantes.indexWhere((j) => j.id == id);
+    final iDef = defensores.indexWhere((j) => j.id == id);
+    final tirador = e.jugadorId;
+    final marca = tirador == null ? -1 : atacantes.indexWhere((j) => j.id == tirador);
+    switch (e.tipo) {
+      case TipoEvento.tiro:
+        if (e.taponado && _tapon >= 0) {
+          final k = rampa(_tapon + 0.1);
+          if (id == e.defensorId) return (Animo.celebra, k);
+          if (id == tirador) return (Animo.manosCabeza, k * 0.9);
+          return (Animo.neutro, 0);
+        }
+        if ((e.convertido || e.puntos > 0) && _canasta >= 0) {
+          final grande = e.volcada || e.triple || e.alleyOop || e.chicharra;
+          final k = rampa(_canasta + 0.1);
+          if (id == tirador) return (Animo.celebra, k * (grande ? 1.0 : 0.45));
+          if (!grande) return (Animo.neutro, 0);
+          if (id == e.asistenteId) return (Animo.celebra, k * 0.8);
+          if (iAt >= 0) return (Animo.celebra, k * 0.55);
+          if (iDef >= 0 && iDef == marca) return (Animo.manosCabeza, k * 0.8);
+          return (Animo.neutro, 0);
+        }
+        final fallo = _golpeAro >= 0 ? _golpeAro : _finTiro;
+        if (id == tirador && fallo >= 0 && (e.triple || e.desdeLejos || e.chicharra)) {
+          return (Animo.manosCabeza, rampa(fallo + 0.15) * 0.8);
+        }
+        return (Animo.neutro, 0);
+      case TipoEvento.perdida:
+        if (id == tirador && tirador != null) return (Animo.manosCabeza, rampa(duracion - 0.8) * 0.8);
+        return (Animo.neutro, 0);
+      case TipoEvento.falta:
+        if (id == e.defensorId && _silbato != null) return (Animo.bronca, rampa(_silbato! + 0.1) * 0.8);
+        return (Animo.neutro, 0);
+      case _:
+        return (Animo.neutro, 0);
+    }
+  }
+
+  /// Los técnicos en las pausas (tiempo muerto, fin de cuarto): uno por equipo, de pie en el centro de
+  /// su corrillo. Vacío durante el juego.
+  List<({Offset pos, PosturaJugador postura, bool atacante})> tecnicos(double t) {
+    if (!_pausa) return const [];
+    final s = t * duracion;
+    return [
+      for (final atacante in [true, false])
+        (
+          pos: _centroCorrillo(atacante) + Offset(sin(s * 0.9 + (atacante ? 0 : 2)) * 0.4, cos(s * 0.7) * 0.5),
+          postura: PosturaJugador(
+            rumbo: pi / 2 + sin(s * 0.8 + (atacante ? 0 : 1.5)) * 1.1,
+            pose: Pose.tecnico,
+          ),
+          atacante: atacante,
+        ),
+    ];
+  }
+
+  /// Plano de la cámara de transmisión en t: hacia dónde mira (x, y en pies) y cuánto se acerca. Sigue
+  /// la pelota con anticipación (a la velocidad que lleva), se abre en los contraataques y se acerca en
+  /// lo que se quiere ver de cerca: volcadas, tapones, triples de cierre y los tiempos muertos (al
+  /// banco, con los técnicos).
+  ({double x, double y, double zoom}) plano(double t) {
+    final s = t * duracion;
+    final e = evento;
+    if (e.tipo == TipoEvento.tiempoMuerto) {
+      final u = _suave((s / 1.1).clamp(0.0, 1.0));
+      return (x: 25 + (7 - 25) * u, y: 54, zoom: 1 + 0.85 * u);
+    }
+    if (_pausa) return (x: Cancha94.ancho / 2, y: Cancha94.largo / 2, zoom: 1);
+    final b = balon(t);
+    final antes = balon(max(0.0, t - 0.08 / duracion)).$1, despues = balon(min(1.0, t + 0.08 / duracion)).$1;
+    final dt = (min(1.0, t + 0.08 / duracion) - max(0.0, t - 0.08 / duracion)) * duracion;
+    var vel = dt > 0 ? (despues - antes) / dt : Offset.zero;
+    if (vel.distance > 40) vel = vel / vel.distance * 40;
+    final rapido = e.contraataque;
+    final anticipo = rapido ? 0.75 : 0.35;
+    final pos = b.$1 + vel * anticipo;
+    final dir = haciaArriba ? -1.0 : 1.0;
+    var y = pos.dy * 0.5 + (aro.dy - dir * 16) * 0.5;
+    var x = Cancha94.ancho / 2 + (pos.dx - Cancha94.ancho / 2) * 0.7;
+    // La toma abierta del contraataque: no se acerca y mira más adelante.
+    var zoom = rapido ? 1.0 : this.zoom(t);
+    double campana(double centro, double ancho) => exp(-pow((s - centro) / ancho, 2));
+    var cierre = 0.0;
+    if (e.volcada && _finTiro >= 0) cierre = max(cierre, campana(_finTiro - 0.1, 0.55));
+    if (e.taponado && _tapon >= 0) cierre = max(cierre, campana(_tapon, 0.5));
+    if (e.triple && e.convertido && (e.chicharra || e.desdeLejos) && _canasta >= 0) {
+      cierre = max(cierre, campana(_canasta, 0.8));
+    }
+    if (cierre > 0) {
+      zoom = zoom + (1.5 - zoom) * cierre;
+      y = y + (aro.dy - dir * 7 - y) * cierre * 0.8;
+      x = x + (Cancha94.ancho / 2 + (aro.dx - Cancha94.ancho / 2) - x) * cierre * 0.5;
+    }
+    return (x: x, y: y, zoom: zoom);
+  }
+
+  /// Momento (0–1) más vistoso de la jugada (el tapón o la canasta), o null si no lo hay.
+  double? get momentoClimax => _tapon >= 0 ? _tapon / duracion : (_canasta >= 0 && evento.puntos > 0 ? _canasta / duracion : null);
 }

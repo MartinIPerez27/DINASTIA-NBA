@@ -1,3 +1,4 @@
+import '../../domain/relato/contexto_temporada.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -15,6 +16,9 @@ import '../../domain/misiones.dart';
 import '../../domain/mercado.dart';
 import '../../domain/motor.dart';
 import '../temporada/clima_temporada.dart';
+import '../../domain/historias.dart';
+import '../../domain/rivalidades.dart';
+import '../widgets/titulares.dart';
 import '../temporada/copa.dart';
 import '../compartir/tarjeta_compartir.dart';
 import '../modos/reto.dart';
@@ -83,6 +87,22 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
   /// encolaban y aparecían después, en medio de otro partido).
   String? _resumen;
 
+  /// Historias nuevas tras tu último partido o jornada (hitos de la noche, rachas, lesiones…).
+  List<Historia> _tras = const [];
+
+  /// Calcula "tras el partido" entre dos estados (nunca rompe la pantalla si algo falta).
+  void _calcularTras(Temporada antes, Temporada despues) {
+    try {
+      String nombre(String id) => _identidad(id).nombre;
+      _tras = [
+        ...Historias.hitosEntre(antes, despues, _liga, nombre: nombre),
+        ...Historias.nuevas(antes, despues, _liga, nombre: nombre, mejorRachaHistorica: perfilApp.value.mejorRacha),
+      ];
+    } catch (_) {
+      _tras = const [];
+    }
+  }
+
   Liga get _liga => widget.liga;
 
   @override
@@ -137,11 +157,17 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
           franquiciaUsuario: franquiciaPorId(_t.franquiciaUsuarioId),
           identidadLocal: _identidad(p.localId),
           identidadVisitante: _identidad(p.visitanteId),
+          contexto: contextoDeTemporada(antes, p),
           onTerminado: (MotorPartido m) => _guardar(_liga.registrar(antes, p, m)),
         ),
       ),
     );
-    if (mounted) setState(() => _resumen = _avisoLesiones(antes, _t));
+    if (mounted) {
+      setState(() {
+        _resumen = _avisoLesiones(antes, _t);
+        _calcularTras(antes, _t);
+      });
+    }
   }
 
   /// "Se lesionó X: se pierde N" para los tuyos que se lesionaron entre dos estados de la temporada.
@@ -216,6 +242,7 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
         _resumen = jugados == 1 ? ultimo : 'Simulaste $jugados: $ganados-${jugados - ganados}. Último: $ultimo';
         if (_avisoLesiones(inicio, t) case final aviso?) _resumen = '$_resumen\n$aviso';
       }
+      _calcularTras(inicio, t);
     });
   }
 
@@ -252,6 +279,7 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
               const SizedBox(height: 8),
               Text(resumen, style: tema.textTheme.bodyMedium?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
             ],
+            if (_tras.isNotEmpty) ...[const SizedBox(height: 10), TrasElPartido(historias: _tras)],
             const SizedBox(height: 12),
             if (widget.cabeceraBuilder case final b?) ...[b(context, _t, _guardar), const SizedBox(height: 12)],
             if (proximo != null)
@@ -274,8 +302,12 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
                   final (v, d, partidos) = _t.historialContra(rivalId);
                   final (backToBack, gira) = _liga.desgaste(_t, proximo, _t.franquiciaUsuarioId);
                   final revancha = Rivalidades.contexto(perfilApp.value, _t, rivalId);
+                  final relato = Rivalidades.relato(perfilApp.value, _t, rivalId, _identidad(rivalId).nombre);
                   return [
-                    if (revancha != null) 'REVANCHA · $revancha',
+                    if (relato != null && relato.nivel != NivelRivalidad.fria)
+                      'REVANCHA · ${relato.nivel.etiqueta}: ${relato.frase}'
+                    else if (revancha != null)
+                      'REVANCHA · $revancha',
                     if (v + d > 0) 'Serie de la temporada: $v-$d' else 'Primer cruce de ${partidos.length}',
                     if (backToBack) 'Back-to-back',
                     if (gira >= 3) 'Gira: $gira.º seguido de visitante',
@@ -331,6 +363,8 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
             _Vista.plantel => _plantel(tema),
             _Vista.noticias => SliverList.list(
               children: [
+                HistoriasTemporada(temporada: _t, liga: _liga),
+                const SizedBox(height: 12),
                 TitularesSemana(temporada: _t, liga: _liga),
                 const SizedBox(height: 12),
                 CarreraMvp(temporada: _t, liga: _liga),

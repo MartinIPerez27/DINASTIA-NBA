@@ -329,6 +329,8 @@ class _DraftPantallaState extends State<DraftPantalla> {
       actual: j,
       mejor: mejor,
       versiones: d.versionesDe(j).length,
+      // Si la mejor del catálogo no cumple la regla del draft, se avisa que esta es la mejor que sí cumple.
+      reglaLimita: d.versionesDe(j).first.id != mejor.id && _t.regla != ReglaDraft.libre,
       precio: d.precioDe(_t, TokenDraft.mejorVersion) ?? 0,
       monedas: _monedas,
       aviso: _avisoReto,

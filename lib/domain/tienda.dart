@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'entities/jugador.dart';
 import 'entities/perfil.dart';
+import 'una_carta.dart';
 
 /// Sobres de la tienda (se pagan con monedas del juego, nunca con dinero real). Las cartas van a
 /// tu álbum; las repetidas se convierten en monedas.
@@ -40,16 +41,17 @@ class Tienda {
   (PerfilEntrenador, Apertura) abrir(PerfilEntrenador p, SobreTienda s) {
     if (!alcanza(p, s)) throw StateError('No alcanzan las monedas.');
     final cartas = <Jugador>[];
-    final personas = <int>{};
+    final personas = <String>{};
     while (cartas.length < s.cartas) {
       final rarezas = s.pesos.keys.toList();
       var dado = _azar.nextInt(s.pesos.values.fold(0, (a, b) => a + b));
       final tier = rarezas.firstWhere((t) => (dado -= s.pesos[t]!) < 0);
-      final pool = catalogo.where((j) => j.tier == tier && !personas.contains(j.nbaPlayerId)).toList();
+      // Una carta por persona en el sobre: se filtra por rareza y se queda la mejor versión de cada una.
+      final pool = unaPorPersona(catalogo.where((j) => j.tier == tier && !personas.contains(j.personaId)));
       if (pool.isEmpty) continue;
       final carta = pool[_azar.nextInt(pool.length)];
       cartas.add(carta);
-      if (carta.nbaPlayerId > 0) personas.add(carta.nbaPlayerId);
+      personas.add(carta.personaId);
     }
     final repetidas = {
       for (final c in cartas)

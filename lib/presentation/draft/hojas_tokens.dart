@@ -135,6 +135,7 @@ Future<bool> confirmarMejorVersion(
   required Jugador actual,
   required Jugador mejor,
   required int versiones,
+  bool reglaLimita = false,
   required int precio,
   required int monedas,
   String? aviso,
@@ -166,8 +167,11 @@ Future<bool> confirmarMejorVersion(
         (c) => _HojaPago(
           titulo: 'Mejor versión de ${actual.nombre}',
           detalle:
-              'Es la carta de mayor media de las $versiones que tiene en el catálogo: '
-              '${mejor.equipo} ${mejor.tramo}, media ${mejor.media} (+${mejor.media - actual.media}).',
+              reglaLimita
+              ? 'Su mejor carta no entra con la regla de este draft: te damos la mejor que sí entra, de las '
+                    '$versiones que tiene. ${mejor.equipo} ${mejor.tramo}, media ${mejor.media} (+${mejor.media - actual.media}).'
+              : 'Es la carta de mayor media de las $versiones que tiene en el catálogo: '
+                    '${mejor.equipo} ${mejor.tramo}, media ${mejor.media} (+${mejor.media - actual.media}).',
           precio: precio,
           monedas: monedas,
           aviso: aviso,
@@ -258,7 +262,7 @@ class _HojaIntercambioState extends State<_HojaIntercambio> {
         Text('ENTRA DE ESTA TIRADA', style: tema.textTheme.labelMedium?.copyWith(color: esquema.onSurfaceVariant)),
         const SizedBox(height: 6),
         SizedBox(
-          height: 150,
+          height: 166,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: entran.length,
@@ -279,6 +283,12 @@ class _HojaIntercambioState extends State<_HojaIntercambio> {
                         children: [
                           Expanded(
                             child: CartaVertical(jugador: j, seleccionada: j == entra),
+                          ),
+                          Text(
+                            j.tramoConEquipo,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: tema.textTheme.labelSmall,
                           ),
                           Text(
                             delta == 0 ? '=' : (delta > 0 ? '+$delta' : '$delta'),

@@ -19,6 +19,9 @@ import 'package:flutter/foundation.dart';
 /// sonido.abucheo();                // el público local abuchea al visitante
 /// sonido.canto();                  // "DE-FEN-SA" (como mucho uno cada 8 s)
 /// sonido.golpe();                  // volcada: aro y tablero
+/// sonido.aplauso();                // aplauso (tiempo muerto, cambio, cierre de cuarto)
+/// sonido.atmosfera(excitacion: .4, tension: 1); // murmullo que sube y suspenso del final apretado
+/// sonido.tiroLibre(true);          // silencio del público mientras se tira un libre
 /// sonido.pausar(); sonido.reanudar();
 /// sonido.silencio = true;          // botón de silencio
 /// await sonido.liberar();          // en dispose()
@@ -33,6 +36,8 @@ class SonidoPartido {
 
   final _pools = <String, AudioPool>{};
   AudioPlayer? _publico;
+  AudioPlayer? _suspenso;
+  var _excitacion = 0.0, _tension = 0.0, _silencioLibre = false;
   var _silencio = false;
   var _pausado = false;
   var _listo = false;
@@ -70,6 +75,7 @@ class SonidoPartido {
         ('abucheo', 1),
         ('defensa', 1),
         ('golpe', 2),
+        ('aplauso', 1),
       ]) {
         _pools[nombre] = await AudioPool.create(source: AssetSource('sonidos/$nombre.ogg'), maxPlayers: maximo);
       }
@@ -79,6 +85,43 @@ class SonidoPartido {
       await publico.setVolume(_volumenPublico);
       await publico.setSource(AssetSource('sonidos/publico.ogg'));
       if (!_silencio && !_pausado) await publico.resume();
+      final suspenso = AudioPlayer();
+      _suspenso = suspenso;
+      await suspenso.setReleaseMode(ReleaseMode.loop);
+      await suspenso.setVolume(0);
+      await suspenso.setSource(AssetSource('sonidos/tension.ogg'));
+    });
+  }
+
+  /// Murmullo que sube con la tensión y la excitación (0–1) y capa de suspenso en el final apretado.
+  void atmosfera({double excitacion = 0, double tension = 0}) {
+    _excitacion = excitacion.clamp(0.0, 1.0);
+    _tension = tension.clamp(0.0, 1.0);
+    _aplicarVolumen();
+  }
+
+  /// En un tiro libre el público se calla (el murmullo baja casi a cero) hasta que cae la pelota.
+  void tiroLibre(bool activo) {
+    _silencioLibre = activo;
+    _aplicarVolumen();
+  }
+
+  void aplauso() => _efecto('aplauso', 0.8);
+
+  void _aplicarVolumen() {
+    if (!habilitado || !_listo) return;
+    final murmullo = _silencioLibre ? 0.06 : _volumenPublico * (0.7 + 0.8 * _excitacion + 0.3 * _tension);
+    _seguro(() async {
+      await _publico?.setVolume(murmullo.clamp(0.0, 1.0));
+      final suspenso = _suspenso;
+      if (suspenso == null) return;
+      final v = _silencio || _pausado ? 0.0 : _tension * (_silencioLibre ? 0.5 : 0.35);
+      await suspenso.setVolume(v);
+      if (v > 0 && suspenso.state != PlayerState.playing) {
+        await suspenso.resume();
+      } else if (v == 0 && suspenso.state == PlayerState.playing) {
+        await suspenso.pause();
+      }
     });
   }
 
@@ -114,23 +157,29 @@ class SonidoPartido {
 
   void pausar() {
     _pausado = true;
-    _seguro(() async => _publico?.pause());
+    _seguro(() async {
+      await _publico?.pause();
+      await _suspenso?.pause();
+    });
   }
 
   void reanudar() {
     _pausado = false;
     if (!_silencio) _seguro(() async => _publico?.resume());
+    _aplicarVolumen();
   }
 
   Future<void> liberar() async {
     if (!habilitado) return;
     await _seguro(() async {
       await _publico?.dispose();
+      await _suspenso?.dispose();
       for (final p in _pools.values) {
         await p.dispose();
       }
     });
     _publico = null;
+    _suspenso = null;
     _pools.clear();
     _listo = false;
   }

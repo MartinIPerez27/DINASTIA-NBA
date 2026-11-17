@@ -8,6 +8,7 @@ import 'entities/posicion.dart';
 import 'entities/temporada.dart';
 import 'entities/tirada.dart';
 import 'tokens_draft.dart';
+import 'una_carta.dart';
 import 'version_catalogo.dart';
 
 /// Reglas del draft 82-0 (GDD §4) sobre una [Temporada]. Cada operación devuelve una temporada
@@ -103,24 +104,43 @@ class Draft {
   Iterable<Jugador> _disponibles(Temporada t) =>
       catalogo.where((j) => permitida(t, j) && t.plantel.posicionesDisponiblesPara(j).isNotEmpty);
 
-  /// Cartas que salieron: todo el plantel de esa franquicia y época que todavía entra.
+  /// Una carta por persona de lo que cumple la regla del draft y entra en un puesto libre, y por cada
+  /// franquicia+época (ver `una_carta.dart`). Es la base de las tiradas: [candidatos] y [_combinaciones]
+  /// salen de acá, así el Tier de la tirada siempre es el de una carta que de verdad se muestra.
+  List<Jugador> _visibles(Temporada t) =>
+      unaPorPersonaYGrupo(_disponibles(t), (j) => (j.franquiciaId, j.epoca));
+
+  /// Cartas que salieron: el plantel de esa franquicia y época que todavía entra, **una sola carta por
+  /// persona** (la de mayor media de ese tramo de franquicia+época; desempate, la más reciente).
   /// Primero las del Tier del carrete de rareza (garantizado), después por PPP.
+  ///
+  /// Con "Mejor versión" ([Temporada.tokens] `sustituidas`) la carta de esa persona se cambia por la
+  /// elegida, que puede ser de otra franquicia o tramo.
   List<Jugador> candidatos(Temporada t) {
     final tirada = t.tirada;
     if (tirada == null) return const [];
+    final sustitutas = <String, Jugador>{};
+    for (final e in t.tokens.sustituidas.entries) {
+      final antes = _porId[e.key], ahora = _porId[e.value];
+      if (antes != null && ahora != null) sustitutas[antes.personaId] = ahora;
+    }
     return [
-      for (final j in _disponibles(t))
-        if (tirada.incluye(j)) _porId[t.tokens.sustituidas[j.id]] ?? j,
+      for (final j in unaPorPersona(
+        catalogo.where((j) => tirada.incluye(j) && permitida(t, j) && t.plantel.posicionesDisponiblesPara(j).isNotEmpty),
+      ))
+        sustitutas[j.personaId] ?? j,
     ]..sort((a, b) {
       final garantizada = (b.tier == tirada.tier ? 1 : 0) - (a.tier == tirada.tier ? 1 : 0);
       if (garantizada != 0) return garantizada;
       final tier = b.tier.index - a.tier.index;
-      return tier != 0 ? tier : b.stats.ppp.compareTo(a.stats.ppp);
+      if (tier != 0) return tier;
+      final ppp = b.stats.ppp.compareTo(a.stats.ppp);
+      return ppp != 0 ? ppp : a.id.compareTo(b.id);
     });
   }
 
   List<Tirada> _combinaciones(Temporada t, Tirada? anterior, Set<Carrete> retenidos) => {
-    for (final j in _disponibles(t))
+    for (final j in _visibles(t))
       if (anterior == null || retenidos.every((c) => c.coincide(j, anterior))) Tirada.de(j),
   }.toList();
 
@@ -269,22 +289,21 @@ class Draft {
 
   /// Todas las cartas de la misma persona, de la de más media a la de menos.
   List<Jugador> versionesDe(Jugador j) =>
-      j.nbaPlayerId <= 0 ? [j] : ([for (final c in catalogo) if (c.nbaPlayerId == j.nbaPlayerId) c]..sort((a, b) => b.media.compareTo(a.media)));
+      [for (final c in catalogo) if (c.personaId == j.personaId) c]..sort((a, b) => a.id == b.id ? 0 : (esMejorVersion(a, b) ? -1 : 1));
 
-  /// La mejor versión disponible de la persona de [j] (mayor media, de cualquier franquicia o
-  /// tramo) que la regla del draft deja pasar y entra en el plantel; null si [j] ya es la mejor o
-  /// la mejor ya salió en esta tirada.
+  /// La mejor versión disponible de la persona de [j]: la de mayor media de TODO el catálogo (cualquier
+  /// franquicia o tramo) que **cumple la regla del draft vigente** (Una sola década, Franquicia pura,
+  /// Underdog, Mi colección…) y entra en un puesto libre. Si la mejor del catálogo viola la regla, se usa
+  /// la mejor que sí cumple. Null si [j] ya es esa o no hay una de más media. Como es la misma persona,
+  /// nunca duplica a nadie en la tirada.
   Jugador? mejorVersionDe(Temporada t, Jugador j) {
-    if (j.nbaPlayerId <= 0) return null;
     final pool = t.modo == ModoDraft.cartas
         ? (t.oferta == null ? const <Jugador>[] : _elegibles(t, t.oferta!.posicion))
         : _disponibles(t).toList();
     Jugador? mejor;
     for (final c in pool) {
-      if (c.nbaPlayerId != j.nbaPlayerId || c.id == j.id) continue;
-      final yaSalio = t.modo == ModoDraft.cartas ? (t.oferta?.cartaIds.contains(c.id) ?? false) : (t.tirada?.incluye(c) ?? false);
-      if (yaSalio) continue;
-      if (mejor == null || c.media > mejor.media) mejor = c;
+      if (c.personaId != j.personaId || c.id == j.id) continue;
+      if (mejor == null || esMejorVersion(c, mejor)) mejor = c;
     }
     return mejor != null && mejor.media > j.media ? mejor : null;
   }
@@ -324,7 +343,7 @@ class Draft {
     final c = candidatos(t);
     for (final a in c) {
       for (final b in c) {
-        if (a.nbaPlayerId == b.nbaPlayerId) continue;
+        if (a.personaId == b.personaId) continue;
         for (final pa in t.plantel.posicionesDisponiblesPara(a)) {
           if (t.plantel.posicionesDisponiblesPara(b).any((pb) => pb != pa)) return true;
         }
@@ -349,10 +368,10 @@ class Draft {
     return [
       for (final p in Posicion.values)
         if (t.plantel.en(p) case final sale?)
-          if ([
+          if (unaPorPersona([
             for (final c in catalogo)
-              if (tirada.incluye(c) && c.id != sale.id && _puedeEntrarEn(t, c, p)) c,
-          ]..sort((a, b) => b.media.compareTo(a.media))
+              if (tirada.incluye(c) && c.personaId != sale.personaId && _puedeEntrarEn(t, c, p)) c,
+          ])..sort((a, b) => b.media.compareTo(a.media))
               case final entran when entran.isNotEmpty)
             (p, sale, entran),
     ];
@@ -370,7 +389,10 @@ class Draft {
     if (tirada == null || sale == null || t.tokens.picksExtra > 0 || !tirada.incluye(entra)) {
       throw const ReglaPlantelException('El intercambio pide una carta de esta tirada y un puesto ya ocupado.');
     }
-    if (!_puedeEntrarEn(t, entra, p) || entra.id == sale.id) {
+    // Solo entra la carta que la tirada muestra para esa persona (una por persona) y nunca otra versión de
+    // quien sale.
+    final muestra = opcionesIntercambio(t).any((o) => o.$1 == p && o.$3.any((c) => c.id == entra.id));
+    if (!muestra || !_puedeEntrarEn(t, entra, p) || entra.id == sale.id) {
       throw ReglaPlantelException('${entra.nombre} no puede reemplazar a ${sale.nombre} como ${p.etiqueta}.');
     }
     final pagada = _pagar(t, TokenDraft.intercambio, monedas, sale: sale, entra: entra);
@@ -381,16 +403,16 @@ class Draft {
   /// Franquicias y épocas que hoy podrían salir (para elegir con el Comodín).
   Set<String> franquiciasPosibles(Temporada t) {
     if (t.modo == ModoDraft.cartas) {
-      final pool = _elegiblesOferta(t);
-      return {for (final j in pool) if (pool.where((x) => x.franquiciaId == j.franquiciaId).length >= cartasPorReparto) j.franquiciaId};
+      final personas = _personasPor(_elegiblesOferta(t), (j) => j.franquiciaId);
+      return {for (final e in personas.entries) if (e.value.length >= cartasPorReparto) e.key};
     }
     return {for (final j in _disponibles(t)) j.franquiciaId};
   }
 
   Set<Epoca> epocasPosibles(Temporada t) {
     if (t.modo == ModoDraft.cartas) {
-      final pool = _elegiblesOferta(t);
-      return {for (final j in pool) if (pool.where((x) => x.epoca == j.epoca).length >= cartasPorReparto) j.epoca};
+      final personas = _personasPor(_elegiblesOferta(t), (j) => j.epoca);
+      return {for (final e in personas.entries) if (e.value.length >= cartasPorReparto) e.key};
     }
     return {for (final j in _disponibles(t)) j.epoca};
   }
@@ -405,7 +427,7 @@ class Draft {
     }
     if (!_aplicable(t, TokenDraft.comodin)) throw StateError('No se puede usar el Comodín ahora.');
     final combinaciones = {
-      for (final j in _disponibles(t))
+      for (final j in _visibles(t))
         if ((franquiciaId == null || j.franquiciaId == franquiciaId) && (epoca == null || j.epoca == epoca))
           Tirada.de(j),
     }.toList();
@@ -425,7 +447,7 @@ class Draft {
       throw StateError('El Comodín se usa con los sobres cerrados sobre la mesa.');
     }
     final sobre = franquiciaId != null ? Sobre(TipoSobre.franquicia, franquiciaId: franquiciaId) : Sobre(TipoSobre.epoca, epoca: epoca);
-    if (_elegibles(t, oferta.posicion).where(sobre.incluye).length < cartasPorReparto) {
+    if (_personasDistintas(_elegibles(t, oferta.posicion).where(sobre.incluye)) < cartasPorReparto) {
       throw StateError('Ese sobre no tiene cartas suficientes para este puesto.');
     }
     final pagada = _pagar(t, TokenDraft.comodin, monedas);
@@ -459,13 +481,16 @@ class Draft {
     if (oferta == null || !oferta.sinAbrir) throw StateError('No hay sobres para abrir.');
     final sobre = oferta.sobres[indice];
     _sembrar(t, 300 + oferta.posicion.index * 10 + indice);
-    var pool = _elegibles(t, oferta.posicion).where(sobre.incluye).toList();
-    if (pool.length < cartasPorReparto) pool = _elegibles(t, oferta.posicion);
+    // Filtro del sobre (época, franquicia, regla, puesto libre) y después UNA carta por persona: la de
+    // mayor media de lo que pasó el filtro. Un sobre no repite persona ni con otra versión.
+    var pool = unaPorPersona(_elegibles(t, oferta.posicion).where(sobre.incluye));
+    if (pool.length < cartasPorReparto) pool = unaPorPersona(_elegibles(t, oferta.posicion));
     final serpiente = t.regla == ReglaDraft.serpiente && t.plantel.jugadores.length.isOdd;
     final cantidad = cartasPorReparto + (serpiente ? 2 : 0);
     final cartas = _repartirDe(pool, cantidad - 1, misterioso: sobre.tipo == TipoSobre.misterioso);
     // La sorpresa: una carta más, con más chances de ser grande.
-    final resto = pool.where((j) => !cartas.any((c) => c.nbaPlayerId == j.nbaPlayerId)).toList();
+    final sacadas = {for (final c in cartas) c.personaId};
+    final resto = pool.where((j) => !sacadas.contains(j.personaId)).toList();
     final sorpresa = resto.isEmpty ? null : _sortearCon(resto, pesosSorpresa);
     final todas = [...cartas, ?sorpresa]..shuffle(_paso);
     var robos = t.robos;
@@ -523,24 +548,46 @@ class Draft {
     return t.copyWith(plantel: t.plantel.asignar(j, oferta.posicion)).conOferta(null);
   }
 
-  List<Jugador> _elegibles(Temporada t, Posicion pos) => [
-    for (final j in catalogo)
-      if (permitida(t, j) && t.plantel.posicionesDisponiblesPara(j).contains(pos)) j,
-  ];
+  /// Cartas que cumplen la regla y entran en [pos] (todas las versiones: agrupar por persona es cosa del
+  /// que reparte, después de filtrar). En el draft en serpiente las personas que ya se llevó un rival
+  /// no vuelven a salir.
+  List<Jugador> _elegibles(Temporada t, Posicion pos) {
+    final robadas = t.robos.isEmpty
+        ? const <String>{}
+        : {for (final ids in t.robos.values) for (final id in ids) ?_porId[id]?.personaId};
+    return [
+      for (final j in catalogo)
+        if (permitida(t, j) && !robadas.contains(j.personaId) && t.plantel.posicionesDisponiblesPara(j).contains(pos))
+          j,
+    ];
+  }
+
+  /// Personas distintas de [cartas] por clave (franquicia, época…): lo que cuenta para que un sobre tenga
+  /// al menos [cartasPorReparto] cartas.
+  Map<K, Set<String>> _personasPor<K>(Iterable<Jugador> cartas, K Function(Jugador) clave) {
+    final m = <K, Set<String>>{};
+    for (final j in cartas) {
+      (m[clave(j)] ??= {}).add(j.personaId);
+    }
+    return m;
+  }
+
+  int _personasDistintas(Iterable<Jugador> cartas) => {for (final j in cartas) j.personaId}.length;
 
   /// 3 sobres distintos con al menos 5 cartas cada uno: de una época, de una franquicia y misterioso.
   List<Sobre> _sobres(Temporada t, Posicion pos) {
     final pool = _elegibles(t, pos);
-    List<T> conCartas<T>(Iterable<T> claves, bool Function(Jugador, T) incluye) {
+    // Un sobre cuenta PERSONAS (no cartas): tiene que poder traer 5 jugadores distintos.
+    List<T> conCartas<T>(Map<T, Set<String>> personas) {
       final ok = [
-        for (final c in claves)
-          if (pool.where((j) => incluye(j, c)).length >= cartasPorReparto) c,
+        for (final e in personas.entries)
+          if (e.value.length >= cartasPorReparto) e.key,
       ]..shuffle(_paso);
       return ok;
     }
 
-    final epocas = conCartas({for (final j in pool) j.epoca}, (j, e) => j.epoca == e);
-    final franquicias = conCartas({for (final j in pool) j.franquiciaId}, (j, f) => j.franquiciaId == f);
+    final epocas = conCartas(_personasPor(pool, (j) => j.epoca));
+    final franquicias = conCartas(_personasPor(pool, (j) => j.franquiciaId));
     final sobres = <Sobre>[
       if (epocas.isNotEmpty) Sobre(TipoSobre.epoca, epoca: epocas.first),
       if (franquicias.isNotEmpty) Sobre(TipoSobre.franquicia, franquiciaId: franquicias.first),
@@ -558,8 +605,8 @@ class Draft {
     return sobres;
   }
 
-  /// Reparte [cantidad] cartas del pool: primero se sortea la rareza (pesos de 82-0), después una
-  /// carta de esa rareza. Nunca dos cartas de la misma persona.
+  /// Reparte [cantidad] cartas del pool (que ya trae una sola carta por persona): primero se sortea la
+  /// rareza (pesos de 82-0), después una carta de esa rareza. Nunca dos cartas de la misma persona.
   List<Jugador> _repartirDe(List<Jugador> todas, int cantidad, {bool misterioso = false}) {
     var pool = todas;
     final elegidas = <Jugador>[];
@@ -570,7 +617,7 @@ class Draft {
         misterioso ? const {Tier.b: 8, Tier.a: 6, Tier.s: 4, Tier.sPlus: 2} : pesosRareza,
       );
       elegidas.add(carta);
-      pool = pool.where((j) => j.nbaPlayerId != carta.nbaPlayerId).toList();
+      pool = pool.where((j) => j.personaId != carta.personaId).toList();
     }
     return elegidas;
   }

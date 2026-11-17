@@ -104,19 +104,27 @@ void main() {
     expect(automaticos, 0);
   });
 
-  test('relator: una frase para cada jugada, con más emoción en volcadas y triples', () {
+  test('relato: Relator y Comentarista, con más intensidad en volcadas y triples que en un fallo', () {
     final m = liga.motor(temporada, partido, azar: Random(9));
+    final relato = Relato(azar: Random(1));
     final relator = Relator(azar: Random(1));
     final jugadores = <String, Jugador>{
       for (final local in [true, false])
-        for (final j in [...m.enCancha(local), ?m.enBanco(local)]) j.id: j,
+        for (final j in [...m.enCancha(local), ?m.enBanco(local), ...m.reservas(local)]) j.id: j,
     };
+    final ctx = ContextoRelato(jugadores: jugadores, nombreLocal: 'Local', nombreVisitante: 'Visitante');
+    final grandes = <int>[], fallos = <int>[];
     while (!m.terminado) {
       final e = m.siguiente();
-      final f = relator.frase(e, jugadores);
-      expect(f.trim(), isNotEmpty);
-      if (e.tipo == TipoEvento.tiro && (e.volcada || (e.triple && e.convertido))) expect(f, contains('!'));
+      expect(relator.frase(e, jugadores).trim(), isNotEmpty);
+      final lineas = relato.linea(e, ctx, siempre: true);
+      expect(lineas, isNotEmpty);
+      final i = lineas.first.intensidad;
+      if (e.tipo == TipoEvento.tiro && (e.volcada || (e.triple && e.convertido))) grandes.add(i);
+      if (e.tipo == TipoEvento.tiro && !e.convertido) fallos.add(i);
     }
+    double media(List<int> x) => x.reduce((a, b) => a + b) / x.length;
+    expect(media(grandes), greaterThan(media(fallos)));
   });
 
   testWidgets('en el final apretado aparece la jugada clave y el partido sigue al elegir', (t) async {
@@ -159,7 +167,7 @@ void main() {
     final m = liga.motor(temporada, partido, azar: Random(4))..simularTodo();
     final jugadores = <String, Jugador>{
       for (final local in [true, false])
-        for (final j in [...m.enCancha(local), ?m.enBanco(local)]) j.id: j,
+        for (final id in (local ? m.boxLocal : m.boxVisitante).keys) id: liga.jugador(id)!,
     };
     await t.pumpWidget(
       MaterialApp(

@@ -218,6 +218,11 @@ class Jugador {
   /// Id de Basketball-Reference (prefijo del id de carta).
   String get idBbref => id.split('-').first;
 
+  /// Identidad de la PERSONA (todas sus cartas comparten esta clave): el id oficial de la NBA si lo hay
+  /// (en el catálogo los ids negativos de quienes no cruzan también son únicos por persona); sin id, el de
+  /// Basketball-Reference. Es la clave de "una sola carta por persona por tirada" (ver `una_carta.dart`).
+  String get personaId => nbaPlayerId != 0 ? '$nbaPlayerId' : idBbref;
+
   /// URLs de foto directas (CDN de la NBA y `w:`). La fuente `b` (Basketball-Reference `/req/`, excluida por su
   /// robots.txt) ya no se usa: las demás fotos las resuelve `GestorFotos` (Wikipedia/Commons).
   List<String> get urlsFoto => [

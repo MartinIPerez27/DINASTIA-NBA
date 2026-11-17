@@ -146,10 +146,35 @@ class Rivalidad {
     this.temporadaId,
     this.temporadaNumero,
     this.revanchas = 0,
+    this.victorias = 0,
+    this.cerradas = 0,
+    this.picantes = 0,
+    this.calor = 0,
+    this.calorTemporadaId,
+    this.juegosEliminacion,
   });
 
   final String franquiciaId;
   final int eliminaciones;
+
+  // ── Mala sangre (rivalidades v2, ver `Rivalidades` en misiones.dart) ──
+  /// Partidos que le ganaste (temporada regular y playoffs).
+  final int victorias;
+
+  /// Series que se fueron a 6 o 7 juegos.
+  final int cerradas;
+
+  /// Partidos picantes (prórroga, definidos por ≤ 3 puntos, técnicas o expulsiones).
+  final int picantes;
+
+  /// Tensión acumulada 0–100; se enfría de a poco entre temporadas.
+  final int calor;
+
+  /// Temporada (id de partida) en la que se actualizó [calor] por última vez (para el enfriamiento).
+  final String? calorTemporadaId;
+
+  /// Cuántos juegos duró la serie en la que te eliminó (4 a 7).
+  final int? juegosEliminacion;
 
   /// Partidos que te ganó (temporada regular y playoffs).
   final int derrotas;
@@ -172,7 +197,19 @@ class Rivalidad {
     String? temporadaId,
     int? temporadaNumero,
     int? revanchas,
+    int? victorias,
+    int? cerradas,
+    int? picantes,
+    int? calor,
+    String? calorTemporadaId,
+    int? juegosEliminacion,
   }) => Rivalidad(
+    victorias: victorias ?? this.victorias,
+    cerradas: cerradas ?? this.cerradas,
+    picantes: picantes ?? this.picantes,
+    calor: calor ?? this.calor,
+    calorTemporadaId: calorTemporadaId ?? this.calorTemporadaId,
+    juegosEliminacion: juegosEliminacion ?? this.juegosEliminacion,
     franquiciaId: franquiciaId,
     eliminaciones: eliminaciones ?? this.eliminaciones,
     derrotas: derrotas ?? this.derrotas,
@@ -190,6 +227,12 @@ class Rivalidad {
     temporadaId: j['t'] as String?,
     temporadaNumero: j['n'] as int?,
     revanchas: j['rev'] as int? ?? 0,
+    victorias: j['w'] as int? ?? 0,
+    cerradas: j['c'] as int? ?? 0,
+    picantes: j['p'] as int? ?? 0,
+    calor: j['k'] as int? ?? 0,
+    calorTemporadaId: j['kt'] as String?,
+    juegosEliminacion: j['je'] as int?,
   );
 
   Map<String, dynamic> toJson() => {
@@ -200,6 +243,12 @@ class Rivalidad {
     if (temporadaId != null) 't': temporadaId,
     if (temporadaNumero != null) 'n': temporadaNumero,
     if (revanchas > 0) 'rev': revanchas,
+    if (victorias > 0) 'w': victorias,
+    if (cerradas > 0) 'c': cerradas,
+    if (picantes > 0) 'p': picantes,
+    if (calor > 0) 'k': calor,
+    if (calorTemporadaId != null) 'kt': calorTemporadaId,
+    if (juegosEliminacion != null) 'je': juegosEliminacion,
   };
 }
 

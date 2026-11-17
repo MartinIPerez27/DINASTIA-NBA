@@ -3,6 +3,7 @@ import 'dart:math';
 import 'entities/metajuego.dart';
 import 'entities/perfil.dart';
 import 'entities/temporada.dart';
+import 'rivalidades.dart';
 
 /// Misiones diarias y semanales: salen de la fecha (las mismas para todos, sin conexión) y avanzan
 /// con lo que pasa en tus partidas.
@@ -254,9 +255,17 @@ class Rivalidades {
         if (x.jugado) x.id,
     };
     for (final x in despues.calendario) {
-      if (!x.jugado || jugadosAntes.contains(x.id) || !x.participa(usuario) || x.ganadorId == usuario) continue;
-      final r = de(x.ganadorId!);
-      rivalidades[r.franquiciaId] = r.copyWith(derrotas: r.derrotas + 1);
+      if (!x.jugado || jugadosAntes.contains(x.id) || !x.participa(usuario)) continue;
+      final gane = x.ganadorId == usuario;
+      final otroId = x.localId == usuario ? x.visitanteId : x.localId;
+      final picante = MalaSangre.esPicante(x);
+      // Los partidos ganados solo cuentan si ya hay historia con ese rival o fue picante.
+      if (gane && !picante && !rivalidades.containsKey(otroId)) continue;
+      var r = de(otroId);
+      r = gane ? r.copyWith(victorias: r.victorias + 1) : r.copyWith(derrotas: r.derrotas + 1);
+      r = MalaSangre.sumar(r, (gane ? 0 : MalaSangre.derrotaRegular) + (picante ? MalaSangre.picante : 0), despues.id);
+      if (picante) r = r.copyWith(picantes: r.picantes + 1);
+      if (r.calor > 0 || r.derrotas > 0 || r.eliminaciones > 0) rivalidades[otroId] = r;
     }
     for (final s in despues.series) {
       if (s.altoId != usuario && s.bajoId != usuario) continue;
@@ -267,20 +276,41 @@ class Rivalidades {
           ? 0
           : (s.altoId == usuario ? previa.first.victoriasBajo : previa.first.victoriasAlto);
       var r = de(rivalId);
-      if (derrotasRival > derrotasAntes) r = r.copyWith(derrotas: r.derrotas + derrotasRival - derrotasAntes);
+      final victoriasRival = s.altoId == usuario ? s.victoriasAlto : s.victoriasBajo;
+      final victoriasAntes = previa.isEmpty
+          ? 0
+          : (s.altoId == usuario ? previa.first.victoriasAlto : previa.first.victoriasBajo);
+      if (derrotasRival > derrotasAntes) {
+        final n = derrotasRival - derrotasAntes;
+        r = r.copyWith(derrotas: r.derrotas + n);
+        r = MalaSangre.sumar(r, n * MalaSangre.derrotaPlayoff, despues.id);
+      }
+      if (victoriasRival > victoriasAntes) {
+        final n = victoriasRival - victoriasAntes;
+        r = r.copyWith(victorias: r.victorias + n);
+        r = MalaSangre.sumar(r, n * MalaSangre.victoriaPlayoff, despues.id);
+      }
       final recienTerminada = s.terminada && (previa.isEmpty || !previa.first.terminada);
+      final juegos = s.victoriasAlto + s.victoriasBajo;
+      if (recienTerminada && !s.ronda.esPlayIn && juegos >= 6) r = r.copyWith(cerradas: r.cerradas + 1);
       if (recienTerminada && s.ganadorId != usuario) {
         r = r.copyWith(
           eliminaciones: r.eliminaciones + 1,
           ronda: s.ronda.name,
           temporadaId: despues.id,
           temporadaNumero: numero,
+          juegosEliminacion: s.ronda.esPlayIn ? null : juegos,
         );
-      } else if (recienTerminada && r.eliminaciones > r.revanchas && r.temporadaId != despues.id) {
-        r = r.copyWith(revanchas: r.revanchas + 1);
-        cumplidas.add(rivalId);
+        r = MalaSangre.sumar(r, MalaSangre.eliminacion + (juegos >= 7 ? MalaSangre.eliminacionEnSiete : 0), despues.id);
+      } else if (recienTerminada) {
+        r = MalaSangre.sumar(r, MalaSangre.serieGanada + (juegos >= 7 ? MalaSangre.serieGanadaEnSiete : 0), despues.id);
+        if (r.eliminaciones > r.revanchas && r.temporadaId != despues.id) {
+          r = r.copyWith(revanchas: r.revanchas + 1);
+          r = MalaSangre.sumar(r, -MalaSangre.revanchaCumplida, despues.id);
+          cumplidas.add(rivalId);
+        }
       }
-      if (r.eliminaciones > 0 || r.derrotas > 0) rivalidades[rivalId] = r;
+      if (r.eliminaciones > 0 || r.derrotas > 0 || r.calor > 0) rivalidades[rivalId] = r;
     }
     return (m.copyWith(rivalidades: rivalidades), cumplidas);
   }
@@ -293,6 +323,11 @@ class Rivalidades {
     RondaPlayoff.finalesNba => 'Las Finales',
     _ => 'los playoffs',
   };
+
+  /// Relato de la rivalidad (mala sangre, series cerradas, picantes) con [rivalId]: ver `MalaSangre.relato`.
+  /// [nombre] va sin artículo ("Knicks"). Null si no hay historia con esa franquicia.
+  static RelatoRivalidad? relato(PerfilEntrenador p, Temporada t, String rivalId, String nombre, {int? numeroActual}) =>
+      MalaSangre.relato(p.metajuego.rivalidades, t, rivalId, nombre, numeroActual: numeroActual ?? p.historial.length + 1);
 
   /// "Te eliminaron en las Finales de Conferencia de tu temporada 3", o null si no hay cuenta
   /// pendiente con esa franquicia (o si fue en esta misma partida).

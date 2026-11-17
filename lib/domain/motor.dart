@@ -8,6 +8,8 @@ import 'entities/tactica.dart';
 import 'playbook.dart';
 import 'quimica.dart';
 import 'modificadores.dart';
+import 'motor_modelo.dart';
+import 'efecto_en_vivo.dart';
 
 /// Línea de box score (por partido o acumulada en la temporada).
 class LineaEstadistica {
@@ -74,6 +76,7 @@ class EquipoPartido {
     this.energiaInicial = 100,
     this.reserva = const [],
     this.modificadores = ModificadoresEquipo.neutros,
+    this.ventajaMedia = 0,
   });
 
   final String identidadId;
@@ -92,6 +95,10 @@ class EquipoPartido {
 
   /// Retoques del modo (insignias del Camino al anillo); neutros en un partido clásico.
   final ModificadoresEquipo modificadores;
+
+  /// Puntos de media que este equipo rinde por encima de sus cartas (Leyenda: los rivales). Se suman al
+  /// acierto de sus tiros y se restan al de los rivales, en línea recta (sin rendimientos decrecientes).
+  final double ventajaMedia;
 }
 
 enum TipoEvento { tiro, libres, perdida, falta, salto, cambio, tiempoMuerto, finCuarto, finPartido }
@@ -233,7 +240,11 @@ class EventoPartido {
   final String? participanteId;
 }
 
-/// Efectos de cada sistema sobre el juego (multiplicadores; 1 = neutro).
+/// Efectos de cada sistema sobre el juego (multiplicadores; 1 = neutro, salvo los "extra" y [marca]).
+///
+/// Cada sistema tiene un costo y un beneficio medibles (ver `test/motor_v2_test.dart`): ninguno es
+/// gratis. El sistema fija el ESTILO (cuánto se tira de tres, cuánto se corre, cuánto se pierde) y el
+/// plantel decide cuánto rinde ese estilo (un 5-Out sin tiradores tira muchos triples malos).
 class _Efectos {
   const _Efectos({
     this.triples = 1,
@@ -246,37 +257,124 @@ class _Efectos {
     this.fatiga = 1,
     this.tripleRival = 1,
     this.interiorRival = 1,
+    this.faltas = 1,
+    this.reboteOf = 1,
+    this.tripleExtra = 0,
+    this.dosExtra = 0,
+    this.marca = 0.6,
+    this.tapones = 1,
+    this.reboteDef = 1,
   });
 
+  /// Ataque: volumen de triples, peso de los grandes en el reparto de tiros (y de las faltas que
+  /// reciben), pérdidas, asistencias, tiros de la estrella, contraataque y cansancio propios.
+  /// Defensa: pérdidas que fuerza ([robos]) y cansancio propio ([fatiga]).
   final double triples, interior, perdidas, robos, asistencias, estrella, contraataque, fatiga;
 
   /// Defensa: cómo cambia el acierto del rival en triples y cerca del aro.
   final double tripleRival, interiorRival;
+
+  /// Ataque: faltas que recibe (libres). Defensa: faltas que comete.
+  final double faltas;
+
+  /// Ataque: rebote ofensivo propio. Defensa ([reboteDef]): rebote defensivo propio.
+  final double reboteOf, reboteDef;
+
+  /// Ataque: + al acierto en triples / dobles (espaciado, pases, cortes), en puntos de probabilidad.
+  final double tripleExtra, dosExtra;
+
+  /// Defensa: peso del defensor directo (el resto es la defensa de equipo). Switch All y las zonas
+  /// lo bajan (todos marcan a todos); Drop, Box & One y la presión lo suben (cada uno con el suyo).
+  final double marca;
+
+  /// Defensa: tapones.
+  final double tapones;
+
+  /// Copia con los efectos del partido en vivo (decisiones del entrenador) encima.
+  _Efectos copiar({double? robos, double? fatiga, double? tripleRival, double? interiorRival}) => _Efectos(
+    triples: triples,
+    interior: interior,
+    perdidas: perdidas,
+    robos: robos ?? this.robos,
+    asistencias: asistencias,
+    estrella: estrella,
+    contraataque: contraataque,
+    fatiga: fatiga ?? this.fatiga,
+    tripleRival: tripleRival ?? this.tripleRival,
+    interiorRival: interiorRival ?? this.interiorRival,
+    faltas: faltas,
+    reboteOf: reboteOf,
+    tripleExtra: tripleExtra,
+    dosExtra: dosExtra,
+    marca: marca,
+    tapones: tapones,
+    reboteDef: reboteDef,
+  );
 }
 
 const _ofensivos = {
-  SistemaOfensivo.paceAndSpace: _Efectos(triples: 1.3, contraataque: 1.3, fatiga: 1.1),
-  SistemaOfensivo.trianguloOfensivo: _Efectos(asistencias: 1.15, perdidas: 0.9, triples: 0.9),
-  SistemaOfensivo.sevenSeconds: _Efectos(contraataque: 1.6, triples: 1.15, perdidas: 1.1, fatiga: 1.2),
-  SistemaOfensivo.postInsideOut: _Efectos(interior: 1.3, triples: 1.05),
-  SistemaOfensivo.motionOffense: _Efectos(asistencias: 1.2, perdidas: 0.92),
-  SistemaOfensivo.aislamiento: _Efectos(estrella: 1.6, asistencias: 0.75, perdidas: 0.9),
-  SistemaOfensivo.pickAndRollEspanol: _Efectos(asistencias: 1.15, interior: 1.1),
-  SistemaOfensivo.cincoAbierto: _Efectos(triples: 1.45, interior: 0.85),
-  SistemaOfensivo.dribbleDrive: _Efectos(interior: 1.2, estrella: 1.15, contraataque: 1.15),
-  SistemaOfensivo.princeton: _Efectos(asistencias: 1.25, perdidas: 0.85, contraataque: 0.7, fatiga: 0.9),
+  // Corre y tira de tres; se cansa un poco más.
+  SistemaOfensivo.paceAndSpace: _Efectos(triples: 1.22, contraataque: 1.35, fatiga: 1.07, interior: 0.9, tripleExtra: 0.012, asistencias: 1.05),
+  // Paciencia y lectura: pocas pérdidas y asistencias, pero poco triple y poca transición.
+  SistemaOfensivo.trianguloOfensivo: _Efectos(
+    asistencias: 1.12,
+    perdidas: 0.94,
+    triples: 0.85,
+    contraataque: 0.85,
+    dosExtra: 0.009,
+  ),
+  // Todo a la carrera: muchísimo contraataque a cambio de pérdidas y cansancio.
+  SistemaOfensivo.sevenSeconds: _Efectos(contraataque: 1.7, triples: 1.1, perdidas: 1.04, fatiga: 1.1, tripleExtra: 0.006, asistencias: 1.05),
+  // Pelota al poste: más libres y rebote ofensivo, menos triples y menos correr.
+  SistemaOfensivo.postInsideOut: _Efectos(interior: 1.45, triples: 0.85, faltas: 1.2, reboteOf: 1.12, contraataque: 0.8),
+  // El equilibrio: pases y cuidado de la pelota.
+  SistemaOfensivo.motionOffense: _Efectos(asistencias: 1.1, perdidas: 0.97, tripleExtra: 0.003),
+  // La pelota a la figura: pocas asistencias, pocos balones perdidos y más libres para el crack.
+  SistemaOfensivo.aislamiento: _Efectos(estrella: 1.7, asistencias: 0.7, perdidas: 0.93, faltas: 1.06, triples: 0.9, contraataque: 0.85, dosExtra: 0.008),
+  // Bloqueo directo: el base y el grande se reparten el juego.
+  SistemaOfensivo.pickAndRollEspanol: _Efectos(asistencias: 1.15, interior: 1.18, dosExtra: 0.01, perdidas: 1.0),
+  // Pintura vacía: muchos triples (y buenos tiros de dos para el que entra), poco rebote ofensivo.
+  SistemaOfensivo.cincoAbierto: _Efectos(triples: 1.38, interior: 0.72, reboteOf: 0.8, dosExtra: 0.016, tripleExtra: 0.012, faltas: 0.92),
+  // Penetrar y descargar: faltas, tiros de la estrella y transición; más pérdidas.
+  SistemaOfensivo.dribbleDrive: _Efectos(interior: 1.28, estrella: 1.15, contraataque: 1.15, faltas: 1.22, perdidas: 1.03, triples: 0.95, dosExtra: 0.004),
+  // Cortes de puerta atrás: casi no pierde, asiste mucho y casi no corre.
+  SistemaOfensivo.princeton: _Efectos(
+    asistencias: 1.2,
+    perdidas: 0.9,
+    contraataque: 0.65,
+    fatiga: 0.9,
+    dosExtra: 0.006,
+    triples: 0.95,
+  ),
 };
 const _defensivos = {
-  EsquemaDefensivo.dropCoverage: _Efectos(interiorRival: 0.93, tripleRival: 1.04),
-  EsquemaDefensivo.switchAll: _Efectos(tripleRival: 0.95, interiorRival: 1.02),
-  EsquemaDefensivo.cajaYUno: _Efectos(estrella: 0.75, tripleRival: 1.02),
-  EsquemaDefensivo.trapBlitz: _Efectos(robos: 1.25, tripleRival: 1.04, fatiga: 1.1),
-  EsquemaDefensivo.presionTodaCancha: _Efectos(robos: 1.4, fatiga: 1.3, interiorRival: 1.03),
-  EsquemaDefensivo.zona23: _Efectos(interiorRival: 0.9, tripleRival: 1.06),
-  EsquemaDefensivo.packLine: _Efectos(interiorRival: 0.91, tripleRival: 1.03),
-  EsquemaDefensivo.iceBlue: _Efectos(interiorRival: 0.96, tripleRival: 0.98),
-  EsquemaDefensivo.zona131: _Efectos(robos: 1.3, tripleRival: 1.05, fatiga: 1.1),
-  EsquemaDefensivo.gritAndGrind: _Efectos(interiorRival: 0.95, tripleRival: 0.97, fatiga: 1.1),
+  // El pívot cuida la pintura y cede el triple tras el bloqueo.
+  EsquemaDefensivo.dropCoverage: _Efectos(interiorRival: 0.955, tripleRival: 1.045, tapones: 1.12, marca: 0.7),
+  // Cambia todo: cierra el perímetro y cede cerca del aro (los grandes quedan chicos).
+  EsquemaDefensivo.switchAll: _Efectos(tripleRival: 0.95, interiorRival: 1.0, marca: 0.35),
+  // Cuatro en caja y uno a la estrella: la estrella casi no tira; el resto, más libre.
+  EsquemaDefensivo.cajaYUno: _Efectos(estrella: 0.7, tripleRival: 1.03, interiorRival: 1.0, marca: 0.5),
+  // Doble marca al base: roba, pero deja huecos y cansa.
+  EsquemaDefensivo.trapBlitz: _Efectos(robos: 1.2, tripleRival: 1.05, interiorRival: 1.015, fatiga: 1.12, faltas: 1.1, marca: 0.45),
+  // Acoso: muchos robos a cambio de cansancio, faltas y canastas fáciles.
+  EsquemaDefensivo.presionTodaCancha: _Efectos(
+    robos: 1.3,
+    fatiga: 1.3,
+    interiorRival: 1.03,
+    tripleRival: 1.03,
+    faltas: 1.15,
+    marca: 0.55,
+  ),
+  // Muralla en la pintura; el triple, regalado.
+  EsquemaDefensivo.zona23: _Efectos(interiorRival: 0.94, tripleRival: 1.075, reboteDef: 1.06, marca: 0.2),
+  // Línea cerrada: no entra la bandeja, pero el triple queda más libre.
+  EsquemaDefensivo.packLine: _Efectos(interiorRival: 0.95, tripleRival: 1.045, faltas: 0.92, marca: 0.45, reboteDef: 1.03),
+  // Fuerza hacia la banda: equilibrado.
+  EsquemaDefensivo.iceBlue: _Efectos(interiorRival: 0.975, tripleRival: 0.99, marca: 0.55),
+  // Zona agresiva: roba, pero con huecos en los triples y cansancio.
+  EsquemaDefensivo.zona131: _Efectos(robos: 1.25, tripleRival: 1.06, fatiga: 1.1, faltas: 1.05, marca: 0.3),
+  // Contacto y rebote: frena el partido y cierra la pintura; se paga con cansancio y faltas.
+  EsquemaDefensivo.gritAndGrind: _Efectos(interiorRival: 0.965, tripleRival: 0.985, fatiga: 1.1, faltas: 1.12, marca: 0.6, reboteDef: 1.05),
 };
 
 class _Lado {
@@ -312,7 +410,38 @@ class _Lado {
   /// Media de la carta con su forma del momento.
   int media(Jugador j) => j.media + (equipo.forma[j.id] ?? 0);
 
-  ModificadoresEquipo get mods => equipo.modificadores;
+  ModificadoresEquipo get mods => _modsEf ?? equipo.modificadores;
+
+  /// Ajuste temporal del entrenador (decisiones en vivo); null = el partido de siempre.
+  EfectoEnVivo? efecto;
+  ModificadoresEquipo? _modsEf;
+  _Efectos? _ofEf, _defEf;
+  int? _afinOfEf, _afinDefEf;
+
+  void ponerEfecto(EfectoEnVivo? e) {
+    if (e == null || e.esNeutro) {
+      efecto = _modsEf = _ofEf = _defEf = _afinOfEf = _afinDefEf = null;
+      return;
+    }
+    efecto = e;
+    _modsEf = equipo.modificadores.mas(e.mods);
+    final dt = equipo.entrenador;
+    final perfil = PerfilPlantel.de(equipo.plantel);
+    final of = e.ataque ?? equipo.tactica.ofensiva, de = e.defensa ?? equipo.tactica.defensiva;
+    final bo = _ofensivos[of]!, bd = _defensivos[de]!;
+    _ofEf = bo;
+    _defEf = bd.copiar(
+      robos: bd.robos * e.robosFactor,
+      fatiga: bd.fatiga * e.fatigaFactor,
+      tripleRival: bd.tripleRival * e.tripleRival,
+      interiorRival: bd.interiorRival * e.interiorRival,
+    );
+    _afinOfEf = perfil.afinidad(of.rasgos) + (dt?.ofensiva == of ? 12 : 0);
+    _afinDefEf = perfil.afinidad(de.rasgos) + (dt?.defensiva == de ? 12 : 0);
+  }
+
+  int get afinOf => _afinOfEf ?? afinidadOfensiva;
+  int get afinDef => _afinDefEf ?? afinidadDefensiva;
 
   /// Orden del entrenador: un gran técnico baja las pérdidas (hasta −6 %).
   double get ordenEntrenador => 1 - ((equipo.entrenador?.nivel ?? 80) - 80) / 320;
@@ -343,9 +472,13 @@ class _Lado {
   bool acelerar = false, presion = false;
 
   int get puntos => parciales.fold(0, (a, b) => a + b);
-  _Efectos get ofensivo => _ofensivos[equipo.tactica.ofensiva]!;
-  _Efectos get defensivo => _defensivos[equipo.tactica.defensiva]!;
-  double get ritmo => equipo.tactica.ofensiva.ritmo + equipo.tactica.defensiva.ritmo + (acelerar ? 1 : 0);
+  _Efectos get ofensivo => _ofEf ?? _ofensivos[equipo.tactica.ofensiva]!;
+  _Efectos get defensivo => _defEf ?? _defensivos[equipo.tactica.defensiva]!;
+  double get ritmo =>
+      (efecto?.ataque ?? equipo.tactica.ofensiva).ritmo +
+      (efecto?.defensa ?? equipo.tactica.defensiva).ritmo +
+      (acelerar ? 1 : 0) +
+      (efecto?.ritmo ?? 0);
 }
 
 /// Motor de posesiones (GDD §6): cada llamada a [siguiente] juega una posesión (o una pausa) y
@@ -357,6 +490,7 @@ class MotorPartido {
       _v = _Lado(visitante),
       _azar = azar ?? Random() {
     _ataqueLocal = _azar.nextBool(); // salto inicial
+    _saltoInicialLocal = _ataqueLocal;
   }
 
   /// Arranca el partido en un momento dado (Momentos clutch: el final de un partido real).
@@ -376,6 +510,7 @@ class MotorPartido {
     this.cuarto = cuarto;
     this.reloj = reloj;
     _ataqueLocal = ataqueLocal;
+    _saltoInicialLocal = (cuarto == 2 || cuarto == 3) ? !ataqueLocal : ataqueLocal;
     for (final (lado, puntos, faltas) in [(_l, puntosLocal, faltasLocal), (_v, puntosVisitante, faltasVisitante)]) {
       lado.parciales
         ..clear()
@@ -393,6 +528,7 @@ class MotorPartido {
   /// Lado que maneja el usuario (null: los dos los maneja la máquina, como en la simulación rápida).
   final bool? usuarioLocal;
   late bool _ataqueLocal;
+  late bool _saltoInicialLocal;
   int cuarto = 1;
   double reloj = _duracionCuarto;
   bool terminado = false;
@@ -443,6 +579,28 @@ class MotorPartido {
   /// Jugador que sale en la próxima jugada por un cambio pedido (null si no hay).
   String? cambioPendiente(bool local) => (local ? _l : _v).salePendiente;
 
+  // ── Decisiones en vivo (ganchos aditivos: sin efecto, el partido es idéntico) ──
+
+  /// El equipo armado (plantel, táctica, entrenador) de un lado.
+  EquipoPartido equipo(bool local) => (local ? _l : _v).equipo;
+
+  /// Quién tomaría hoy la jugada [jugada] en el equipo de [local] (las decisiones nombran al mismo que tira;
+  /// en el pick & roll, el organizador: el que tira puede ser el grande).
+  Jugador tiradorDeJugada(bool local, JugadaClave jugada) {
+    final ataque = local ? _l : _v;
+    return switch (jugada) {
+      JugadaClave.aislamiento => ataque.enCancha.reduce((a, b) => ataque.media(a) >= ataque.media(b) ? a : b),
+      JugadaClave.triple => ataque.enCancha.reduce(
+        (a, b) => a.stats.pctT3 * _tasaTriples(a) >= b.stats.pctT3 * _tasaTriples(b) ? a : b,
+      ),
+      JugadaClave.pickAndRoll => ataque.enCancha.reduce((a, b) => a.stats.app >= b.stats.app ? a : b),
+    };
+  }
+
+  /// Ajuste temporal de un equipo (null lo quita). Ver [EfectoEnVivo].
+  void aplicarEfecto(bool local, EfectoEnVivo? efecto) => (local ? _l : _v).ponerEfecto(efecto);
+  EfectoEnVivo? efecto(bool local) => (local ? _l : _v).efecto;
+
   bool expulsado(String id) => _l.expulsados.contains(id) || _v.expulsados.contains(id);
 
   /// Forma de las cartas en este partido (−3 a +3).
@@ -463,11 +621,57 @@ class MotorPartido {
       Tier.a => 0.2,
       Tier.b => -0.2,
     };
-    return (nivel + (j.stats.iq - 75) / 50 + (j.stats.pctTl - 0.75) * 2).clamp(-0.5, 1.6);
+    return (nivel + (j.stats.iq - 75) / 50 + (j.stats.pctTl - eraDe(j).tl) * 2).clamp(-0.5, 1.6);
   }
 
   /// Cuánto pesa en el tiro la diferencia de media entre el tirador y la defensa en cancha.
-  static const pesoDiferencia = 1 / 225;
+  ///
+  /// Antes eran dos términos (1/225 contra la defensa y (media−82)/400 absoluto, que sumaban ≈ 1/144
+  /// frente a una defensa de 80). Ahora es UNO solo —la diferencia con la defensa— para que a igual media
+  /// el resultado sea parejo sin importar el nivel absoluto ni la época.
+  static const pesoDiferencia = 1 / 144;
+
+  /// Cuánto más alta es la media del tirador promedio (ponderado por tiros) que la media simple de los 5.
+  double _sesgoDeUso(_Lado lado) {
+    var pesos = 0.0, ponderada = 0.0, simple = 0.0;
+    for (final j in lado.enCancha) {
+      final w = pow(j.stats.ppp * 36 / max(j.stats.minP, 12), 1.3).toDouble();
+      pesos += w;
+      ponderada += w * lado.media(j);
+      simple += lado.media(j);
+    }
+    return pesos == 0 ? 0 : ponderada / pesos - simple / lado.enCancha.length;
+  }
+
+  /// Rendimientos decrecientes: hasta [_rodilla] puntos de diferencia de media entre el tirador y su defensa
+  /// cuenta todo; lo que pasa de ahí, [_pendienteSobreRodilla]. Un plantel de 95 contra uno de 80 no tira
+  /// 4 veces mejor (ni defiende 4 veces peor) que uno de 88: la defensa se adapta. Sin esto el 82-0 del
+  /// mejor plantel era casi obligatorio en Normal y no había forma de graduar Normal/Difícil sin romper
+  /// el draft típico.
+  static double _ventajaDeMedia(double dif) {
+    final a = dif.abs();
+    final v = a <= _rodilla ? a : _rodilla + (a - _rodilla) * _pendienteSobreRodilla;
+    return dif < 0 ? -v : v;
+  }
+
+  static const _rodilla = 5.0, _pendienteSobreRodilla = 0.15;
+
+  /// Peso del defensor directo (el resto es defensa de equipo) de cada esquema: emparejamiento por puesto.
+  /// Switch All y las zonas lo bajan (todos marcan a todos); Drop y Grit lo suben (cada uno al suyo).
+  static double pesoDefensorDirecto(EsquemaDefensivo d) => _defensivos[d]!.marca;
+
+  // ── Calibración del tiro (motor v2) ──
+  static const _dosBase = 0.505, _tripleBase = 0.31, _libreBase = 0.765, _tiroBase = 0.0;
+  static const _pFaltaDos = 0.105, _pFaltaTriple = 0.03, _pPerdidaBase = 0.135;
+
+  /// Reloj de posesión: base y cuánto pesa el ritmo (MOT-01: antes 11,6 − 1,6·ritmo daba ~85 posesiones).
+  static const _baseRitmo = 9.3, _pesoRitmo = 1.8;
+
+  /// Cuánto pesa en el acierto la afinidad plantel-sistema (antes /1500: decidía los partidos).
+  static const _pesoAfinidad = 1 / 3000;
+
+  /// Costo de la presión alta (en vivo): robos, faltas y huecos de triple; y el cansancio extra.
+  static const _presionRobos = 1.2, _presionFaltas = 1.15, _presionTriple = 1.04, _presionCansancio = 0.2;
 
   /// Ventajas del entrenador del usuario (por nivel): tiempos muertos extra y descanso más largo.
   void ventajasUsuario({int tiemposExtra = 0, bool descansoLargo = false}) {
@@ -497,8 +701,16 @@ class MotorPartido {
   /// Solo para pruebas: técnica a un defensor del equipo que no ataca (1 libre, sigue la posesión).
   EventoPartido tecnicaDePrueba() => _tecnica(_ataqueLocal ? _l : _v, _ataqueLocal ? _v : _l);
 
+  bool _simulando = false;
+
+  /// ¿Este lado lo maneja la máquina? Sí si no es el del usuario, o si se está simulando (el partido
+  /// simulado y el vivo sin intervenir son el mismo partido: el usuario también tiene tiempo muerto
+  /// automático, y el visitante de un partido entre IA también; antes solo el local).
+  bool _manejaLaMaquina(bool local) => usuarioLocal == null || usuarioLocal != local || _simulando;
+
   /// Juega todo lo que falta sin eventos visibles.
   void simularTodo() {
+    _simulando = true;
     while (!terminado) {
       siguiente();
     }
@@ -514,7 +726,7 @@ class MotorPartido {
     // La máquina pide tiempo muerto para cortar una racha de 10 puntos.
     for (final local in [true, false]) {
       final rival = local ? _v : _l;
-      if (usuarioLocal != local && rival.racha >= 10 && pedirTiempoMuerto(local)) return siguiente();
+      if (_manejaLaMaquina(local) && rival.racha >= 10 && pedirTiempoMuerto(local)) return siguiente();
     }
     final pedido = _cambioPedido(_l, true) ?? _cambioPedido(_v, false);
     if (pedido != null) return pedido;
@@ -540,7 +752,10 @@ class MotorPartido {
         lado.energia[id] = min(100, lado.energia[id]! + 12); // descanso entre cuartos
       }
     }
-    if (cuarto == 3) _ataqueLocal = !_ataqueLocal;
+    // Saque real: el que perdió el salto inicial saca en el 2.º y el 3.º; el que lo ganó, en el 4.º.
+    // La prórroga arranca con un salto nuevo.
+    if (cuarto <= 4) _ataqueLocal = (cuarto == 4) == _saltoInicialLocal;
+    if (cuarto > 4) _ataqueLocal = _azar.nextBool();
     final texto = cuarto > 4 ? 'Empate: ¡prórroga!' : 'Fin del ${cuarto - 1}.º cuarto.';
     return _evento(TipoEvento.finCuarto, true, texto);
   }
@@ -549,37 +764,61 @@ class MotorPartido {
   /// Cambio pedido a mano o por la 6.ª falta.
   EventoPartido? _cambioPedido(_Lado lado, bool local) {
     final saleId = lado.salePendiente;
-    final banco = lado.banco;
     if (saleId == null) return null;
     lado.salePendiente = null;
     final i = lado.enCancha.indexWhere((j) => j.id == saleId);
-    if (banco == null || i < 0 || lado.expulsados.contains(banco.id)) return null;
+    if (i < 0) return null;
     final sale = lado.enCancha[i];
-    lado.enCancha[i] = banco;
-    lado.banco = sale;
-    final motivo = lado.expulsados.contains(sale.id) ? 'Sexta falta de ${sale.nombre}: ' : 'Cambio: ';
+    final fuera = lado.expulsados.contains(sale.id);
+    final entra = _reemplazo(lado, sale);
+    // Un cambio a mano solo puede ser con el Sexto Hombre; un expulsado se reemplaza con quien haya.
+    if (entra == null || (!fuera && entra != lado.banco)) return null;
+    lado.enCancha[i] = entra;
+    lado.box[entra.id]!.pj = 1;
+    if (entra == lado.banco) {
+      // El expulsado no vuelve nunca: no va al banco; el suplente descansado de más media lo reemplaza.
+      lado.banco = fuera ? _ascender(lado) : sale;
+    } else {
+      lado.reserva.remove(entra);
+    }
+    final motivo = fuera ? 'Sexta falta de ${sale.nombre}: ' : 'Cambio: ';
     return _evento(
       TipoEvento.cambio,
       local,
-      '${motivo}entra ${banco.nombre} por ${sale.nombre}.',
-      entraId: banco.id,
+      '${motivo}entra ${entra.nombre} por ${sale.nombre}.',
+      entraId: entra.id,
       saleId: sale.id,
     );
   }
 
+  /// Sube al banco al mejor suplente descansado del banco largo (o null si no queda ninguno sano).
+  Jugador? _ascender(_Lado lado) {
+    final sanos = lado.reserva.where((x) => !lado.expulsados.contains(x.id)).toList();
+    if (sanos.isEmpty) return null;
+    final j = sanos.reduce((a, b) => lado.energia[a.id]! + a.media / 2 >= lado.energia[b.id]! + b.media / 2 ? a : b);
+    lado.reserva.remove(j);
+    return j;
+  }
+
   EventoPartido? _rotar(_Lado lado, bool local) {
     final banco = lado.banco;
+    // Agotado (energía casi cero): nadie sigue jugando así, ni con la rotación automática apagada.
+    final exhausto = _cambioPorAgotamiento(lado, local);
+    if (exhausto != null) return exhausto;
     if (banco == null || !lado.rotacionAuto || lado.expulsados.contains(banco.id)) return null;
     if (lado.posesionesDesdeCambio < 2) return null;
     final cierre = cuarto >= 4 && reloj < 150 && (_l.puntos - _v.puntos).abs() <= 8;
     // Cargado de faltas: 2 en el 1.º cuarto, 3 en el 2.º, 4 en el 3.º, 5 en el último → al banco.
     final limite = min(cuarto, 4) + 1;
-    final enProblemas = lado.enCancha.where((j) => lado.box[j.id]!.fal >= limite).toList();
+    final enProblemas = lado.efecto?.aguantar == true
+        ? <Jugador>[]
+        : lado.enCancha.where((j) => lado.box[j.id]!.fal >= limite).toList();
     if (enProblemas.isNotEmpty && !cierre && lado.energia[banco.id]! > 60 && lado.box[banco.id]!.fal < limite) {
       final sale = enProblemas.first;
       lado.posesionesDesdeCambio = 0;
       lado.enCancha[lado.enCancha.indexOf(sale)] = banco;
       lado.banco = sale;
+      lado.box[banco.id]!.pj = 1;
       return _evento(
         TipoEvento.cambio,
         local,
@@ -618,11 +857,48 @@ class MotorPartido {
     lado.posesionesDesdeCambio = 0;
     lado.enCancha[lado.enCancha.indexOf(cansado)] = banco;
     lado.banco = cansado;
+    lado.box[banco.id]!.pj = 1;
     return _evento(
       TipoEvento.cambio,
       local,
       'Cambio: entra ${banco.nombre} por ${cansado.nombre}.',
       entraId: banco.id,
+      saleId: cansado.id,
+    );
+  }
+
+  /// Energía por debajo de la cual un jugador se desploma y sale sí o sí (MOT-11: antes seguía en cancha
+  /// con 0 y rendía igual que descansado).
+  static const _energiaAgotado = 8.0;
+
+  /// Cambio forzado por agotamiento: entra el Sexto o un suplente bastante más descansado. Si no hay
+  /// nadie mejor, sigue (pero con el castigo de rendir muy por debajo, ver [_cansancio]).
+  EventoPartido? _cambioPorAgotamiento(_Lado lado, bool local) {
+    final cansado = lado.enCancha.reduce((a, b) => lado.energia[a.id]! < lado.energia[b.id]! ? a : b);
+    final e = lado.energia[cansado.id]!;
+    if (e > _energiaAgotado) return null;
+    final banco = lado.banco;
+    final opciones = [
+      if (banco != null && !lado.expulsados.contains(banco.id)) banco,
+      ...lado.reserva.where((j) => !lado.expulsados.contains(j.id)),
+    ].where((j) => lado.energia[j.id]! >= e + 25).toList();
+    if (opciones.isEmpty) return null;
+    final entra = opciones.reduce((a, b) => lado.energia[a.id]! + a.media / 2 >= lado.energia[b.id]! + b.media / 2 ? a : b);
+    lado.posesionesDesdeCambio = 0;
+    lado.enCancha[lado.enCancha.indexOf(cansado)] = entra;
+    lado.box[entra.id]!.pj = 1;
+    if (entra == banco) {
+      lado.banco = cansado;
+    } else {
+      lado.reserva
+        ..remove(entra)
+        ..add(cansado);
+    }
+    return _evento(
+      TipoEvento.cambio,
+      local,
+      'Cambio: ${cansado.nombre} no da más (agotado); entra ${entra.nombre}.',
+      entraId: entra.id,
       saleId: cansado.id,
     );
   }
@@ -648,13 +924,29 @@ class MotorPartido {
   String? _faltaPersonal(_Lado lado, Jugador j, {bool deEquipo = true}) {
     if (deEquipo) lado.faltas++;
     final linea = lado.box[j.id]!;
+    // Regla de emergencia (MOT-06): si no hay con quién reemplazarlo, la 6.ª falta no lo saca (nunca
+    // quedan menos de 5 en cancha); apenas hay un suplente sano, el que está al límite sale en el acto.
+    if (linea.fal >= 5 && _reemplazo(lado, j) == null) {
+      linea.fal = 5;
+      return null;
+    }
     linea.fal++;
-    if (linea.fal == 6) {
+    if (linea.fal >= 6) {
       lado.expulsados.add(j.id);
       lado.salePendiente = j.id;
       return j.id;
     }
     return null;
+  }
+
+  /// Quién entra por [sale] cuando se va para siempre (expulsado): el Sexto Hombre si está sano;
+  /// si no, el suplente descansado de más media del banco largo. Null: no hay nadie.
+  Jugador? _reemplazo(_Lado lado, Jugador sale) {
+    final banco = lado.banco;
+    if (banco != null && !lado.expulsados.contains(banco.id) && banco.id != sale.id) return banco;
+    final sanos = lado.reserva.where((x) => !lado.expulsados.contains(x.id) && x.id != sale.id).toList();
+    if (sanos.isEmpty) return null;
+    return sanos.reduce((a, b) => lado.energia[a.id]! + a.media / 2 >= lado.energia[b.id]! + b.media / 2 ? a : b);
   }
 
   /// Quién comete una falta defensiva: más los grandes que van a taponar y los que presionan.
@@ -683,9 +975,14 @@ class MotorPartido {
     if (cuarto >= 4 && reloj <= 35 && (faltaPorPoco || (diferencia >= 3 && diferencia <= min(8, 3 + reloj / 5)))) {
       return _faltaIntencional(ataque, defensa);
     }
+    // Falta táctica pedida por el entrenador (hack al peor tirador de libres, o falta antes del tiro).
+    final faltar = defensa.efecto?.faltar ?? 0;
+    if (faltar > 0 && !contraataque && reloj > 1.5 && _azar.nextDouble() < faltar) {
+      return _faltaIntencional(ataque, defensa);
+    }
 
     final ritmo = (ataque.ritmo + defensa.ritmo) / 2;
-    var segundos = contraataque ? 6.0 + _azar.nextDouble() * 3 : 11.6 - 1.6 * ritmo + _azar.nextDouble() * 5.5;
+    var segundos = contraataque ? 6.0 + _azar.nextDouble() * 3 : _baseRitmo - _pesoRitmo * ritmo + _azar.nextDouble() * 5.5;
     segundos = max(1.5, segundos - _yaJugado);
     _yaJugado = 0;
     // Final apretado: el que pierde se apura; el que gana hace correr el reloj.
@@ -700,25 +997,32 @@ class MotorPartido {
       if (dado < _pTecnica) return _tecnica(ataque, defensa);
       if (dado < _pTecnica + _pFlagrante) return _flagrante(ataque, defensa);
       if (dado < _pTecnica + _pFlagrante + _pSalto) return _saltoEntreDos(ataque, defensa);
-      if (!contraataque && _azar.nextDouble() < _pFaltaSinTiro * (defensa.presion ? 1.25 : 1)) {
+      if (!contraataque &&
+          _azar.nextDouble() <
+              _pFaltaSinTiro *
+                  defensa.defensivo.faltas *
+                  (defensa.presion ? _presionFaltas : 1) *
+                  (1 + 1.5 * _cansancioEquipo(defensa))) {
         return _faltaSinTiro(ataque, defensa, segundos);
       }
     }
 
     // Pérdida (con o sin robo).
-    final perdidas = _media(ataque.enCancha, (j) => j.stats.perP * 36 / max(j.stats.minP, 12)) / 2.4;
-    final robos = _media(defensa.enCancha, (j) => j.stats.robP * 36 / max(j.stats.minP, 12)) / 1.3;
+    final perdidas = _media(ataque.enCancha, (j) => j.stats.perP * 36 / max(j.stats.minP, 12) / eraDe(j).per36Esp(j.media).clamp(0.8, 4.0));
+    final robos = _media(defensa.enCancha, (j) => j.stats.robP * 36 / max(j.stats.minP, 12) / eraDe(j).rob36Esp(j.media).clamp(0.5, 4.0));
     final pPerdida =
-        (0.178 *
+        (_pPerdidaBase *
                 perdidas *
                 (0.6 + 0.4 * robos) *
                 ataque.ofensivo.perdidas *
                 ataque.ordenEntrenador *
                 defensa.defensivo.robos *
                 defensa.mods.robosFactor *
-                (defensa.presion ? 1.3 : 1) *
-                (1 - (ataque.equipo.plantel.jugadores.map((j) => j.stats.iq).reduce(max) - 75) / 400))
-            .clamp(0.09, 0.3);
+                (defensa.presion ? _presionRobos : 1) *
+                // Cansados se pierde más la pelota; el mejor lector de juego EN CANCHA (no del plantel) la cuida.
+                (1 + 1.5 * _cansancioEquipo(ataque)) *
+                (1 - (ataque.enCancha.map((j) => j.stats.iq).reduce(max) - 75) / 400))
+            .clamp(0.08, 0.3);
     if (inicio > 3 && _azar.nextDouble() < pPerdida) return _perdida(ataque, defensa, segundos, robos);
 
     // El tiro se va con el reloj del cuarto: si queda poco, se tira lo que salga (y si queda casi
@@ -730,8 +1034,13 @@ class MotorPartido {
   }
 
   EventoPartido _faltaIntencional(_Lado ataque, _Lado defensa) {
+    final riesgo = ataque.efecto?.lineaRiesgo ?? 0;
+    if (riesgo > 0 && _azar.nextDouble() < riesgo) return _perdida(ataque, defensa, 2, 1);
     _consumir(ataque, defensa, 1 + _azar.nextDouble() * 2.5);
-    final tirador = ataque.enCancha.reduce((a, b) => a.stats.pctTl <= b.stats.pctTl ? a : b);
+    final elegido = ataque.efecto?.linea;
+    final tirador =
+        ataque.enCancha.where((j) => j.id == elegido).firstOrNull ??
+        ataque.enCancha.reduce((a, b) => a.stats.pctTl <= b.stats.pctTl ? a : b);
     final infractor = defensa.enCancha.reduce((a, b) => defensa.box[a.id]!.fal <= defensa.box[b.id]!.fal ? a : b);
     final expulsado = _faltaPersonal(defensa, infractor);
     final anotados = _libres(ataque, tirador, 2);
@@ -798,7 +1107,7 @@ class MotorPartido {
     final tirador = ataque.enCancha.reduce((a, b) => a.stats.pctTl >= b.stats.pctTl ? a : b);
     final tecnicas = defensa.tecnicas[infractor.id] = (defensa.tecnicas[infractor.id] ?? 0) + 1;
     String? expulsado;
-    if (tecnicas >= 2 && defensa.expulsados.add(infractor.id)) {
+    if (tecnicas >= 2 && _reemplazo(defensa, infractor) != null && defensa.expulsados.add(infractor.id)) {
       defensa.salePendiente = infractor.id;
       expulsado = infractor.id;
     }
@@ -950,26 +1259,27 @@ class MotorPartido {
     // En el final apretado, la pelota busca al que más se agranda.
     final efectoEstrella = ataque.ofensivo.estrella * defensa.defensivo.estrella * (clutch ? 1.6 : 1);
     final estrella = ataque.enCancha.reduce((a, b) => a.stats.ppp > b.stats.ppp ? a : b);
-    bool interior(Jugador j) => j.posiciones.contains(Posicion.pivot) || j.posiciones.contains(Posicion.alaPivot);
+    final organizador = ataque.enCancha.reduce((a, b) => a.stats.app >= b.stats.app ? a : b);
+    bool interior(Jugador j) => _esInterior(j);
     final Jugador tirador;
     final bool triple;
     Jugador? asistente;
     // Abajo por 3 en el final, la máquina busca el triple del empate; abajo por 4 a 9 con menos de 40
-    // segundos, también (de a dos no alcanza).
+    // segundos, también (de a dos no alcanza). Vale para TODAS las jugadas: elegir Pick & roll o
+    // Aislamiento no te hace olvidar que necesitás un triple (MOT-07).
     final abajo = defensa.puntos - ataque.puntos;
-    final porElTriple =
-        jugada == null && cuarto >= 4 && ((abajo == 3 && reloj <= 24) || (abajo >= 4 && abajo <= 9 && reloj <= 40));
+    final buscaTriple = cuarto >= 4 && ((abajo == 3 && reloj <= 24) || (abajo >= 4 && abajo <= 9 && reloj <= 40));
+    final porElTriple = jugada == null && buscaTriple;
     switch (desdeLejos ? null : (porElTriple ? JugadaClave.triple : jugada)) {
       case JugadaClave.aislamiento:
         tirador = ataque.enCancha.reduce((a, b) => ataque.media(a) >= ataque.media(b) ? a : b);
-        triple = _azar.nextDouble() < _tasaTriples(tirador) * 0.6;
+        triple = buscaTriple ? tirador.stats.pctT3 > 0 : _azar.nextDouble() < _tasaTriples(tirador) * 0.6;
       case JugadaClave.pickAndRoll:
         final grandes = ataque.enCancha.where(interior).toList();
-        final organizador = ataque.enCancha.reduce((a, b) => a.stats.app >= b.stats.app ? a : b);
-        tirador = grandes.isNotEmpty && _azar.nextDouble() < 0.6
-            ? grandes.reduce((a, b) => a.stats.ppp >= b.stats.ppp ? a : b)
-            : organizador;
-        triple = false;
+        final rueda = !buscaTriple && grandes.isNotEmpty && _azar.nextDouble() < 0.6;
+        tirador = rueda ? grandes.reduce((a, b) => a.stats.ppp >= b.stats.ppp ? a : b) : organizador;
+        // Si el que tira es el base, puede lanzarse de tres tras el bloqueo (o es lo que se necesita).
+        triple = !rueda && tirador.stats.pctT3 > 0 && (buscaTriple || _azar.nextDouble() < _tasaTriples(tirador) * 0.7);
         if (tirador != organizador) asistente = organizador;
       case JugadaClave.triple:
         tirador = ataque.enCancha.reduce(
@@ -977,6 +1287,9 @@ class MotorPartido {
         );
         triple = tirador.stats.pctT3 > 0;
       case null:
+        // Reparto de tiros: el que más anota, la estrella, el que se agranda en el final y, según el
+        // sistema, los grandes (un ataque interior les da la pelota; un 5-Out, no).
+        final peso = ataque.ofensivo.interior;
         tirador = desdeLejos
             ? _elegir(ataque.enCancha, (j) => j.stats.app + 1)
             : _elegir(
@@ -984,7 +1297,9 @@ class MotorPartido {
                 (j) =>
                     pow(j.stats.ppp * 36 / max(j.stats.minP, 12), 1.3) *
                     (j == estrella ? efectoEstrella : 1).toDouble() *
-                    (clutch ? 1 + 0.4 * max(0, MotorPartido.clutch(j)) : 1),
+                    (j.id == ataque.efecto?.foco ? ataque.efecto!.focoPeso : 1) *
+                    (clutch ? 1 + 0.4 * max(0, MotorPartido.clutch(j)) : 1) *
+                    (interior(j) ? peso : pow(peso, -0.25)),
               );
         final tasaTriple = _tasaTriples(tirador) * ataque.ofensivo.triples;
         triple = desdeLejos || (!contraataque && _azar.nextDouble() < tasaTriple.clamp(0.0, 0.75));
@@ -999,25 +1314,54 @@ class MotorPartido {
           : null;
     }
 
-    var p = triple ? s.pctT3.clamp(0.22, 0.46) : _pctDos(tirador);
-    p *= triple ? defensa.defensivo.tripleRival : defensa.defensivo.interiorRival;
-    // La calidad manda: las cartas de más media rinden más y una defensa de cracks cierra más.
+    // Quién lo marca (emparejamiento por puesto) y qué hace cada arquetipo (efectos pasivos chicos).
+    final rolT = efectoDeRol(tirador);
+    final directo = _defensorDirecto(ataque, defensa, tirador);
+    final rolD = efectoDeRol(directo);
+    var p = triple ? _pct3(tirador) : _pctDos(tirador);
+    p *= (triple ? defensa.defensivo.tripleRival : defensa.defensivo.interiorRival) *
+        (defensa.presion && triple ? _presionTriple : 1);
+    // La calidad manda: la media del tirador contra la de su defensa (el defensor directo pesa
+    // [marca] —según el esquema— y el resto es la defensa de equipo). Es la ÚNICA puerta de la media.
     final mediaTirador = ataque.media(tirador);
-    p += (mediaTirador - _media(defensa.enCancha, (j) => defensa.media(j).toDouble())) * pesoDiferencia;
-    p += 0.035 + (mediaTirador - 82) / 400;
+    final marca = defensa.defensivo.marca;
+    final mediaDefensa =
+        marca * defensa.media(directo) + (1 - marca) * _media(defensa.enCancha, (j) => defensa.media(j).toDouble());
+    p += _ventajaDeMedia(mediaTirador - mediaDefensa) * pesoDiferencia + _tiroBase;
+    // Quien más tira es el mejor del equipo: ese sesgo (el mismo para todos) se descuenta, así el nivel
+    // absoluto del plantel no infla los puntos (a igual media, igual anotación).
+    p -= _sesgoDeUso(ataque) * pesoDiferencia;
+    // Ventaja fija de dificultad (Leyenda): después de los rendimientos decrecientes, lineal.
+    p += (ataque.equipo.ventajaMedia - defensa.equipo.ventajaMedia) * pesoDiferencia;
     p += ataque.quimica.efectoTiro;
-    if (clutch) p += MotorPartido.clutch(tirador) * 0.03;
-    // La jugada bien elegida vale: aislar a un crack, el pick & roll cerca del aro, el triple abierto.
+    if (ataque.efecto?.foco == tirador.id) p += ataque.efecto!.focoExtra;
+    if (clutch) p += MotorPartido.clutch(tirador) * 0.03 + rolT.clutch;
+    // La jugada bien elegida vale según con qué plantel y contra qué defensa: aislar a un crack
+    // contra un defensor inferior, el pick & roll (mejor con un organizador y contra quien no cambia),
+    // el triple (premia al tirador de verdad y cuesta si está cansado).
     p += switch (jugada) {
-      JugadaClave.aislamiento => 0.02 + (ataque.media(tirador) - 85) / 400,
-      JugadaClave.pickAndRoll => 0.04,
-      JugadaClave.triple => 0.03,
+      JugadaClave.aislamiento =>
+        0.002 +
+            ((mediaTirador - defensa.media(directo)) / 260).clamp(-0.02, 0.04) -
+            (defensa.defensivo.estrella < 1 ? 0.02 : 0),
+      JugadaClave.pickAndRoll =>
+        0.018 +
+            ((organizador.stats.app - 5) * 0.003).clamp(-0.01, 0.015) +
+            (marca - 0.5) * 0.08 +
+            (tirador != organizador ? efectoDeRol(tirador).dosExtra : 0),
+      JugadaClave.triple =>
+        0.004 + (s.pctT3 - eraDe(tirador).t3) * 0.5 - 1.5 * _cansancio(ataque.energia[tirador.id]!),
       null => 0,
     };
-    p += (ataque.afinidadOfensiva - defensa.afinidadDefensiva) / 1500;
-    p -= _media(defensa.enCancha, (j) => j.stats.robP + j.stats.tapP) / 60;
+    p += (ataque.afinOf - defensa.afinDef) * _pesoAfinidad;
+    p -= _media(defensa.enCancha, (j) => 0.75 * j.stats.robP * 36 / max(j.stats.minP, 12) / eraDe(j).rob36Esp(j.media).clamp(0.5, 4.0) + j.stats.tapP) / 60;
     if (contraataque) p += 0.14;
-    if (asistente != null) p += 0.02;
+    if (asistente != null) p += 0.02 + efectoDeRol(asistente).asistido;
+    // Estilo del sistema y de cada arquetipo.
+    p += triple
+        ? ataque.ofensivo.tripleExtra + rolT.tripleExtra - rolD.defensaTriple
+        : ataque.ofensivo.dosExtra + rolT.dosExtra - _proteccionAro(defensa);
+    p -= rolD.defensaDirecta;
     // Retoques del modo (neutros en un partido clásico).
     p += (triple ? ataque.mods.tripleExtra : ataque.mods.interiorExtra - defensa.mods.interiorRival) +
         ataque.mods.quimicaExtra +
@@ -1026,15 +1370,23 @@ class MotorPartido {
         (cuarto >= 4 && tirador == estrella ? ataque.mods.estrellaCuartoFinal : 0);
     if (ataque == _l) p += _localia;
     if (ataque.racha >= 8) p += 0.02;
-    final energia = ataque.energia[tirador.id]!;
-    if (energia < 60) p -= (60 - energia) / 400;
+    // Cansancio (MOT-05/11): el tirador rinde menos y, si la defensa está fundida, cierra peor.
+    p -= _cansancio(ataque.energia[tirador.id]!);
+    p += 0.7 * _cansancioEquipo(defensa);
     if (chicharra && !desdeLejos) p -= 0.05; // apurado, con la mano en la cara
     p = p.clamp(0.15, 0.8);
     // Lanzamiento desesperado desde la otra mitad: entra muy de vez en cuando.
     if (desdeLejos) p = 0.035;
 
     // Falta en el tiro: casi siempre al que va a la pintura; con falta, entra mucho menos (2+1).
-    final falta = !desdeLejos && _azar.nextDouble() < (triple ? 0.022 : 0.112 + s.pctTl * 0.05);
+    final pFalta =
+        (triple ? _pFaltaTriple : _pFaltaDos * (interior(tirador) ? 1.22 : 0.92)) *
+        ataque.ofensivo.faltas *
+        defensa.defensivo.faltas *
+        rolT.faltasRecibidas *
+        (defensa.presion ? _presionFaltas : 1) *
+        (1 + 1.5 * _cansancioEquipo(defensa));
+    final falta = !desdeLejos && _azar.nextDouble() < pFalta;
     String? expulsado;
     if (falta) expulsado = _faltaPersonal(defensa, _infractor(defensa));
     if (falta) p *= 0.4;
@@ -1049,7 +1401,9 @@ class MotorPartido {
     // Tapón (también algún triple) e interferencia (el defensor la toca bajando: vale igual).
     Jugador? taponador, interfiere;
     if (!convertido && !falta && !desdeLejos) {
-      final pTapon = (_media(defensa.enCancha, (j) => j.stats.tapP) / 3.0).clamp(0.045, 0.28) * (triple ? 0.18 : 1);
+      final pTapon =
+          (_media(defensa.enCancha, (j) => j.stats.tapP) / 3.5 * defensa.defensivo.tapones).clamp(0.045, 0.28) *
+          (triple ? 0.18 : 1);
       if (_azar.nextDouble() < pTapon) {
         taponador = _elegir(defensa.enCancha, (j) => j.stats.tapP + 0.1);
         defensa.box[taponador.id]!.tap++;
@@ -1141,9 +1495,11 @@ class MotorPartido {
     // Rebote (con el reloj del cuarto en cero no hay rebote: termina el cuarto).
     final rebOf = taponador != null
         ? 0.42
-        : (ataque.enCancha.fold(0.0, (a, j) => a + j.stats.rpp) /
-                  max(1.0, defensa.enCancha.fold(0.0, (a, j) => a + j.stats.rpp)) *
-                  0.26)
+        : (ataque.enCancha.fold(0.0, (a, j) => a + _rebote(j, ataque) * efectoDeRol(j).reboteOfensivo) /
+                  max(1.0, defensa.enCancha.fold(0.0, (a, j) => a + _rebote(j, defensa))) *
+                  0.26 *
+                  ataque.ofensivo.reboteOf /
+                  defensa.defensivo.reboteDef)
               .clamp(0.15, 0.38);
     final ofensivo = _azar.nextDouble() < rebOf * ataque.mods.reboteOfensivoFactor;
     final reboteador = _elegir(ofensivo ? ataque.enCancha : defensa.enCancha, (j) => j.stats.rpp + 0.5);
@@ -1186,26 +1542,59 @@ class MotorPartido {
   String? taponado(Jugador? taponador, Jugador tirador) =>
       taponador == null ? null : '¡Tapón de ${taponador.nombre} a ${tirador.nombre}!';
 
+  /// Los puestos de los grandes (los que cargan el rebote, la pintura y las faltas recibidas).
+  static bool _esInterior(Jugador j) =>
+      j.posiciones.contains(Posicion.pivot) || j.posiciones.contains(Posicion.alaPivot);
+
+  /// Fracción de los tiros del jugador que son triples: la del puesto de hoy, por el volumen de su
+  /// ÉPOCA (los 80 casi no tiraban; las cartas anteriores a 1980 no tienen %T3 y no tiran), por cuánto
+  /// mejor tirador es que sus pares de época y por su arquetipo.
   double _tasaTriples(Jugador j) {
-    // Fracción de tiros que son triples, a partir de los porcentajes: %TC = f·%T3 + (1-f)·%T2.
     final s = j.stats;
     if (s.pctT3 <= 0) return 0;
-    final posicion = j.posiciones.first;
-    final base = switch (posicion) {
-      Posicion.base || Posicion.escolta => 0.38,
-      Posicion.alero => 0.32,
-      Posicion.alaPivot => 0.2,
-      _ => 0.08,
+    final era = eraDe(j);
+    final base = switch (j.posiciones.first) {
+      Posicion.base => 0.50,
+      Posicion.escolta => 0.54,
+      Posicion.alero => 0.47,
+      Posicion.alaPivot => 0.36,
+      Posicion.pivot => 0.14,
+      Posicion.sextoHombre => 0.40,
     };
-    return (base * (s.pctT3 / 0.36)).clamp(0.0, 0.6);
+    final habilidad = (s.pctT3 / era.t3).clamp(0.75, 1.3);
+    return (base * era.volumenT3 * habilidad * efectoDeRol(j).volumenTriples).clamp(0.0, 0.7);
   }
 
-  double _pctDos(Jugador j) {
-    final s = j.stats;
-    final f = _tasaTriples(j);
-    final dos = f < 0.95 ? (s.pctTc - f * s.pctT3) / (1 - f) : s.pctTc;
-    return dos.clamp(0.38, 0.66);
+  /// Acierto de dos, SIN época: el de un jugador promedio de la NBA moderna más cuánto se aparta la
+  /// carta del promedio de su época (así un 50 % de los 60 y uno de los 2000 valen lo mismo).
+  double _pctDos(Jugador j) => (_dosBase + (j.stats.pctTc - eraDe(j).tc) * 0.95).clamp(0.38, 0.66);
+
+  /// Acierto de tres (misma idea que [_pctDos]).
+  double _pct3(Jugador j) => (_tripleBase + (j.stats.pctT3 - eraDe(j).t3) * 0.9).clamp(0.24, 0.46);
+
+  /// Acierto de libres (misma idea).
+  double _pctTl(Jugador j) => (_libreBase + (j.stats.pctTl - eraDe(j).tl) * 0.9).clamp(0.45, 0.95);
+
+  /// Rebotes de la carta sin la mitad del inflado de las épocas viejas (más tiros errados y más ritmo).
+  double _rebote(Jugador j, _Lado lado) =>
+      j.stats.rpp * pow(reboteNormalizado(j) / max(0.5, j.stats.rpp), 0.85) * (1 - 2 * _cansancio(lado.energia[j.id]!));
+
+  /// Puntos de acierto que se pierden por cansancio: 0 con 70 de energía o más, crece rápido abajo.
+  static double _cansancio(double energia) => energia >= 70 ? 0 : pow((70 - energia) / 70, 1.3) * 0.13;
+
+  /// Cansancio promedio de los 5 que están en cancha.
+  double _cansancioEquipo(_Lado lado) =>
+      lado.enCancha.fold(0.0, (a, j) => a + _cansancio(lado.energia[j.id]!)) / max(1, lado.enCancha.length);
+
+  /// El defensor de [tirador]: el del mismo lugar de la formación (emparejamiento por puesto).
+  Jugador _defensorDirecto(_Lado ataque, _Lado defensa, Jugador tirador) {
+    final i = ataque.enCancha.indexOf(tirador);
+    return defensa.enCancha[i >= 0 && i < defensa.enCancha.length ? i : 0];
   }
+
+  /// Protección del aro que suman los arquetipos de la defensa en cancha (tope de 2,4 puntos).
+  double _proteccionAro(_Lado defensa) =>
+      defensa.enCancha.fold(0.0, (a, j) => a + efectoDeRol(j).proteccionAro).clamp(0.0, 0.024);
 
   int _libres(_Lado lado, Jugador tirador, int cantidad) {
     var anotados = 0;
@@ -1213,7 +1602,7 @@ class MotorPartido {
     for (var i = 0; i < cantidad; i++) {
       caja.tlA++;
       final presion = momentoClutch ? MotorPartido.clutch(tirador) * 0.03 - 0.02 : 0;
-      if (_azar.nextDouble() < (tirador.stats.pctTl + presion).clamp(0.4, 0.95)) {
+      if (_azar.nextDouble() < (_pctTl(tirador) + presion).clamp(0.4, 0.95)) {
         caja.tlI++;
         anotados++;
       }
@@ -1229,7 +1618,7 @@ class MotorPartido {
   }
 
   void _fatiga(_Lado lado, double segundos) {
-    final extra = (lado.presion ? 0.25 : 0) + (lado.acelerar ? 0.2 : 0);
+    final extra = (lado.presion ? _presionCansancio : 0) + (lado.acelerar ? 0.2 : 0);
     for (final j in lado.enCancha) {
       final aguante = 36 / max(j.stats.minP, 20);
       lado.energia[j.id] = max(
@@ -1239,6 +1628,7 @@ class MotorPartido {
                 60 *
                 1.9 *
                 aguante *
+                efectoDeRol(j).fatiga *
                 (lado.ofensivo.fatiga + extra) *
                 lado.defensivo.fatiga *
                 lado.mods.fatigaFactor *

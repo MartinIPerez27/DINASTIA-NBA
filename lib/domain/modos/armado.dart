@@ -13,6 +13,7 @@ import '../motor.dart';
 import '../playbook.dart';
 import '../progreso.dart';
 import '../quimica.dart';
+import '../una_carta.dart';
 import 'amigos.dart';
 import '../entities/enum_tolerante.dart';
 
@@ -413,15 +414,16 @@ class ModosArmado {
     for (final precio in EstadoTope.filas) {
       for (final pos in Posicion.titulares) {
         bool sirve(Jugador j) => precioTope(j) == precio && !usados.contains(j.nbaPlayerId);
-        var pool = [
+        // Filtro (precio, puesto, libre) y después una carta por persona (la de más media).
+        var pool = unaPorPersona([
           for (final j in catalogo)
             if (sirve(j) && j.posiciones.first == pos) j,
-        ];
+        ]);
         if (pool.isEmpty) {
-          pool = [
+          pool = unaPorPersona([
             for (final j in catalogo)
               if (sirve(j) && j.puedeJugarEn(pos)) j,
-          ];
+          ]);
         }
         final j = pool[azar.nextInt(pool.length)];
         usados.add(j.nbaPlayerId);
@@ -552,10 +554,10 @@ class ModosArmado {
     }
 
     for (final pos in [for (final p in Posicion.titulares) ...List.filled(13, p), ...List.filled(7, null)]) {
-      final pool = [
+      final pool = unaPorPersona([
         for (final j in catalogo)
           if (!personas.contains(j.nbaPlayerId) && (pos == null || j.posiciones.first == pos)) j,
-      ];
+      ]);
       final j = sortear(pool);
       personas.add(j.nbaPlayerId);
       ids.add(j.id);
@@ -634,10 +636,10 @@ class ModosArmado {
           for (final j in x.plantel.jugadores) j.nbaPlayerId,
         for (final j in cartasDelPozo(p)) j.nbaPlayerId,
       };
-      opciones = [
+      opciones = unaPorPersona([
         for (final j in catalogo)
           if (!tomados.contains(j.nbaPlayerId) && e.plantel.posicionesDisponiblesPara(j).isNotEmpty) j,
-      ]..sort((a, b) => b.media.compareTo(a.media));
+      ])..sort((a, b) => b.media.compareTo(a.media));
       opciones = opciones.take(10).toList();
     }
     // Primero los titulares: con el Sexto Hombre libre al final, no se gasta el pick en él antes.

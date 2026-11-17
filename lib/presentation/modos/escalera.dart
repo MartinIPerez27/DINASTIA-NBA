@@ -11,7 +11,10 @@ import '../../domain/entities/temporada.dart';
 import '../../domain/liga.dart';
 import '../../domain/entities/metajuego.dart';
 import '../../domain/misiones.dart';
+import '../../domain/modos/bitacora.dart';
 import '../../domain/modos/escalera.dart';
+import '../../domain/rivalidades.dart';
+import '../../domain/scouting.dart';
 import '../../domain/motor.dart';
 import '../../domain/premios.dart' show apellido;
 import '../compartir/tarjeta_compartir.dart';
@@ -19,6 +22,7 @@ import '../pantallas/partido_pantalla.dart';
 import '../tema/tema_franquicia.dart';
 import '../widgets/elegir_modo.dart';
 import '../widgets/escudo.dart';
+import '../widgets/ficha_rival.dart';
 import '../widgets/texto_led.dart';
 import 'modos.dart';
 
@@ -110,8 +114,50 @@ class _EscaleraPantallaState extends State<EscaleraPantalla> {
     // Misiones: cada partido ganado en un desafío cuenta (se cobra en el próximo guardado).
     final ganados = Escalera.de(t).victorias - _e.victorias;
     if (ganados > 0) Misiones.anotar(TipoMision.ganarDesafio, ganados);
+    final racha0 = _e.racha, racha1 = Escalera.de(t).racha;
     setState(() => _t = t);
     widget.onCambio(t);
+    // Hitos que se celebran (3, 5, 10… cruces ganados seguidos).
+    if (racha1 > racha0 && Bitacora.hitos.contains(racha1) && mounted) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(duration: const Duration(seconds: 2), content: Text('¡$racha1 seguidos! ${Bitacora.nivelRacha(racha1)}.')),
+        );
+    }
+  }
+
+  /// Ficha de scouting del rival (con rival jefe), debajo de los botones para que no los empuje.
+  List<Widget> _bloqueCruce(Escalera e, Cruce c) {
+    final modo = _t.modoJuego;
+    final rival = franquiciaPorId(c.rival.identidadId);
+    final plantel = [for (final id in c.rival.cartaIds.values) ?widget.liga.jugador(id)];
+    final jefe =
+        c.aGanar >= 4 ||
+        (e.total != null && e.cruces.length >= e.total!) ||
+        (modo == ModoJuego.racha && e.cruces.length % 5 == 0 && e.cruces.isNotEmpty);
+    final relato = MalaSangre.relato(perfilApp.value.metajuego.rivalidades, _t, c.rival.identidadId, rival.nombre);
+    final intro = switch (modo) {
+      ModoJuego.racha => 'Cada cinco rivales aparece uno de los duros. Este no te va a regalar nada.',
+      ModoJuego.caminoAlAnillo => 'La última puerta: el campeón que quiere cerrarte el camino al anillo.',
+      ModoJuego.mejoresEquipos => 'Uno de los mejores equipos que vio la NBA. Ganarle es entrar en la historia.',
+      ModoJuego.escenario => 'La historia pide otro final. Ahora te toca escribirlo.',
+      _ => 'Un rival de peso: acá se define la corrida.',
+    };
+    return [
+      const SizedBox(height: 12),
+      FichaRival(
+        identidad: rival,
+        nombre: nombreRival(c.rival),
+        scouting: FichaScouting.de(plantel, propios: _t.plantel.jugadores.toList()),
+        tactica: c.rival.tactica,
+        rivalidad: relato,
+        evento: _modos.eventoDe(_t),
+        jefe: jefe,
+        introJefe: intro,
+        historial: e.cruces.length > 1 ? 'Corrida: ${e.victorias}-${e.derrotas}' : 'Primer cruce de la corrida',
+      ),
+    ];
   }
 
   Franquicia get _propia => franquiciaPorId(_t.franquiciaUsuarioId);
@@ -165,7 +211,12 @@ class _EscaleraPantallaState extends State<EscaleraPantalla> {
             )
           else if (e.esperandoVentaja)
             _Ventajas(opciones: e.ofrecidas, onElegir: (v) => _guardar(_modos.elegirVentaja(_t, v)))
-          else if (pendiente != null)
+          else if (pendiente != null) ...[
+            BannerTension(
+              presion: Bitacora.presionDeCruce(_t.modoJuego, e, pendiente, mejorRacha: perfilApp.value.mejorRacha),
+              compacto: true,
+            ),
+            const SizedBox(height: 10),
             _ProximoCruce(
               cruce: pendiente,
               plantel: [for (final id in pendiente.rival.cartaIds.values) ?widget.liga.jugador(id)],
@@ -175,6 +226,12 @@ class _EscaleraPantallaState extends State<EscaleraPantalla> {
               onSimular: () => _simular(),
               onSimularSerie: pendiente.esSerie ? () => _simular(cruce: true) : null,
             ),
+            ..._bloqueCruce(e, pendiente),
+          ],
+          if (e.cruces.any((c) => c.terminado)) ...[
+            const SizedBox(height: 16),
+            BitacoraCorrida(entradas: Bitacora.de(e, nombreRival)),
+          ],
           if (modo == ModoJuego.caminoAlAnillo && e.insignias.isNotEmpty) ...[
             const SizedBox(height: 16),
             _InsigniasActivas(insignias: e.insignias, plantel: _t.plantel.jugadores.toList()),
@@ -223,7 +280,7 @@ class _Encabezado extends StatelessWidget {
       ModoJuego.racha => (
         '${e.racha}',
         'RACHA',
-        'Mejor racha: ${max(perfilApp.value.mejorRacha, e.racha)} · cada rival es un poco más fuerte',
+        '${Bitacora.nivelRacha(e.racha)} · mejor racha: ${max(perfilApp.value.mejorRacha, e.racha)} · cada rival es un poco más fuerte',
       ),
       ModoJuego.escenario => ('${e.actual?.propias ?? 0}-${e.actual?.ajenas ?? 0}', 'SERIE', escenario?.relato ?? ''),
       ModoJuego.mundial => (
@@ -594,6 +651,14 @@ class _Final extends StatelessWidget {
             'Partidos: ${e.victorias}-${e.derrotas}',
             style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
           ),
+          for (final l in [
+            ...Bitacora.cierre(e, nombreRival),
+            if (temporada.modoJuego == ModoJuego.racha && e.racha > 0)
+              e.racha >= perfilApp.value.mejorRacha
+                  ? '¡Nuevo récord personal: ${e.racha} seguidos!'
+                  : 'Te faltaron ${perfilApp.value.mejorRacha - e.racha + 1} para tu récord de ${perfilApp.value.mejorRacha}.',
+          ])
+            Padding(padding: const EdgeInsets.only(top: 4), child: Text(l, style: tema.textTheme.bodySmall)),
           const SizedBox(height: 12),
           FilledButton(onPressed: onSalir, child: const Text('VOLVER AL INICIO')),
           const SizedBox(height: 8),

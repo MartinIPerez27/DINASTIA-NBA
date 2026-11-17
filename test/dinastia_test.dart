@@ -37,8 +37,8 @@ void main() {
     );
   }
 
-  Temporada jugarEntera(Temporada t) {
-    var x = liga.iniciar(t);
+  Temporada jugarEntera(Temporada t, {bool iniciada = false}) {
+    var x = iniciada ? t : liga.iniciar(t);
     x = liga.simularOtrosHasta(x, 1 << 30);
     while (liga.proximoDelUsuario(x) != null) {
       x = liga.simularProximo(x);
@@ -53,14 +53,15 @@ void main() {
     expect(CarreraDinastia.cambioPorEdad(22), greaterThan(0));
     expect(CarreraDinastia.cambioPorEdad(29), 0);
     expect(CarreraDinastia.cambioPorEdad(35), lessThan(0));
-    final base = primera();
+    // Se inicia la liga antes de fijar las edades: los suplentes iniciales (agentes libres) también tienen 21.
+    final base = liga.iniciar(primera());
     final t = base.copyWith(
       datosModo: EstadoDinastia(
         raiz: 'din',
         edades: {for (final j in [...base.plantel.jugadores, ...base.suplentes]) j.id: 21},
       ).toJson(),
     );
-    final terminada = jugarEntera(t);
+    final terminada = jugarEntera(t, iniciada: true);
     final r = carrera.receso(terminada, nombre);
     expect(r.retiros, isEmpty, reason: 'a los 22 nadie se retira');
     // Los que ya están en 99 no pueden subir más (tope de la escala).
@@ -169,7 +170,8 @@ void main() {
     final t2 = carrera.siguiente(viejos, r, elegirPrimeros(r));
     final novato = elegirPrimeros(r).values.first;
     final enPlantel = [...t2.plantel.jugadores, ...t2.suplentes].firstWhere((j) => j.id == novato.id);
-    expect(enPlantel.media, lessThanOrEqualTo(novato.media), reason: 'llega más abajo y crece');
+    // Llega más abajo y crece (con un piso de 65: un novato de 63 sube a 65).
+    expect(enPlantel.media, lessThanOrEqualTo(max(65, novato.media)), reason: 'llega más abajo y crece');
   });
 
   test('Reescribí: cada 3 temporadas se pasa a la década siguiente', () {

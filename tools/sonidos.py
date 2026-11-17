@@ -237,6 +237,38 @@ def golpe_volcada() -> np.ndarray:
     return normalizar(fundido(seco + tablero + 0.7 * metal + clic, 0.001, 0.05), -3)
 
 
+def tension() -> np.ndarray:
+    """Capa de suspenso para el final apretado: zumbido grave que late despacio, con aire de público
+    callado. Bucle perfecto (todo periódico en `seg`)."""
+    seg = 6.0
+    t = t_de(seg)
+    base = sum(
+        a * np.sin(2 * np.pi * f * t + fase)
+        for f, a, fase in ((55, 1.0, 0.3), (82.5, 0.6, 1.1), (110.5, 0.35, 2.0), (165, 0.15, 4.0))
+    )
+    latido = 0.65 + 0.35 * np.sin(2 * np.pi * (t / seg) * 5 - 0.8) ** 2
+    aire = ruido(seg, 300, 1200) * lfo_periodico(seg, 4, 0.3) * 0.25
+    return normalizar((base * latido + aire), -14)
+
+
+def aplauso() -> np.ndarray:
+    """Aplauso del público: muchas palmas sueltas que se juntan y se van apagando."""
+    seg = 2.6
+    t = t_de(seg)
+    x = np.zeros_like(t)
+    for _ in range(170):
+        inicio = rng.uniform(0, seg - 0.1) ** 1.0
+        dens = np.exp(-((inicio - 0.7) / 0.9) ** 2)
+        if rng.uniform() > dens + 0.05:
+            continue
+        n0 = int(inicio * SR)
+        dur = 0.05
+        tt = t_de(dur)
+        palma = ruido(dur, 1200, 6000) * np.exp(-tt / 0.012) * rng.uniform(0.3, 1)
+        x[n0 : n0 + len(palma)] += palma
+    return normalizar(fundido(x + 0.15 * ruido(seg, 200, 1500) * np.exp(-((t - 0.8) / 1.0) ** 2), 0.01, 0.2), -6)
+
+
 SONIDOS = {
     "pique": pique,
     "red": red,
@@ -248,6 +280,8 @@ SONIDOS = {
     "abucheo": abucheo,
     "defensa": defensa,
     "golpe": golpe_volcada,
+    "tension": tension,
+    "aplauso": aplauso,
 }
 
 

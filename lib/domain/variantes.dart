@@ -10,6 +10,7 @@ import 'entities/plantel.dart';
 import 'entities/posicion.dart';
 import 'entities/rival.dart';
 import 'tokens_draft.dart';
+import 'una_carta.dart';
 import 'entities/temporada.dart';
 import 'liga.dart';
 import 'playbook.dart';
@@ -68,13 +69,13 @@ class Variantes {
 
   /// Figuras para elegir: 2 GOAT (S+) y el resto leyendas (S), sin repetir persona.
   List<Jugador> leyendasParaElegir({int cantidad = 6}) {
-    final vistos = <int>{};
+    final vistos = <String>{};
     List<Jugador> de(Tier tier, int n) {
-      final pool = catalogo.where((j) => j.tier == tier).toList()..shuffle(_azar);
+      final pool = unaPorPersona(catalogo.where((j) => j.tier == tier))..shuffle(_azar);
       final elegidas = <Jugador>[];
       for (final j in pool) {
         if (elegidas.length == n) break;
-        if (vistos.add(j.nbaPlayerId)) elegidas.add(j);
+        if (vistos.add(j.personaId)) elegidas.add(j);
       }
       return elegidas;
     }
@@ -110,7 +111,12 @@ class Variantes {
       for (final j in ofrecidas)
         if (!propias.contains(j.id) && !pasadas.contains(j.id)) j.id,
     ];
-    return [...pasadas, ...nuevas];
+    // Una carta que pasaste y después fichaste (otra tirada de la misma franquicia y época) ya no es "pasada".
+    return [
+      for (final id in pasadas)
+        if (!propias.contains(id)) id,
+      ...nuevas,
+    ];
   }
 
   /// Plantel que arma la IA con lo que dejaste pasar: por puesto, la mejor carta que entra (sin

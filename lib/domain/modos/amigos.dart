@@ -8,6 +8,7 @@ import '../entities/tactica.dart';
 import '../entities/temporada.dart';
 import '../motor.dart';
 import '../playbook.dart';
+import '../una_carta.dart';
 
 /// Una persona de la partida entre amigos: su nombre, la franquicia con la que juega, su plantel
 /// y su táctica.
@@ -324,10 +325,12 @@ class Amigos {
     final quien = p.participantes[p.eligeAhora];
     final tomados = _tomados(p);
     final azar = Random(p.semilla * 31 + p.turno * 7919 + extra);
-    final pool = [
+    // Filtro (libre y entra en un puesto) y después UNA carta por persona: la de más media. Mismo semilla,
+    // mismo sorteo (el pool sale en orden de catálogo).
+    final pool = unaPorPersona([
       for (final j in catalogo)
         if (!tomados.contains(j.nbaPlayerId) && quien.plantel.posicionesDisponiblesPara(j).isNotEmpty) j,
-    ];
+    ]);
     final elegidas = <Jugador>[];
     while (elegidas.length < PartidaAmigos.cartasPorTurno && pool.isNotEmpty) {
       final total = pool.fold(0, (a, j) => a + _pesos[j.tier]!);

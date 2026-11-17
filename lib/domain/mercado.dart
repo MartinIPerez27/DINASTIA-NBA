@@ -102,6 +102,11 @@ class Mercado {
     if ((t.lesiones[suyo.id] ?? 0) > 0) {
       return Respuesta(acepta: false, motivo: '${_apellido(suyo)} está lesionado: no se puede pasar.');
     }
+    // Una persona, una carta: si ya tenés a esa persona (otra versión) en el plantel o el banco, no entra.
+    final repetido = [...t.plantel.quitar(miPuesto).jugadores, ...t.suplentes].any((x) => x.personaId == suyo.personaId);
+    if (repetido) {
+      return Respuesta(acepta: false, motivo: '${_apellido(suyo)} ya está en tu equipo con otra carta.');
+    }
     if (!mio.puedeJugarEn(suPuesto)) {
       return Respuesta(
         acepta: false,
