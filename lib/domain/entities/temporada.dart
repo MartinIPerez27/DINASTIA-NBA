@@ -109,16 +109,30 @@ class SeriePlayoff {
 
 /// Qué tan fuertes son los rivales (se elige al empezar la partida).
 enum Dificultad {
-  normal('Normal', 'Rivales a la altura de un buen draft: con un gran plantel, el 82-0 está a tiro.', 79),
-  dificil('Difícil', 'Rivales con muchas figuras. Cada victoria cuesta.', 83),
-  leyenda('Leyenda', 'Cada rival es lo mejor de su historia o de su época. El 82-0 es una hazaña.', null);
+  // Motor v2 (ronda 2): las medias salen del test de balance (`test/balance_test.dart`). Con la ventaja
+  // de media por punto del motor nuevo, un draft típico (media 82,5 de los 6) gana ~58 % / ~30 % / ~10 %
+  // y el mejor plantel con la táctica recomendada y el mejor entrenador (media 93–97) es 82-0 en
+  // ~20 % / ~4 % / ~0 % de las temporadas. Detalle y criterio en el comentario de `bonoRival`.
+  normal('Normal', 'Rivales a la altura de un buen draft: con un gran plantel, el 82-0 está a tiro.', 80),
+  dificil('Difícil', 'Rivales con muchas figuras. Cada victoria cuesta.', 86),
+  leyenda(
+    'Leyenda',
+    'Cada rival es lo mejor de su historia o de su época. El 82-0 es una hazaña.',
+    null,
+    bonoRival: 5,
+  );
 
-  const Dificultad(this.nombre, this.descripcion, this.mediaRivales);
+  const Dificultad(this.nombre, this.descripcion, this.mediaRivales, {this.bonoRival = 0});
   final String nombre;
   final String descripcion;
 
   /// Media a la que apuntan los planteles rivales (null: lo mejor que tenga cada franquicia).
   final int? mediaRivales;
+
+  /// Puntos de media que rinden los rivales por encima de su carta en el partido (`EquipoPartido.ventajaMedia`).
+  /// Con "lo mejor de cada franquicia" no se puede subir más la media de los planteles (la mejor carta
+  /// de cada franquicia ya es el techo: promedio ~87), así que Leyenda juega por encima de sus cartas.
+  final int bonoRival;
 }
 
 /// Reglas especiales del draft (modos de draft). Algunas solo existen en el modo Cartas.

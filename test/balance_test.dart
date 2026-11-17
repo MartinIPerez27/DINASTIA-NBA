@@ -3,18 +3,27 @@ import 'dart:math';
 
 import 'package:dinastia_nba/data/catalogo_jugadores.dart';
 import 'package:dinastia_nba/data/franquicias.dart';
+import 'package:dinastia_nba/domain/entities/entrenador.dart';
 import 'package:dinastia_nba/domain/entities/jugador.dart';
 import 'package:dinastia_nba/domain/entities/plantel.dart';
 import 'package:dinastia_nba/domain/entities/posicion.dart';
+import 'package:dinastia_nba/domain/entities/tactica.dart';
 import 'package:dinastia_nba/domain/entities/temporada.dart';
 import 'package:dinastia_nba/domain/liga.dart';
+import 'package:dinastia_nba/domain/playbook.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Pruebas de balance automáticas: si un cambio en el motor o en los rivales desarma la
-/// dificultad, esto falla. Simula temporadas completas con un plantel "típico" de draft y con el
-/// mejor plantel histórico posible, en cada dificultad.
+/// Pruebas de balance automáticas (motor v2). Dos usuarios:
+///  * "típico": un draft de ruleta (rareza B10/A6/S3/S+1, franquicia y época al azar, la mejor carta) que
+///    NO toca la táctica ni elige entrenador (como medía el test viejo, para comparar con él);
+///  * "experto": el mejor plantel histórico de una franquicia con la táctica RECOMENDADA y el mejor
+///    entrenador disponible para ese plantel (MOT-03 / MOT-12: antes se medía un usuario sin táctica ni
+///    entrenador y el 82-0 del mejor plantel salía mucho más raro de lo que era).
+/// Metas (decididas con el dueño): mejor plantel 82-0 en ≈ 15–30 % de las temporadas en Normal, ≈ 3–5 % en
+/// Difícil y ≈ 0–1 % en Leyenda; drafts típicos ≈ 55–62 % / 28–32 % / 7–13 % de victorias.
 void main() {
   final catalogo = parsearCatalogo(File(rutaCatalogo).readAsStringSync());
+  const temporadasTipicas = 8, temporadasExperto = 16;
 
   Plantel mejor(String f) {
     var p = const Plantel();
@@ -25,7 +34,6 @@ void main() {
     return p;
   }
 
-  // Draft típico de ruleta: rareza B10/A6/S3/S+1, franquicia y época al azar, la mejor carta.
   Plantel tipico(Random r) {
     while (true) {
       var p = const Plantel();
@@ -49,66 +57,133 @@ void main() {
     }
   }
 
-  /// (% de victorias, puntos por equipo y partido) en [temporadas] temporadas.
-  (double, double) medir(Dificultad d, Plantel Function(int) plantel, {int temporadas = 3}) {
-    var v = 0, n = 0, puntos = 0;
-    for (var k = 0; k < temporadas; k++) {
-      final liga = Liga(catalogo, franquicias, azar: Random(1000 + k));
-      var t = liga.iniciar(
-        Temporada(id: 'b', franquiciaUsuarioId: 'CHI', plantel: plantel(k), tacticaConfirmada: true, dificultad: d),
-      );
-      while (liga.proximoDelUsuario(t) != null) {
-        final p = liga.proximoDelUsuario(t)!;
-        t = liga.simularProximo(t);
-        final j = t.calendario.firstWhere((x) => x.id == p.id);
-        n++;
-        puntos += j.puntosLocal + j.puntosVisitante;
-        if (j.ganadorId == 'CHI') v++;
+  /// La mejor combinación táctica + entrenador para un plantel: la recomendada o la que trae cada DT, con el
+  /// bonus de afinidad del entrenador (+12), su nivel y sin juntar ritmos opuestos.
+  (Tactica, Entrenador) mejorConfiguracion(Plantel p) {
+    final perfil = PerfilPlantel.de(p);
+    final rec = recomendar(perfil).tactica;
+    (Tactica, Entrenador)? mejorC;
+    var mejorPuntaje = double.negativeInfinity;
+    for (final c in Entrenador.todos) {
+      for (final t in [rec, Tactica(ofensiva: c.ofensiva, defensiva: c.defensiva)]) {
+        final puntaje =
+            perfil.afinidad(t.ofensiva.rasgos) +
+            perfil.afinidad(t.defensiva.rasgos) +
+            (c.ofensiva == t.ofensiva ? 12 : 0) +
+            (c.defensiva == t.defensiva ? 12 : 0) +
+            c.nivel * 0.6 -
+            8.0 * (t.ofensiva.ritmo - t.defensiva.ritmo).abs();
+        if (puntaje > mejorPuntaje) {
+          mejorPuntaje = puntaje;
+          mejorC = (t, c);
+        }
       }
     }
-    return (v / n, puntos / n / 2);
+    return mejorC!;
   }
 
-  final resultados = <Dificultad, (double, double, double)>{};
-  setUpAll(() {
+  /// (% de victorias, puntos por equipo y partido, victorias de cada temporada).
+  (double, double, List<int>) medir(
+    Dificultad d,
+    Plantel Function(int) plantel,
+    int temporadas, {
+    bool experto = false,
+  }) {
+    var v = 0, n = 0, puntos = 0;
+    final victorias = <int>[];
+    for (var k = 0; k < temporadas; k++) {
+      final p = plantel(k);
+      final (tactica, dt) = experto ? mejorConfiguracion(p) : (const Tactica(), null);
+      final liga = Liga(catalogo, franquicias, azar: Random(1000 + k));
+      var t = liga.iniciar(
+        Temporada(
+          id: 'b',
+          franquiciaUsuarioId: 'CHI',
+          plantel: p,
+          tactica: tactica,
+          entrenadorId: dt?.id,
+          tacticaConfirmada: true,
+          dificultad: d,
+        ),
+      );
+      var ganados = 0;
+      while (liga.proximoDelUsuario(t) != null) {
+        final partido = liga.proximoDelUsuario(t)!;
+        t = liga.simularProximo(t);
+        final j = t.calendario.firstWhere((x) => x.id == partido.id);
+        n++;
+        puntos += j.puntosLocal + j.puntosVisitante;
+        if (j.ganadorId == 'CHI') {
+          v++;
+          ganados++;
+        }
+      }
+      victorias.add(ganados);
+    }
+    return (v / n, puntos / n / 2, victorias);
+  }
+
+  final tipicos = <Dificultad, (double, double)>{};
+  final expertos = <Dificultad, (double, double, double)>{}; // % victorias, % de temporadas 82-0, puntos
+  test('mediciones (todas las dificultades)', () {
     for (final d in Dificultad.values) {
-      final (tip, pts) = medir(d, (k) => tipico(Random(500 + k)));
-      final (top, _) = medir(d, (k) => mejor(['CHI', 'LAL', 'BOS'][k]));
-      resultados[d] = (tip, top, pts);
+      final (tip, pts, _) = medir(d, (k) => tipico(Random(500 + k)), temporadasTipicas);
+      final (top, ptsTop, vics) = medir(
+        d,
+        (k) => mejor(['CHI', 'LAL', 'BOS', 'GSW'][k % 4]),
+        temporadasExperto,
+        experto: true,
+      );
+      final perfectas = vics.where((x) => x == 82).length / vics.length;
+      tipicos[d] = (tip, pts);
+      expertos[d] = (top, perfectas, ptsTop);
       // ignore: avoid_print
       print(
-        '${d.name}: típico ${(100 * tip).round()}% · mejor ${(100 * top).round()}% · ${pts.toStringAsFixed(1)} pts',
+        '${d.name}: típico ${(100 * tip).round()}% (${pts.toStringAsFixed(1)} pts) · mejor plantel con táctica '
+        'recomendada y mejor DT ${(100 * top).round()}% · 82-0 en ${(100 * perfectas).round()}% de '
+        '${vics.length} temporadas (${vics.reduce(min)}–${vics.reduce(max)} victorias)',
       );
     }
+  }, timeout: const Timeout(Duration(minutes: 20)));
+
+  test('Normal: un draft típico compite y el mejor plantel experto hace 82-0 con frecuencia', () {
+    final (tip, _) = tipicos[Dificultad.normal]!;
+    final (top, perfectas, _) = expertos[Dificultad.normal]!;
+    expect(tip, inInclusiveRange(0.45, 0.72));
+    expect(top, greaterThanOrEqualTo(0.96));
+    expect(perfectas, inInclusiveRange(0.06, 0.55), reason: 'meta ≈ 15–30 % de las temporadas');
   });
 
-  test('Normal: un draft típico compite y uno de leyendas domina', () {
-    final (tip, top, _) = resultados[Dificultad.normal]!;
-    expect(tip, inInclusiveRange(0.45, 0.78));
-    expect(top, greaterThanOrEqualTo(0.9));
+  test('Difícil: el draft típico pierde más de lo que gana y el 82-0 es raro', () {
+    final (tip, _) = tipicos[Dificultad.dificil]!;
+    final (top, perfectas, _) = expertos[Dificultad.dificil]!;
+    expect(tip, inInclusiveRange(0.2, 0.42));
+    expect(top, inInclusiveRange(0.88, 0.99));
+    expect(perfectas, lessThanOrEqualTo(0.25), reason: 'meta ≈ 3–5 %');
   });
 
-  test('Difícil: el draft típico pierde más de lo que gana y el mejor plantel igual sufre alguna', () {
-    final (tip, top, _) = resultados[Dificultad.dificil]!;
-    expect(tip, inInclusiveRange(0.2, 0.4));
-    expect(top, inInclusiveRange(0.75, 0.96));
-  });
-
-  test('Leyenda: el draft típico sufre y el mejor plantel no arrasa', () {
-    final (tip, top, _) = resultados[Dificultad.leyenda]!;
-    expect(tip, lessThanOrEqualTo(0.3));
-    expect(top, inInclusiveRange(0.5, 0.9));
+  test('Leyenda: el draft típico sufre y el 82-0 es una hazaña (casi imposible)', () {
+    final (tip, _) = tipicos[Dificultad.leyenda]!;
+    final (top, perfectas, _) = expertos[Dificultad.leyenda]!;
+    expect(tip, lessThanOrEqualTo(0.25));
+    expect(top, inInclusiveRange(0.5, 0.95));
+    expect(perfectas, lessThanOrEqualTo(0.07), reason: 'meta ≤ 1 %');
   });
 
   test('cada dificultad es más dura que la anterior', () {
-    final n = resultados[Dificultad.normal]!, d = resultados[Dificultad.dificil]!, l = resultados[Dificultad.leyenda]!;
+    final n = tipicos[Dificultad.normal]!, d = tipicos[Dificultad.dificil]!, l = tipicos[Dificultad.leyenda]!;
     expect(n.$1 > d.$1 && d.$1 > l.$1, isTrue, reason: 'draft típico');
-    expect(n.$2 >= d.$2 && d.$2 > l.$2, isTrue, reason: 'mejor plantel');
+    final en = expertos[Dificultad.normal]!, ed = expertos[Dificultad.dificil]!, el = expertos[Dificultad.leyenda]!;
+    expect(en.$1 >= ed.$1 && ed.$1 > el.$1, isTrue, reason: 'mejor plantel');
+    expect(en.$2 >= ed.$2 && ed.$2 >= el.$2, isTrue, reason: 'temporadas perfectas');
   });
 
-  test('anotación creíble', () {
-    for (final (_, _, pts) in resultados.values) {
-      expect(pts, inInclusiveRange(90, 118));
+  test('anotación creíble (NBA moderna: 105–120 por equipo)', () {
+    for (final (_, pts) in tipicos.values) {
+      expect(pts, inInclusiveRange(104, 124));
+    }
+    for (final (_, _, pts) in expertos.values) {
+      expect(pts, inInclusiveRange(104, 124));
     }
   });
 }

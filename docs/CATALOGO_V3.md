@@ -276,3 +276,28 @@ Subidas:
 
 `Dificultad.mediaRivales`: Normal 78 → 79, Difícil 83 (sin cambio; Leyenda sin objetivo). Medición (`test/balance_test.dart`):
 Normal 61 % típico / 98 % mejor; Difícil 31 % / 87 %; Leyenda 13 % / 59 % (objetivo 56/97, 29/89, 7/57: Leyenda queda algo fácil, depende de las mejores ventanas por franquicia).
+
+## 6. Una sola carta por persona por tirada (ronda 2)
+
+Regla del dueño: en una tirada, sobre, oferta o lista hay UNA carta por persona (identidad: `Jugador.personaId`, el
+id oficial de la NBA o, sin él, el de Basketball-Reference). Orden: **filtrar** por la tirada (franquicia, época, rareza,
+regla de draft, puesto libre) y **después agrupar por persona** con la mejor versión de lo que pasó el filtro (mayor media;
+desempate, la más reciente). Código en `lib/domain/una_carta.dart`.
+
+* `Draft.candidatos`, `_combinaciones` (carretes y retener), Comodín, sobres/oferta/sorpresa, agentes libres, Tienda,
+  Draft en grupo, Tope salarial, Liga de 8, Leyenda única y la lista de `ElegirAlineacion` usan `unaPorPersona`.
+* **Código de reto y azar**: `Draft.azarPara` deriva el `Random` de (semilla, picks, paso, fichas) y no mira la lista
+  de candidatos, así que dos dispositivos con la misma versión de la app siguen sincronizados. Lo que cambió es el
+  CONTENIDO: las combinaciones posibles (y el Tier de cada una) salen de las cartas visibles, y los sobres sortean sobre
+  una carta por persona; un código armado antes de esta ronda da otro draft. Por eso `versionDe` mezcla
+  `reglaDeTirada` (2): un código viejo se detecta como "otro catálogo".
+* **Tokens**: Mejor versión = la de mayor media de ESA persona en todo el catálogo que cumple la regla vigente y entra en
+  un puesto libre (si la mejor global viola Una sola década / Franquicia pura / Underdog / Mi colección, se usa la mejor
+  que sí cumple; la hoja lo avisa). Doble = dos personas distintas. Intercambio: entra solo la carta que la tirada muestra,
+  nunca otra versión de quien sale ni de alguien del plantel. Comodín: tirada fijada con una carta por persona.
+* **Planteles**: ninguna persona dos veces en un plantel (`Plantel.contiene`), ni entre rivales de una temporada
+  (`Liga.iniciar` veda lo ya usado y lo robado en la serpiente; Dinastía/Reescribí igual), ni en banco/agentes libres/Mercado.
+* **Álbum** (`lib/domain/album.dart`): una tarjeta por persona con selector de versión; "12 de 4.067 jugadores · 31
+  versiones"; el perfil sigue guardando ids de carta. Evoluciones y "Mi colección" siguen por id de carta.
+* Excepción deliberada: los Desafíos de armado muestran tu álbum entero (cada versión cuenta para sus condiciones).
+* Auditoría: `test/una_carta_por_jugador_test.dart`.

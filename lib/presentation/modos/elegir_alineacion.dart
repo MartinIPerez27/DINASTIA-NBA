@@ -5,6 +5,7 @@ import '../../domain/entities/jugador.dart';
 import '../../domain/entities/posicion.dart';
 import '../../domain/modos/competitivo.dart';
 import '../../domain/modos/evoluciones.dart';
+import '../../domain/una_carta.dart';
 import '../widgets/carta_jugador.dart';
 import '../widgets/disposicion.dart';
 import '../widgets/texto_led.dart';
@@ -57,13 +58,14 @@ class _ElegirAlineacionPantallaState extends State<ElegirAlineacionPantalla> {
       for (final e in _elegidas.entries)
         if (e.key != _puesto) e.value.nbaPlayerId,
     };
-    return [
+    // Una sola carta por persona (la de más media de las que sirven para el puesto).
+    return unaPorPersona([
       for (final j in _pool)
         if (j.puedeJugarEn(_puesto) &&
             !personas.contains(j.nbaPlayerId) &&
             (texto.isEmpty || j.nombre.toLowerCase().contains(texto)))
           j,
-    ]..sort((a, b) => mediaDe(b).compareTo(mediaDe(a)));
+    ])..sort((a, b) => mediaDe(b).compareTo(mediaDe(a)));
   }
 
   void _elegir(Jugador j) {

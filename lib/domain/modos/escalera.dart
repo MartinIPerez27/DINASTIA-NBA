@@ -11,6 +11,7 @@ import '../modificadores.dart';
 import '../motor.dart';
 import '../playbook.dart';
 import '../quimica.dart';
+import '../scouting.dart';
 import '../entities/enum_tolerante.dart';
 
 /// Rival de un modo de escalera: un plantel armado a medida (no es una franquicia de la liga).
@@ -1145,6 +1146,19 @@ class ModosEscalera {
     return p;
   }
 
+  /// Evento aleatorio (pero determinista) del cruce pendiente de Racha, Camino y Mundial: una baja
+  /// del rival, un rival encendido o cansado, o la hinchada. Efecto chico y siempre visible en la ficha
+  /// del rival (`EventoCruce.efecto`). Null si el modo no los usa o ese cruce no tiene.
+  EventoCruce? eventoDe(Temporada t) {
+    if (!const {ModoJuego.racha, ModoJuego.caminoAlAnillo, ModoJuego.mundial}.contains(t.modoJuego)) return null;
+    final e = Escalera.de(t);
+    final c = e.pendiente;
+    if (c == null) return null;
+    final js = [...plantelDe(c.rival).jugadores]..sort((a, b) => b.media.compareTo(a.media));
+    final f = liga.franquicias.where((x) => x.id == c.rival.identidadId).firstOrNull;
+    return EventoCruce.de(t.id, e.cruces.length, figura: js.firstOrNull, rival: f?.nombre ?? c.rival.identidadId);
+  }
+
   /// Equipo de un rival; [ajuste] se suma a la media de todas sus cartas.
   EquipoPartido equipoRival(RivalEscalera r, {int ajuste = 0, double energia = 100}) {
     final plantel = plantelDe(r);
@@ -1161,10 +1175,11 @@ class ModosEscalera {
     final e = Escalera.de(t);
     final base = liga.equipo(t, t.franquiciaUsuarioId);
     final mods = InsigniaCamino.suma(e.insignias, base.plantel.jugadores);
-    if (e.bonusPlantel.isEmpty && e.bonusProximo == 0 && mods.esNeutro) return base;
+    final eventoPropio = eventoDe(t)?.propioMas ?? 0;
+    if (e.bonusPlantel.isEmpty && e.bonusProximo == 0 && eventoPropio == 0 && mods.esNeutro) return base;
     final forma = <String, int>{...base.forma};
     for (final j in [...base.plantel.jugadores, ...base.reserva]) {
-      forma[j.id] = (forma[j.id] ?? 0) + (e.bonusPlantel[j.id] ?? 0) + e.bonusProximo;
+      forma[j.id] = (forma[j.id] ?? 0) + (e.bonusPlantel[j.id] ?? 0) + e.bonusProximo + eventoPropio;
     }
     return EquipoPartido(
       identidadId: base.identidadId,
@@ -1192,10 +1207,11 @@ class ModosEscalera {
         t.modoJuego == ModoJuego.caminoAlAnillo && c.aGanar == 1;
     // Las Finales del camino: el rival llega entero (+2) porque el tuyo llega con sus insignias.
     final ajuste = aMedida ? 0 : ajusteDificultad(t.dificultad) + (t.modoJuego == ModoJuego.caminoAlAnillo ? 2 : 0);
+    final evento = eventoDe(t);
     final rival = equipoRival(
       c.rival,
-      ajuste: ajuste - e.rivalDebil + _rampa(t, e),
-      energia: e.rivalCansado ? 92 : 100,
+      ajuste: ajuste - e.rivalDebil - (evento?.rivalMenos ?? 0) + _rampa(t, e),
+      energia: e.rivalCansado || (evento?.rivalCansado ?? false) ? 92 : 100,
     );
     final local = c.usuarioLocalProximo;
     return MotorPartido(

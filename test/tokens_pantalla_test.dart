@@ -26,7 +26,8 @@ void main() {
     for (final j in catalogo) {
       final t = Temporada(id: 'x', franquiciaUsuarioId: 'CHI', tirada: Tirada.de(j));
       final m = d.mejorVersionDe(t, j);
-      if (m != null && d.candidatos(t).length >= 3) return (j, m);
+      // Solo vale la carta que la tirada muestra (una por persona: la de más media de su franquicia y época).
+      if (m != null && d.candidatos(t).length >= 3 && d.candidatos(t).contains(j)) return (j, m);
     }
     throw StateError('el catálogo no tiene versiones');
   }();

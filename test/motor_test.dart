@@ -40,7 +40,7 @@ void main() {
       expect(m.boxVisitante.values.fold(0, (a, l) => a + l.pts), m.puntosVisitante);
       expect(m.parcialesLocal.fold(0, (a, b) => a + b), m.puntosLocal);
     }
-    expect(total / 120, inInclusiveRange(92, 122), reason: 'promedio de puntos por equipo');
+    expect(total / 120, inInclusiveRange(100, 127), reason: 'promedio de puntos por equipo (dos quintetos de All-Star)');
   });
 
   test('el plantel más fuerte gana casi siempre', () {
@@ -88,5 +88,48 @@ void main() {
     expect(eventos.where((e) => e.tipo == TipoEvento.cambio), isNotEmpty);
     expect(eventos.first.marcadorLocal + eventos.first.marcadorVisitante, lessThanOrEqualTo(3), reason: 'arranca 0-0');
     expect(eventos.last.tipo, TipoEvento.finPartido);
+  });
+
+  test('el saque alterna como en la NBA: quien pierde el salto saca el 2.º y el 3.º; quien lo gana, el 1.º y el 4.º', () {
+    final r = Random(5);
+    for (var i = 0; i < 40; i++) {
+      final m = MotorPartido(
+        local: EquipoPartido(identidadId: 'CHI', plantel: armar((j) => tier(j, Tier.a), r), tactica: const Tactica()),
+        visitante: EquipoPartido(identidadId: 'BOS', plantel: armar((j) => tier(j, Tier.a), r), tactica: const Tactica()),
+        azar: r,
+      );
+      final primero = <int, bool>{};
+      while (!m.terminado) {
+        final e = m.siguiente();
+        final esPosesion = e.tipo == TipoEvento.tiro ||
+            e.tipo == TipoEvento.perdida ||
+            e.tipo == TipoEvento.libres ||
+            e.tipo == TipoEvento.falta ||
+            e.tipo == TipoEvento.salto;
+        if (esPosesion && e.cuarto <= 4) {
+          primero.putIfAbsent(e.cuarto, () => e.local);
+        }
+      }
+      expect(primero[2], !primero[1]!, reason: 'partido $i');
+      expect(primero[3], !primero[1]!, reason: 'partido $i');
+      expect(primero[4], primero[1], reason: 'partido $i');
+    }
+  });
+
+  test('un partido entre IA es simétrico: los dos lados usan tiempos muertos', () {
+    final r = Random(6);
+    var local = 0, visitante = 0;
+    for (var i = 0; i < 200; i++) {
+      final m = MotorPartido(
+        local: EquipoPartido(identidadId: 'CHI', plantel: armar((j) => tier(j, Tier.a), r), tactica: const Tactica()),
+        visitante: EquipoPartido(identidadId: 'BOS', plantel: armar((j) => tier(j, Tier.a), r), tactica: const Tactica()),
+        azar: r,
+      )..simularTodo();
+      local += 5 - m.tiemposMuertos(true);
+      visitante += 5 - m.tiemposMuertos(false);
+    }
+    expect(local, greaterThan(40));
+    expect(visitante, greaterThan(40));
+    expect(local / visitante, inInclusiveRange(0.75, 1.35));
   });
 }

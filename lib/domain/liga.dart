@@ -14,6 +14,7 @@ import 'entities/temporada.dart';
 import 'modos/evoluciones.dart';
 import 'motor.dart';
 import 'playbook.dart';
+import 'una_carta.dart';
 import 'version_catalogo.dart';
 import 'versiones.dart';
 
@@ -38,19 +39,31 @@ class Liga {
   Temporada iniciar(Temporada t, {Set<int> excluidos = const {}}) {
     if (!t.plantel.completo || !t.tacticaConfirmada) throw StateError('Faltan el plantel o las tácticas.');
     final propios = {for (final j in t.plantel.jugadores) j.nbaPlayerId, ...excluidos};
-    final armada = t.copyWith(
-      calendario: generarCalendario(franquicias, _azar),
-      rivales: {
-        for (final f in franquicias)
-          if (f.id != t.franquiciaUsuarioId)
-            f.id: _armarRival(
-              f.id,
-              propios,
-              t.dificultad,
-              robadas: [for (final id in t.robos[f.id] ?? const <String>[]) ?_porId[id]],
-            ),
-      },
-    );
+    // Una persona no puede estar en dos rivales: cada rival que se arma suma sus jugadores a los vedados
+    // para los siguientes, y las cartas que un rival se llevó en la serpiente no las usa ningún otro.
+    final robadasPor = {
+      for (final f in franquicias)
+        f.id: [for (final id in t.robos[f.id] ?? const <String>[]) ?_porId[id]],
+    };
+    final vedados = {...propios};
+    final rivales = <String, Rival>{};
+    for (final f in franquicias) {
+      if (f.id == t.franquiciaUsuarioId) continue;
+      final ajenas = {
+        for (final e in robadasPor.entries)
+          if (e.key != f.id) for (final j in e.value) j.nbaPlayerId,
+      };
+      Rival rival;
+      try {
+        rival = _armarRival(f.id, {...vedados, ...ajenas}, t.dificultad, robadas: robadasPor[f.id]!);
+      } on StateError {
+        // Sin cartas suficientes sin repetir (franquicia muy chica): solo se respeta el plantel del usuario.
+        rival = _armarRival(f.id, propios, t.dificultad, robadas: robadasPor[f.id]!);
+      }
+      rivales[f.id] = rival;
+      vedados.addAll(plantelDe(rival).jugadores.map((j) => j.nbaPlayerId));
+    }
+    final armada = t.copyWith(calendario: generarCalendario(franquicias, _azar), rivales: rivales);
     return t.suplentes.isEmpty ? _bancoInicial(armada) : armada;
   }
 
@@ -112,7 +125,8 @@ class Liga {
         return _rival(franquiciaId, TipoRival.epoca, plantel, identidad, epoca: epoca);
       }
     }
-    final plantel = _armarPlantel(propias, variedad: 3, objetivo: dificultad.mediaRivales)!;
+    final plantel = _armarPlantel(propias, variedad: 3, objetivo: dificultad.mediaRivales);
+    if (plantel == null) throw StateError('No alcanzan las cartas de $franquiciaId para armar un plantel.');
     return _rival(franquiciaId, TipoRival.historico, plantel, franquiciaId);
   }
 
@@ -213,7 +227,14 @@ class Liga {
     final (plantel, _) = hayLesionados
         ? _conReemplazos(base, _reemplazosRival(t, r, base, les), les)
         : (base, const <Jugador>[]);
-    return EquipoPartido(identidadId: r.identidadId, plantel: plantel, tactica: r.tactica, forma: t.forma);
+    // Leyenda: los rivales rinden por encima de su carta (ver `Dificultad.bonoRival`).
+    return EquipoPartido(
+      identidadId: r.identidadId,
+      plantel: plantel,
+      tactica: r.tactica,
+      forma: t.forma,
+      ventajaMedia: t.dificultad.bonoRival.toDouble(),
+    );
   }
 
   /// Saca a los lesionados: cada titular lesionado lo reemplaza el mejor sano que pueda jugar ese puesto
@@ -254,6 +275,10 @@ class Liga {
       for (final j in t.plantel.jugadores) j.nbaPlayerId,
       for (final j in t.suplentes) j.nbaPlayerId,
       for (final j in base.jugadores) j.nbaPlayerId,
+      // Tampoco los de los demás rivales: una persona no está en dos planteles de la liga.
+      for (final o in t.rivales.values)
+        if (o.franquiciaId != r.franquiciaId)
+          for (final id in o.cartaIds.values) ?_porId[id]?.nbaPlayerId,
     };
     final pool = [
       for (final j in catalogo)
@@ -279,14 +304,15 @@ class Liga {
       for (final r in t.rivales.values)
         for (final id in r.cartaIds.values) ?_porId[id]?.nbaPlayerId,
     };
-    final pool = [
+    // Primero el filtro (A/B, media 72–86, libre) y después UNA carta por persona (la de más media).
+    final pool = unaPorPersona([
       for (final j in catalogo)
         if ((j.tier == Tier.a || j.tier == Tier.b) &&
             j.media >= 72 &&
             j.media <= 86 &&
             !ocupados.contains(j.nbaPlayerId))
           j,
-    ]..shuffle(azar);
+    ])..shuffle(azar);
     final elegidos = <Jugador>[];
     final personas = <int>{};
     // Variedad: al menos uno por puesto principal, después el resto.
@@ -306,15 +332,21 @@ class Liga {
 
   Temporada firmar(Temporada t, Jugador j) {
     if (t.suplentes.length >= Temporada.maxSuplentes) throw StateError('El banco largo ya está completo.');
-    if (t.suplentes.any((x) => x.nbaPlayerId == j.nbaPlayerId)) return t;
+    if (t.suplentes.any((x) => x.nbaPlayerId == j.nbaPlayerId) || t.plantel.contiene(j)) return t;
     return t.copyWith(suplentes: [...t.suplentes, j]);
   }
 
+  /// Libera a un suplente. Su lesión se borra: un liberado ya no tiene equipo y su lesión se descontaba
+  /// cuando jugaba la franquicia histórica de la carta (MOT-11).
   Temporada liberar(Temporada t, Jugador j) => t.copyWith(
     suplentes: [
       for (final x in t.suplentes)
         if (x.id != j.id) x,
     ],
+    lesiones: {
+      for (final e in t.lesiones.entries)
+        if (e.key != j.id) e.key: e.value,
+    },
   );
 
   Partido? proximoDelUsuario(Temporada t) {
@@ -327,7 +359,8 @@ class Liga {
   MotorPartido motor(Temporada t, Partido p, {Random? azar, Map<String, int>? lesiones}) => MotorPartido(
     local: _conDesgaste(equipo(t, p.localId, lesiones: lesiones), t, p, p.localId),
     visitante: _conDesgaste(equipo(t, p.visitanteId, lesiones: lesiones), t, p, p.visitanteId),
-    usuarioLocal: p.localId == t.franquiciaUsuarioId,
+    // Partido entre dos IA: sin lado del usuario (así los dos piden tiempo muerto igual).
+    usuarioLocal: p.participa(t.franquiciaUsuarioId) ? p.localId == t.franquiciaUsuarioId : null,
     azar: azar ?? _azar,
   );
 
@@ -364,6 +397,8 @@ class Liga {
       forma: e.forma,
       energiaInicial: energia,
       reserva: e.reserva,
+      modificadores: e.modificadores,
+      ventajaMedia: e.ventajaMedia,
     );
   }
 

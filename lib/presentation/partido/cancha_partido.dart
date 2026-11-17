@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 
 import '../../domain/entities/franquicia.dart';
 import '../tema/tema_franquicia.dart';
+import 'jugadores_animados.dart';
+import 'publico.dart';
 
 /// Cancha completa vista desde arriba, en pies: 50 de ancho, 94 de largo (aro de arriba en y=5.25).
 abstract final class Cancha94 {
-  static const ancho = 50.0, largo = 94.0, borde = 3.0;
+  static const ancho = 50.0, largo = 94.0, borde = 6.0;
   static Offset aro(bool arriba) => Offset(25, arriba ? 5.25 : largo - 5.25);
 }
 
@@ -24,7 +26,23 @@ class Ficha {
     this.ribete,
     this.energia = 1,
     this.salto = 0,
+    this.postura,
+    this.semilla = 0,
+    this.enLlamas = false,
+    this.esTecnico = false,
   });
+
+  /// Entrenador (traje, sin aro de energía).
+  final bool esTecnico;
+
+  /// Cuerpo animado (hacia dónde mira, brazos, ánimo). Sin él, está parado mirando hacia arriba.
+  final PosturaJugador? postura;
+
+  /// Para el tono de piel y los gestos propios (estable por jugador).
+  final int semilla;
+
+  /// El tirador "en llamas" (racha de aciertos): fuego y brillo alrededor.
+  final bool enLlamas;
 
   final Offset posicion; // en pies
 
@@ -44,6 +62,56 @@ class Ficha {
 
   /// Estamina 0–1: el aro de energía alrededor de la ficha se va apagando.
   final double energia;
+}
+
+/// Atmósfera del estadio: tribuna, banco de suplentes, luz y destellos del cartel LED.
+class AmbienteCancha {
+  const AmbienteCancha({
+    this.publico = const PublicoEstado(),
+    this.luzDramatica = 0,
+    this.destello = 0,
+    this.bancoAtaque,
+    this.bancoDefensa,
+    this.levantadoAtaque = 0,
+    this.levantadoDefensa = 0,
+    this.tecnicos = const [],
+    this.humo = 0,
+  });
+
+  final PublicoEstado publico;
+
+  /// 0–1: playoffs y final apretado oscurecen los bordes y dejan la luz sobre la cancha.
+  final double luzDramatica;
+
+  /// 0–1: el cartel LED y la luz se encienden un instante (canasta grande).
+  final double destello;
+
+  /// Colores (camiseta, ribete) del banco del equipo que ataca y del que defiende.
+  final (Color, Color)? bancoAtaque, bancoDefensa;
+
+  /// Qué tan de pie están los suplentes (festejan una jugada grande o un tiempo muerto).
+  final double levantadoAtaque, levantadoDefensa;
+  final List<Ficha> tecnicos;
+
+  /// 0–1: humo del tirador encendido que sube del piso.
+  final double humo;
+
+  /// Lo mismo con el banco y los técnicos de la jugada puestos.
+  AmbienteCancha conEscena({
+    required (Color, Color) bancoAtaque,
+    required (Color, Color) bancoDefensa,
+    required List<Ficha> tecnicos,
+  }) => AmbienteCancha(
+    publico: publico,
+    luzDramatica: luzDramatica,
+    destello: destello,
+    bancoAtaque: bancoAtaque,
+    bancoDefensa: bancoDefensa,
+    levantadoAtaque: levantadoAtaque,
+    levantadoDefensa: levantadoDefensa,
+    tecnicos: tecnicos,
+    humo: humo,
+  );
 }
 
 /// Lo que le pasa al aro de un lado: la red se sacude al entrar la pelota o el aro vibra al rebotar.
@@ -115,7 +183,14 @@ class CanchaPartidoPainter extends CustomPainter {
     this.cartel = '',
     this.tiempo = 0,
     this.estilo = const EstiloCancha(),
+    this.ambiente = const AmbienteCancha(),
+    this.temblor = Offset.zero,
   });
+
+  final AmbienteCancha ambiente;
+
+  /// Sacudida de la cámara en píxeles (impacto de una volcada o un tapón).
+  final Offset temblor;
 
   /// Piso y pelota (cosméticos).
   final EstiloCancha estilo;
@@ -176,86 +251,96 @@ class CanchaPartidoPainter extends CustomPainter {
     );
     canvas.save();
     canvas.clipRect(Offset.zero & size);
+    canvas.translate(temblor.dx, temblor.dy);
     canvas.scale(zoom);
     canvas.translate(-(izquierda + Cancha94.borde) * pie, -(arriba + Cancha94.borde) * pie);
     canvas.drawPicture(_pisoCacheado(pie));
     Offset p(Offset o) => Offset((o.dx + Cancha94.borde) * pie, (o.dy + Cancha94.borde) * pie);
+    Publico.dibujar(
+      canvas,
+      pie,
+      ambiente.publico,
+      tiempo,
+      Color(franquicia.colorSecundario),
+      colorLed,
+      visible: Rect.fromLTWH(izquierda.toDouble(), arriba.toDouble(), ancho, alto),
+    );
     _carteles(canvas, pie);
+    _banco(canvas, p, pie);
 
-    // Fichas.
+    // Fichas: figuras animadas. Los que saltan, arriba de todo (y el que tiene la pelota arriba de los
+    // que no saltan). Los técnicos van con ellos.
     final radioBase = 2.1 * pie;
-    // Los que saltan, arriba de todo (y el que tiene la pelota arriba de los que no saltan).
     int capa(Ficha f) => f.salto > 0 ? 2 : (f.conBalon ? 1 : 0);
-    for (final f in [...fichas]..sort((a, b) => capa(a).compareTo(capa(b)))) {
+    final todas = [...ambiente.tecnicos, ...fichas]..sort((a, b) => capa(a).compareTo(capa(b)));
+    for (final f in todas) {
       final c = p(f.posicion);
       final a = f.opacidad;
-      final salto = f.salto.clamp(0.0, 1.0);
-      final radio = radioBase * (1 + 0.3 * salto);
-      canvas.drawCircle(
-        c + Offset(radioBase * (0.12 + 0.55 * salto), radioBase * (0.22 + 0.9 * salto)),
-        radioBase * (1 - 0.15 * salto),
-        Paint()..color = Colors.black.withValues(alpha: (0.35 - 0.12 * salto) * a),
-      );
-      canvas.drawCircle(c, radio, Paint()..color = f.relleno.withValues(alpha: a));
-      // Camiseta: ribete del segundo color en el borde, como el cuello y las sisas.
-      if (f.ribete case final ribete?) {
-        canvas.drawCircle(
-          c,
-          radio * 0.86,
-          Paint()
-            ..color = ribete.withValues(alpha: a)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = radio * 0.16,
-        );
-      }
+      final radio = radioBase * (1 + 0.3 * f.salto.clamp(0.0, 1.0));
+      final postura = f.postura ?? const PosturaJugador();
+      if (f.enLlamas) _llamas(canvas, c, pie, postura.rumbo, a);
       // Aro de energía: completo con el tanque lleno, se acorta (y se pone ámbar) con el cansancio.
       final energia = f.energia.clamp(0.0, 1.0);
-      canvas.drawCircle(
-        c,
-        radio + pie * 0.32,
-        Paint()
-          ..color = Colors.black.withValues(alpha: 0.35 * a)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = pie * 0.28,
-      );
-      canvas.drawArc(
-        Rect.fromCircle(center: c, radius: radio + pie * 0.32),
-        -pi / 2,
-        2 * pi * energia,
-        false,
-        Paint()
-          ..color = (energia < 0.6 ? const Color(0xFFFFB020) : Colors.white.withValues(alpha: 0.8)).withValues(alpha: a)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = pie * 0.28
-          ..strokeCap = StrokeCap.round,
-      );
-      if (f.conBalon) {
+      // Solo se dibuja el aro de energía cuando el jugador ya se cansó (si no, ensucia la figura).
+      if (!f.esTecnico && energia < 0.85) {
         canvas.drawCircle(
           c,
-          radio + pie * 0.75,
+          radio + pie * 0.55,
+          Paint()
+            ..color = Colors.black.withValues(alpha: 0.3 * a)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = pie * 0.24,
+        );
+        canvas.drawArc(
+          Rect.fromCircle(center: c, radius: radio + pie * 0.55),
+          -pi / 2,
+          2 * pi * energia,
+          false,
+          Paint()
+            ..color = (energia < 0.6 ? const Color(0xFFFFB020) : Colors.white.withValues(alpha: 0.75)).withValues(alpha: a)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = pie * 0.24
+            ..strokeCap = StrokeCap.round,
+        );
+      }
+      dibujarJugador(
+        canvas,
+        c: c,
+        pie: pie,
+        postura: postura,
+        camiseta: f.relleno,
+        numero: f.texto,
+        ribete: f.ribete ?? f.texto,
+        etiqueta: f.etiqueta,
+        semilla: f.semilla,
+        salto: f.salto,
+        opacidad: a,
+        tiempo: tiempo,
+        destello: colorLed,
+      );
+      if (f.conBalon) {
+        // Resalte del que tiene la pelota: anillo LED que late.
+        final late = 0.5 + 0.5 * sin(tiempo * 7);
+        canvas.drawCircle(
+          c,
+          radio + pie * (1.15 + 0.25 * late),
           Paint()
             ..color = colorLed.withValues(alpha: a)
             ..style = PaintingStyle.stroke
             ..strokeWidth = max(2.0, pie * 0.35),
         );
+        canvas.drawCircle(
+          c,
+          radio + pie * 1.0,
+          Paint()
+            ..color = colorLed.withValues(alpha: 0.13 * a)
+            ..style = PaintingStyle.fill,
+        );
       }
-      _texto(canvas, f.etiqueta, c, radio * 0.95, f.texto.withValues(alpha: a), FontWeight.w800);
       if (f.nombre != null) {
-        final placa = TextPainter(
-          text: TextSpan(
-            text: f.nombre,
-            style: TextStyle(
-              fontFamily: Fuentes.estadio,
-              fontVariations: const [FontVariation.weight(700)],
-              fontSize: radio * 0.75,
-              color: Colors.white,
-              letterSpacing: 0.4,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
+        final placa = _placa(f.nombre!, radio * 0.75);
         final rect = Rect.fromCenter(
-          center: c + Offset(0, radio * 1.75),
+          center: c + Offset(0, radio * 2.0),
           width: placa.width + radio * 0.8,
           height: placa.height + radio * 0.2,
         );
@@ -264,6 +349,20 @@ class CanchaPartidoPainter extends CustomPainter {
           Paint()..color = const Color(0xD90F1012),
         );
         placa.paint(canvas, rect.center - Offset(placa.width / 2, placa.height / 2));
+      }
+    }
+    if (ambiente.humo > 0.05) {
+      // Humo suave subiendo de las llamas (sin sombras de caja: solo círculos translúcidos en el canvas).
+      for (final f in fichas.where((f) => f.enLlamas)) {
+        final c = p(f.posicion);
+        for (var k = 0; k < 4; k++) {
+          final u = ((tiempo * 0.9 + k * 0.25) % 1.0);
+          canvas.drawCircle(
+            c + Offset(sin(tiempo * 2 + k) * pie * 0.8, -pie * (2 + u * 4)),
+            pie * (0.8 + u * 1.4),
+            Paint()..color = Colors.white.withValues(alpha: 0.10 * (1 - u) * ambiente.humo),
+          );
+        }
       }
     }
 
@@ -291,8 +390,8 @@ class CanchaPartidoPainter extends CustomPainter {
       Paint()
         ..shader = RadialGradient(
           radius: 0.95,
-          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.38)],
-          stops: const [0.55, 1],
+          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.38 + 0.3 * ambiente.luzDramatica)],
+          stops: [0.55 - 0.15 * ambiente.luzDramatica, 1],
         ).createShader(toma),
     );
   }
@@ -352,7 +451,7 @@ class CanchaPartidoPainter extends CustomPainter {
     final s = arriba ? 1.0 : -1.0; // hacia adentro de la cancha
     Offset q(double x, double y) => centro + Offset(x * pie, y * s * pie);
     // Base y brazo.
-    final base = Rect.fromPoints(q(-2.6, -8.4), q(2.6, -6.5));
+    final base = Rect.fromPoints(q(-2.6, -11.0), q(2.6, -9.2));
     canvas.drawRRect(
       RRect.fromRectAndRadius(base.shift(Offset(pie * 0.3, pie * 0.4)), Radius.circular(pie * 0.5)),
       Paint()..color = Colors.black.withValues(alpha: 0.35),
@@ -365,7 +464,7 @@ class CanchaPartidoPainter extends CustomPainter {
       RRect.fromRectAndRadius(base.deflate(pie * 0.35), Radius.circular(pie * 0.3)),
       Paint()..color = Color(franquicia.colorPrimario).withValues(alpha: 0.85),
     );
-    canvas.drawRect(Rect.fromPoints(q(-0.45, -6.6), q(0.45, -1.4)), Paint()..color = const Color(0xFF2A2D33));
+    canvas.drawRect(Rect.fromPoints(q(-0.45, -9.3), q(0.45, -1.4)), Paint()..color = const Color(0xFF2A2D33));
     // Tablero: vidrio con borde blanco y el recuadro del tirador.
     var vibra = 0.0;
     if (efecto != null && (!efecto.adentro || efecto.fuerte)) {
@@ -429,45 +528,130 @@ class CanchaPartidoPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = pie * 0.2,
     );
+    // Rebote en el hierro: el aro se pone blanco un instante y salen chispas.
+    final golpe = efecto != null && !efecto.adentro ? (1 - efecto.progreso * 3).clamp(0.0, 1.0) : 0.0;
     canvas.drawCircle(
       c,
       0.75 * pie,
       Paint()
-        ..color = const Color(0xFFF26A1B)
+        ..color = Color.lerp(const Color(0xFFF26A1B), Colors.white, golpe)!
         ..style = PaintingStyle.stroke
-        ..strokeWidth = pie * 0.22,
+        ..strokeWidth = pie * (0.22 + 0.1 * golpe),
     );
+    if (golpe > 0) {
+      final chispa = Paint()
+        ..color = Colors.white.withValues(alpha: golpe)
+        ..strokeWidth = max(1.2, pie * 0.14)
+        ..strokeCap = StrokeCap.round;
+      for (var k = 0; k < 6; k++) {
+        final ang = k * pi / 3 + 0.5;
+        final d = Offset(cos(ang), sin(ang));
+        canvas.drawLine(c + d * pie * (0.95 + (1 - golpe) * 0.6), c + d * pie * (1.5 + (1 - golpe) * 1.4), chispa);
+      }
+    }
   }
 
-  /// Carteles LED a lo largo de los costados, con el texto corriendo (estilo "El Marcador").
+  /// Carteles LED a lo largo de los costados, con el texto corriendo (estilo "El Marcador"). Se
+  /// encienden de golpe con las jugadas grandes y tienen puntitos de matriz.
   void _carteles(Canvas canvas, double pie) {
     if (cartel.isEmpty) return;
+    final destello = ambiente.destello.clamp(0.0, 1.0);
     final estilo = TextStyle(
       fontFamily: Fuentes.led,
       fontVariations: const [FontVariation.weight(800)],
-      fontSize: 1.7 * pie,
-      color: colorLed,
+      fontSize: 1.05 * pie,
+      color: Color.lerp(colorLed, Colors.white, destello * 0.6),
       height: 1,
       letterSpacing: 0.3 * pie,
     );
-    final tp = TextPainter(
-      text: TextSpan(text: '$cartel   ·   ', style: estilo),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    final tp = _cartelPintado('$cartel   ·   ', estilo);
     final largo = (Cancha94.largo + 2 * Cancha94.borde) * pie;
     for (final izquierda in [true, false]) {
-      final x = (izquierda ? Cancha94.borde * 0.45 : Cancha94.ancho + Cancha94.borde * 1.55) * pie;
-      final franja = Rect.fromCenter(center: Offset(x, largo / 2), width: 2.2 * pie, height: largo);
-      canvas.drawRect(franja, Paint()..color = const Color(0xFF0B0C0E));
+      final xMundo = izquierda ? -2.35 : Cancha94.ancho + 2.35;
+      final x = (xMundo + Cancha94.borde) * pie;
+      final franja = Rect.fromCenter(center: Offset(x, largo / 2), width: 1.45 * pie, height: largo);
+      canvas.drawRect(franja, Paint()..color = Color.lerp(const Color(0xFF0B0C0E), colorLed, destello * 0.35)!);
       canvas.save();
       canvas.clipRect(franja);
       canvas.translate(x, 0);
       canvas.rotate(pi / 2); // el texto corre a lo largo de la cancha
-      final corrimiento = (tiempo * 6 * pie) % tp.width;
+      final velocidad = 6 + 14 * destello;
+      final corrimiento = (tiempo * velocidad * pie) % tp.width;
       for (var d = -corrimiento; d < largo; d += tp.width) {
         tp.paint(canvas, Offset(d, -tp.height / 2));
       }
       canvas.restore();
+    }
+  }
+
+  static final _textos = <String, TextPainter>{};
+
+  TextPainter _cartelPintado(String texto, TextStyle estilo) {
+    final clave = '$texto|${estilo.fontSize!.round()}|${estilo.color!.toARGB32()}';
+    if (_textos.length > 60) _textos.clear();
+    return _textos[clave] ??= TextPainter(text: TextSpan(text: texto, style: estilo), textDirection: TextDirection.ltr)
+      ..layout();
+  }
+
+  TextPainter _placa(String nombre, double tamano) {
+    final clave = 'placa|$nombre|${tamano.round()}';
+    if (_textos.length > 60) _textos.clear();
+    return _textos[clave] ??= TextPainter(
+      text: TextSpan(
+        text: nombre,
+        style: TextStyle(
+          fontFamily: Fuentes.estadio,
+          fontVariations: const [FontVariation.weight(700)],
+          fontSize: tamano.roundToDouble(),
+          color: Colors.white,
+          letterSpacing: 0.4,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+  }
+
+  /// Los suplentes sentados junto a la línea lateral: se levantan y alzan los brazos al festejar.
+  void _banco(Canvas canvas, Offset Function(Offset) p, double pie) {
+    for (final (k, equipo, levanta) in [
+      (0, ambiente.bancoAtaque, ambiente.levantadoAtaque),
+      (1, ambiente.bancoDefensa, ambiente.levantadoDefensa),
+    ]) {
+      if (equipo == null) continue;
+      // Sillas del equipo: una banca oscura y 4 suplentes.
+      final y0 = k == 0 ? 40.0 : 54.5;
+      final banca = Rect.fromPoints(p(Offset(-2.7, y0 - 1.4)), p(Offset(-0.8, y0 + 4 * 2.5 + 0.2)));
+      canvas.drawRRect(RRect.fromRectAndRadius(banca, Radius.circular(pie * 0.5)), Paint()..color = const Color(0xFF16181C));
+      for (var n = 0; n < 4; n++) {
+        dibujarSentado(
+          canvas,
+          c: p(Offset(-1.75, y0 + n * 2.5 + 0.6)),
+          pie: pie * 0.78,
+          camiseta: equipo.$1,
+          ribete: equipo.$2,
+          semilla: 11 + n * 7 + k * 31,
+          levantado: levanta,
+          tiempo: tiempo + n * 0.37,
+        );
+      }
+    }
+  }
+
+  /// Llamas del tirador encendido: lenguas que salen hacia atrás y un resplandor naranja.
+  void _llamas(Canvas canvas, Offset c, double pie, double rumbo, double a) {
+    canvas.drawCircle(c, pie * 3.4, Paint()..color = const Color(0xFFFF7A1A).withValues(alpha: 0.2 * a));
+    final atras = Offset(-sin(rumbo), cos(rumbo));
+    for (var k = 0; k < 7; k++) {
+      final f = (tiempo * 2.2 + k * 0.143) % 1.0;
+      final lado = sin(tiempo * 9 + k * 2.1) * 0.9;
+      final d = atras * pie * (1.5 + f * 4.2) + Offset(-atras.dy, atras.dx) * pie * lado * f;
+      final r = pie * (1.5 - f * 1.2);
+      canvas.drawCircle(
+        c + d,
+        r,
+        Paint()
+          ..color = Color.lerp(const Color(0xFFFFD23F), const Color(0xFFE8400C), f)!.withValues(alpha: (0.85 - f * 0.8) * a),
+      );
     }
   }
 
@@ -595,26 +779,32 @@ class CanchaPartidoPainter extends CustomPainter {
         linea,
       );
 
-      // Nombre de la franquicia en cada línea de fondo (GDD §2).
-      final nombre = TextPainter(
+      // Nombre de la franquicia en cada línea de fondo (GDD §2), partido en dos mitades a los lados del
+      // brazo del tablero (que pasa por el medio) para que nada lo tape.
+      final texto = franquicia.nombre.toUpperCase();
+      final corte = (texto.length + 1) ~/ 2;
+      final color = secundario.computeLuminance() > 0.08 ? secundario : Colors.white;
+      TextPainter mitad(String t) => TextPainter(
         text: TextSpan(
-          text: franquicia.nombre.toUpperCase(),
+          text: t.trimRight(),
           style: TextStyle(
             fontFamily: Fuentes.estadio,
             fontVariations: const [FontVariation.weight(800)],
             fontSize: 2.2 * pie,
             letterSpacing: 1.2 * pie,
-            color: secundario.computeLuminance() > 0.08 ? secundario : Colors.white,
+            color: color,
             height: 1,
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
+      final izquierda = mitad(texto.substring(0, corte)), derecha = mitad(texto.substring(corte).trimLeft());
       final centro = p(25, arriba ? -1.5 : Cancha94.largo + 1.5);
       canvas.save();
       canvas.translate(centro.dx, centro.dy);
       if (!arriba) canvas.rotate(pi);
-      nombre.paint(canvas, Offset(-nombre.width / 2, -nombre.height / 2));
+      izquierda.paint(canvas, Offset(-1.6 * pie - izquierda.width + 1.2 * pie, -izquierda.height / 2));
+      derecha.paint(canvas, Offset(1.6 * pie, -derecha.height / 2));
       canvas.restore();
     }
   }

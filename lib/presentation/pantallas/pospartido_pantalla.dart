@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 
 import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/jugador.dart';
+import '../../domain/decisiones_partido.dart' show RegistroDecision;
 import '../../domain/motor.dart';
+import '../partido/decisiones.dart' show ResumenDecisiones;
 import '../partido/repeticion.dart';
 import '../tema/tema_franquicia.dart';
 import '../widgets/disposicion.dart';
@@ -26,6 +28,7 @@ class PospartidoPantalla extends StatelessWidget {
     required this.destacadas,
     required this.equipaciones,
     this.escudo,
+    this.decisiones = const [],
   });
 
   final MotorPartido motor;
@@ -35,6 +38,9 @@ class PospartidoPantalla extends StatelessWidget {
   final List<Destacada> destacadas;
   final Equipaciones equipaciones;
   final ui.Image? escudo;
+
+  /// Decisiones que se ofrecieron y tomaron en el partido en vivo (para el resumen).
+  final List<RegistroDecision> decisiones;
 
   /// Valoración de un partido (estilo "game score"): premia lo que suma y castiga lo que resta.
   static double valoracion(LineaEstadistica l) =>
@@ -169,6 +175,7 @@ class PospartidoPantalla extends StatelessWidget {
                       ),
                     ),
                 ],
+                ResumenDecisiones(registro: decisiones),
                 const SizedBox(height: 16),
                 TabBar(
                   tabs: [
