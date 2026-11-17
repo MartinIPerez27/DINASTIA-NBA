@@ -460,3 +460,12 @@ Ver `docs/AUDITORIA_PROPIA.md` para el análisis punto por punto. Resumen: aplic
 3. **Test de balance permanente** para los modos de escalera y el universitario.
 4. Si el usuario quiere más contenido: ofrecer los modos no elegidos de §16.1 (11) y **validarlos antes de programarlos**.
 5. Mantener la rutina de cierre de §2.4 y entregar siempre APK + capturas + resumen en voseo.
+
+---
+## ACTUALIZACIÓN ronda 2 (motor v2 y espectáculo)
+- **Una carta por persona por tirada**: `lib/domain/una_carta.dart`, `Jugador.personaId`, álbum por jugador (`lib/domain/album.dart`). Se elige la mayor media dentro del filtro; empate: la más reciente. `reglaDeTirada = 2` en `version_catalogo.dart` invalida códigos de reto viejos. Excepción: Desafíos de armado usan el álbum entero.
+- **Motor v2**: ritmo (~98 posesiones), perfil de tiro por época/puesto, tácticas con efectos medibles, sesgo de época corregido (`motor_modelo.dart`), expulsados reemplazados, tiempo muerto automático. `Dificultad.mediaRivales` 80/86, `bonoRival` (Leyenda +5). `pesoDiferencia` 1/144 con rodilla.
+- **Balance** (`test/balance_test.dart`): típico 57/34/12 %; mejor plantel 98/94/75 %; 82-0 con el mejor plantel 13/6/0 %.
+- **Relato**: dupla Relator/Comentarista, decisiones en vivo, historias, rivalidades y tensión (escaleras y playoffs).
+- **Animación**: figuras, cámara, repetición, tribuna, marcador vivo; `Cancha94.borde` 6 pies. Sin medición de 60 fps en dispositivo real.
+- **Pendiente**: `ContextoNarrativo` no alimenta aún el `ContextoRelato` del partido en vivo; tensión en modos no-escalera; `playoffs: true` no se pasa a la escena; ramas viejas sin limpiar.
