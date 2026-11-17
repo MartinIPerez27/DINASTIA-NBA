@@ -21,7 +21,11 @@ class TragamonedasPanel extends StatelessWidget {
     required this.puedeRetener,
     required this.onRetener,
     this.identidad = _identidadPropia,
+    this.posibles = const [],
   });
+
+  /// Tiradas que pueden salir: los carretes giran solo entre estas (vacío: entre todo el catálogo).
+  final List<Tirada> posibles;
 
   final Tirada? tirada;
 
@@ -54,6 +58,7 @@ class TragamonedasPanel extends StatelessWidget {
               _Carrete(
                 carrete: c,
                 identidad: identidad,
+                posibles: posibles,
                 tirada: tirada,
                 vuelta: vuelta,
                 girar: !retenidos.contains(c),
@@ -80,6 +85,7 @@ class _Carrete extends StatefulWidget {
   const _Carrete({
     required this.carrete,
     required this.identidad,
+    required this.posibles,
     required this.tirada,
     required this.vuelta,
     required this.girar,
@@ -88,6 +94,7 @@ class _Carrete extends StatefulWidget {
 
   final Carrete carrete;
   final String Function(Tirada) identidad;
+  final List<Tirada> posibles;
   final Tirada? tirada;
   final int vuelta;
   final bool girar;
@@ -130,11 +137,13 @@ class _CarreteState extends State<_Carrete> {
     });
   }
 
-  Tirada _alAzar() => Tirada(
-    franquiciaId: franquicias[_azar.nextInt(franquicias.length)].id,
-    epoca: Epoca.values[_azar.nextInt(Epoca.values.length)],
-    tier: Tier.values[_azar.nextInt(Tier.values.length)],
-  );
+  Tirada _alAzar() => widget.posibles.isNotEmpty
+      ? widget.posibles[_azar.nextInt(widget.posibles.length)]
+      : Tirada(
+          franquiciaId: franquicias[_azar.nextInt(franquicias.length)].id,
+          epoca: Epoca.values[_azar.nextInt(Epoca.values.length)],
+          tier: Tier.values[_azar.nextInt(Tier.values.length)],
+        );
 
   @override
   void dispose() {

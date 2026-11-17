@@ -575,6 +575,7 @@ class _DraftPantallaState extends State<DraftPantalla> {
             tragamonedas: !_t.plantel.completo && !_modoCartas
                 ? TragamonedasPanel(
                     identidad: draft.identidadDeTirada,
+                    posibles: _girando && _t.regla != ReglaDraft.libre ? draft.tiradasPosibles(_t) : const [],
                     tirada: _t.tirada,
                     vuelta: _vuelta,
                     retenidos: _retenidos,

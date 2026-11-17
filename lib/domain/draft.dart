@@ -144,6 +144,10 @@ class Draft {
       if (anterior == null || retenidos.every((c) => c.coincide(j, anterior))) Tirada.de(j),
   }.toList();
 
+  /// Tiradas que pueden salir con la regla vigente (por ejemplo, con Franquicia pura, solo las de tu equipo).
+  /// La animación de los carretes gira solo entre estas.
+  List<Tirada> tiradasPosibles(Temporada t) => _combinaciones(t, null, const {});
+
   bool puedeVolverATirar(Temporada t, Set<Carrete> retenidos) =>
       t.tirada != null &&
       !t.plantel.completo &&
