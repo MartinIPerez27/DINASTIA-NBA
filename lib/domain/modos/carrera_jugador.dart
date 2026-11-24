@@ -268,11 +268,15 @@ class ModeloCarrera {
     // Insignias: cuenta el grado que ganaste desde que arrancaste (lo de arranque ya está en la base).
     final antes = ContextoInsignia(atributos: a0);
     final ahora = ctx ?? ContextoInsignia(atributos: a, espec: espec);
+    var deInsignias = const EfectoStats();
     for (final i in Insignia.values) {
       final ganado = i.grado(ahora).factor - i.grado(antes).factor;
-      if (ganado > 0) extra = extra.mas(i.efecto.por(ganado));
+      if (ganado > 0) deInsignias = deInsignias.mas(i.efecto.por(ganado));
     }
-    ppp += extra.ppp;
+    // Con tantas insignias los puntos que suman se moderan (si no, un jugador de tiro las junta todas) y
+    // el total tiene tope: una carrera especializada no rompe el balance.
+    extra = extra.mas(deInsignias).mas(EfectoStats(ppp: -0.4 * deInsignias.ppp));
+    ppp += min(extra.ppp, 3.0);
     rpp += extra.rpp;
     app += extra.app;
     robP += extra.robP;
@@ -1273,6 +1277,12 @@ class EstadoCarrera {
   );
 
   /// El estado de una partida de Mi carrera (null si no es una).
+  /// Suma [nuevo] a los contadores [actual] de la carrera.
+  static Map<String, int> sumarUso(Map<String, int> actual, Map<String, int> nuevo) => {
+    ...actual,
+    for (final e in nuevo.entries) e.key: (actual[e.key] ?? 0) + e.value,
+  };
+
   static EstadoCarrera? de(Temporada t) {
     if (t.modoJuego != ModoJuego.carreraJugador) return null;
     final d = t.datosModo['carreraJugador'];

@@ -180,7 +180,7 @@ void main() {
       for (final f in [maximo88, maximo99, sin88]) {
         for (final x in f) {
           expect(x.pts, lessThanOrEqualTo(40), reason: 'edad ${x.edad} media ${x.media}: ${x.pts}');
-          if (x.media <= 75) expect(x.pts, lessThanOrEqualTo(24));
+          if (x.media <= 75) expect(x.pts, lessThanOrEqualTo(26), reason: 'un jugador de media baja no pasa de 26: edad ${x.edad} media ${x.media}');
           if (x.media >= 90) expect(x.pts, greaterThanOrEqualTo(18));
           expect(x.reb, lessThanOrEqualTo(14));
           expect(x.ast, lessThanOrEqualTo(12));

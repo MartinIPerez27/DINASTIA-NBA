@@ -559,7 +559,14 @@ class MotorPartido {
   bool get ataqueDelUsuario => usuarioLocal != null && _ataqueLocal == usuarioLocal;
 
   /// Pide una jugada para la próxima posesión del usuario.
-  void pedirJugada(JugadaClave jugada) => _jugadaClave = jugada;
+  void pedirJugada(JugadaClave jugada, {String? tiradorId, String? evitarId}) {
+    _jugadaClave = jugada;
+    _tiradorPedido = tiradorId;
+    _evitarPedido = evitarId;
+  }
+
+  /// Quién tiene que tirar la jugada pedida (tu jugador en Mi carrera) y quién no (para que busque al compañero).
+  String? _tiradorPedido, _evitarPedido;
 
   void rotacionAutomatica(bool local, bool activa) => (local ? _l : _v).rotacionAuto = activa;
   bool esRotacionAutomatica(bool local) => (local ? _l : _v).rotacionAuto;
@@ -1254,7 +1261,18 @@ class MotorPartido {
   }) {
     // Tiro: quién y de dónde (o la jugada que pidió el entrenador del usuario).
     final jugada = (ataque == _l) == usuarioLocal ? _jugadaClave : null;
-    if ((ataque == _l) == usuarioLocal) _jugadaClave = null;
+    final pedido = jugada == null ? null : _tiradorPedido;
+    final evitar = jugada == null ? null : _evitarPedido;
+    if ((ataque == _l) == usuarioLocal) {
+      _jugadaClave = null;
+      _tiradorPedido = _evitarPedido = null;
+    }
+    Jugador? deLosPedidos() {
+      for (final j in ataque.enCancha) {
+        if (j.id == pedido) return j;
+      }
+      return null;
+    }
     final clutch = momentoClutch;
     // En el final apretado, la pelota busca al que más se agranda.
     final efectoEstrella = ataque.ofensivo.estrella * defensa.defensivo.estrella * (clutch ? 1.6 : 1);
@@ -1272,19 +1290,25 @@ class MotorPartido {
     final porElTriple = jugada == null && buscaTriple;
     switch (desdeLejos ? null : (porElTriple ? JugadaClave.triple : jugada)) {
       case JugadaClave.aislamiento:
-        tirador = ataque.enCancha.reduce((a, b) => ataque.media(a) >= ataque.media(b) ? a : b);
+        tirador = deLosPedidos() ?? ataque.enCancha.reduce((a, b) => ataque.media(a) >= ataque.media(b) ? a : b);
         triple = buscaTriple ? tirador.stats.pctT3 > 0 : _azar.nextDouble() < _tasaTriples(tirador) * 0.6;
       case JugadaClave.pickAndRoll:
         final grandes = ataque.enCancha.where(interior).toList();
         final rueda = !buscaTriple && grandes.isNotEmpty && _azar.nextDouble() < 0.6;
-        tirador = rueda ? grandes.reduce((a, b) => a.stats.ppp >= b.stats.ppp ? a : b) : organizador;
+        // Si pediste que tu jugador no tire (pasar en el final), la pelota va a otro.
+        final otros = ataque.enCancha.where((j) => j.id != evitar).toList();
+        final org = (evitar != null && organizador.id == evitar && otros.isNotEmpty)
+            ? otros.reduce((a, b) => a.stats.app >= b.stats.app ? a : b)
+            : organizador;
+        final gs = grandes.where((j) => j.id != evitar).toList();
+        tirador = rueda && gs.isNotEmpty ? gs.reduce((a, b) => a.stats.ppp >= b.stats.ppp ? a : b) : org;
         // Si el que tira es el base, puede lanzarse de tres tras el bloqueo (o es lo que se necesita).
         triple = !rueda && tirador.stats.pctT3 > 0 && (buscaTriple || _azar.nextDouble() < _tasaTriples(tirador) * 0.7);
-        if (tirador != organizador) asistente = organizador;
+        if (tirador != org) asistente = org;
       case JugadaClave.triple:
-        tirador = ataque.enCancha.reduce(
-          (a, b) => a.stats.pctT3 * _tasaTriples(a) >= b.stats.pctT3 * _tasaTriples(b) ? a : b,
-        );
+        tirador =
+            deLosPedidos() ??
+            ataque.enCancha.reduce((a, b) => a.stats.pctT3 * _tasaTriples(a) >= b.stats.pctT3 * _tasaTriples(b) ? a : b);
         triple = tirador.stats.pctT3 > 0;
       case null:
         // Reparto de tiros: el que más anota, la estrella, el que se agranda en el final y, según el

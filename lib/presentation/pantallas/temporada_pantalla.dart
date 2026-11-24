@@ -11,7 +11,9 @@ import '../../domain/entities/posicion.dart';
 import '../../domain/entities/rival.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/copa.dart';
+import '../../domain/decisiones_partido.dart' show PerfilVivo;
 import '../../domain/liga.dart';
+import '../../domain/modos/carrera_jugador.dart' show EstadoCarrera;
 import '../../domain/misiones.dart';
 import '../../domain/mercado.dart';
 import '../../domain/motor.dart';
@@ -149,6 +151,8 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
     final antes = _liga.simularOtrosHasta(_t, p.jornada);
     _guardar(antes);
     final motor = _liga.motor(antes, p);
+    final miCarrera = EstadoCarrera.de(antes);
+    var uso = <String, int>{};
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => PartidoPantalla(
@@ -158,7 +162,15 @@ class _TemporadaPantallaState extends State<TemporadaPantalla> {
           identidadLocal: _identidad(p.localId),
           identidadVisitante: _identidad(p.visitanteId),
           contexto: contextoDeTemporada(antes, p),
-          onTerminado: (MotorPartido m) => _guardar(_liga.registrar(antes, p, m)),
+          jugadorCarrera: miCarrera == null ? null : PerfilVivo.de(miCarrera),
+          alUsarCarrera: (u) => uso = u,
+          onTerminado: (MotorPartido m) {
+            var t = _liga.registrar(antes, p, m);
+            // Lo que hiciste como jugador (jugadas decisivas…) suma a tu carrera.
+            final e = uso.isEmpty ? null : EstadoCarrera.de(t);
+            if (e != null) t = t.copyWith(datosModo: e.copyWith(uso: EstadoCarrera.sumarUso(e.uso, uso)).aDatos());
+            _guardar(t);
+          },
         ),
       ),
     );
