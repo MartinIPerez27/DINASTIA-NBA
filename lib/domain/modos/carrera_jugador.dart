@@ -1777,29 +1777,41 @@ class CarreraJugador {
 
   // ---------- Puntos de habilidad ----------
 
+  /// Se puede subir si no está al máximo (99) y alcanzan los puntos. No hay techo duro: pasarse del
+  /// potencial o de lo que da la edad solo sale más caro ([costoMejora]).
   bool puedeSubir(EstadoCarrera e, Atributo a) =>
-      e.atributos[a] < ModeloCarrera.tope && e.phBanco >= ModeloCarrera.costo(e.atributos[a]) && !enTecho(e, a);
+      e.atributos[a] < ModeloCarrera.tope && e.phBanco >= costoMejora(e, a);
 
-  /// Subir un punto de [a] pasaría el techo de tu jugador: su potencial oculto, o lo que da la edad
-  /// (a los 20 nadie está en su techo).
+  /// Subir un punto de [a] dejaría la media por encima de lo que da el potencial a esta edad: se puede,
+  /// pero cuesta más (ver [costoMejora]).
   bool enTecho(EstadoCarrera e, Atributo a) {
     if (e.atributos[a] >= ModeloCarrera.tope) return false;
     final tras = e.copyWith(atributos: e.atributos.con(a, e.atributos[a] + 1));
     return tras.media > ModeloCarrera.techoPorEdad(e.potencial, e.edad);
   }
 
-  /// Por qué no se puede seguir mejorando (null: todavía se puede, o no hay puntos).
-  String? motivoTecho(EstadoCarrera e) {
-    if (!Atributo.values.every((a) => enTecho(e, a) || e.atributos[a] >= ModeloCarrera.tope)) return null;
-    return e.media >= e.potencial
-        ? 'Llegaste a tu techo: ya no da para más.'
-        : 'Todavía no tenés edad para más: seguí entrenando y el cuerpo te acompaña con los años.';
+  /// Lo que cuesta hoy subir un punto de [a]: el costo del nivel, multiplicado si la media pasaría el
+  /// techo de la edad (x2 por 1 punto de media de más, x3 por 2… hasta x6). Dentro del techo, el costo base.
+  int costoMejora(EstadoCarrera e, Atributo a) {
+    final base = ModeloCarrera.costo(e.atributos[a]);
+    if (e.atributos[a] >= ModeloCarrera.tope) return base;
+    final tras = e.copyWith(atributos: e.atributos.con(a, e.atributos[a] + 1));
+    final exceso = tras.media - ModeloCarrera.techoPorEdad(e.potencial, e.edad);
+    return exceso <= 0 ? base : base * (1 + min(5, exceso));
   }
+
+  /// Puntos acumulados a partir de los cuales conviene gastar (la pantalla avisa).
+  static const puntosSinUsarAviso = 12;
+
+  /// Aviso cuando tenés muchos puntos guardados (null: nada que avisar).
+  String? avisoPuntosSinUsar(EstadoCarrera e) => e.phBanco >= puntosSinUsarAviso
+      ? 'Tenés ${e.phBanco} puntos sin gastar: usalos en atributos o insignias. Pasarte del potencial se puede, pero sale más caro.'
+      : null;
 
   /// Sube un punto de [a] gastando lo que cuesta. Si no alcanza, devuelve el mismo estado.
   EstadoCarrera subir(EstadoCarrera e, Atributo a) {
     if (!puedeSubir(e, a)) return e;
-    final costo = ModeloCarrera.costo(e.atributos[a]);
+    final costo = costoMejora(e, a);
     return e.copyWith(
       atributos: e.atributos.con(a, e.atributos[a] + 1),
       phBanco: e.phBanco - costo,

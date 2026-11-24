@@ -129,8 +129,8 @@ void main() {
       }
     });
 
-    test('el techo oculto manda: nadie pasa de su potencial y gastar todo no regala el 99', () {
-      expect(pico(maximo88), lessThanOrEqualTo(88));
+    test('el potencial manda sin ser pared: pasarlo cuesta mucho y gastar todo no regala el 99', () {
+      expect(pico(maximo88), lessThanOrEqualTo(91), reason: 'se puede pasar el potencial, pero poco');
       expect(pico(maximo88), greaterThanOrEqualTo(83), reason: 'gastando todo, llega cerca de su techo');
       expect(pico(maximo99), lessThanOrEqualTo(99));
       expect(pico(sin88), lessThan(pico(maximo88)), reason: 'sin gastar rinde menos');

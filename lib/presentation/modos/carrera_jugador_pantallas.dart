@@ -113,16 +113,20 @@ class PanelAtributos extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           'Los ganás jugando bien, cumpliendo los objetivos y con los premios. Cuanto más alto el atributo, más '
-          'cuesta subirlo, y cada jugador tiene un techo que no se ve: a los 20 nadie está en su pico.',
+          'cuesta subirlo. Cada jugador tiene un potencial que no se ve: pasarte se puede, pero sale mucho más caro.',
           style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
         ),
+        if (carrera.avisoPuntosSinUsar(estado) case final aviso?) ...[
+          const SizedBox(height: 6),
+          Text(aviso, style: tema.textTheme.bodySmall?.copyWith(color: esquema.primary)),
+        ],
         const SizedBox(height: 8),
         for (final a in Atributo.values)
           _FilaAtributo(
             atributo: a,
             valor: estado.atributos[a],
             cambio: estado.atributos[a] - estado.atributosBase[a],
-            costo: ModeloCarrera.costo(estado.atributos[a]),
+            costo: carrera.costoMejora(estado, a),
             puede: carrera.puedeSubir(estado, a),
             techo: carrera.enTecho(estado, a),
             onSubir: () => onSubir(a),
@@ -212,7 +216,7 @@ class _FilaAtributo extends StatelessWidget {
               minimumSize: const Size(64, 38),
               padding: const EdgeInsets.symmetric(horizontal: 8),
             ),
-            child: Text(valor >= 99 ? 'MÁX.' : (techo ? 'TECHO' : '+1 · $costo')),
+            child: Text(valor >= 99 ? 'MÁX.' : (techo ? '+1 · $costo ▲' : '+1 · $costo')),
           ),
         ],
       ),
