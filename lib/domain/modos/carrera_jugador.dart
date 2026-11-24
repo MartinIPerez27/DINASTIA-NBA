@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../entities/avatar_creado.dart';
 import '../entities/jugador.dart';
 import '../entities/modo_juego.dart';
 import '../entities/plantel.dart';
@@ -525,6 +526,7 @@ class JugadorCreado {
     this.atributosFijos,
     this.pickFijo,
     this.edadInicial,
+    this.avatar,
   });
 
   final String nombre;
@@ -537,6 +539,9 @@ class JugadorCreado {
   final List<Atributo> fuertes;
   final int alturaCm, pesoKg;
   final int? nacimiento;
+
+  /// Cómo se ve (null: retrato automático, como en las partidas anteriores).
+  final AvatarCreado? avatar;
 
   /// Un jugador que ya viene hecho (un egresado del Modo universitario): conserva sus atributos, su
   /// elección real del draft y su edad, en vez de arrancar de cero como uno recién creado.
@@ -603,6 +608,7 @@ class JugadorCreado {
         fotos: const [],
         temporadas: anio == null ? null : (anio, anio),
         nacimiento: nacimiento,
+        avatar: avatar?.codigo,
       );
 
   Map<String, dynamic> toJson() => {
@@ -613,6 +619,7 @@ class JugadorCreado {
     'altura': alturaCm,
     'peso': pesoKg,
     if (nacimiento != null) 'nacimiento': nacimiento,
+    if (avatar != null) 'avatar': avatar!.codigo,
     if (atributosFijos != null) 'atrFijos': atributosFijos!.toJson(),
     if (pickFijo != null) 'pickFijo': pickFijo,
     if (edadInicial != null) 'edadInicial': edadInicial,
@@ -626,6 +633,7 @@ class JugadorCreado {
     alturaCm: j['altura'] as int? ?? 198,
     pesoKg: j['peso'] as int? ?? 95,
     nacimiento: j['nacimiento'] as int?,
+    avatar: AvatarCreado.deCodigo(j['avatar'] as String?),
     atributosFijos: j['atrFijos'] == null ? null : Atributos.fromJson(j['atrFijos'] as Map<String, dynamic>),
     pickFijo: j['pickFijo'] as int?,
     edadInicial: j['edadInicial'] as int?,
@@ -1092,6 +1100,7 @@ class EstadoCarrera {
     draft: base.draft,
     universidad: base.universidad,
     nacimiento: base.nacimiento,
+    avatar: base.avatar,
   );
 
   LegadoCarrera get legado => LegadoCarrera(nombre, historial, retirado: retirado);

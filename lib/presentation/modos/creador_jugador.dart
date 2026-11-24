@@ -1,8 +1,13 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
+import '../../data/franquicias.dart';
+import '../../domain/entities/avatar_creado.dart';
 import '../../domain/entities/posicion.dart';
 import '../../domain/entities/rol_cancha.dart';
 import '../../domain/modos/carrera_jugador.dart';
+import '../widgets/avatar_ilustrado.dart';
 import '../widgets/disposicion.dart';
 import '../widgets/texto_led.dart';
 
@@ -34,6 +39,7 @@ class _CreadorJugadorPantallaState extends State<CreadorJugadorPantalla> {
   late RolCancha _rol = JugadorCreado.rolesDe(_posicion).first;
   late double _altura = JugadorCreado.alturaSugerida(_posicion).toDouble();
   var _peso = 92.0;
+  var _avatar = const AvatarCreado();
   final _fuertes = <Atributo>[Atributo.tiro, Atributo.iq, Atributo.defensa];
 
   @override
@@ -50,6 +56,7 @@ class _CreadorJugadorPantallaState extends State<CreadorJugadorPantalla> {
     alturaCm: _altura.round(),
     pesoKg: _peso.round(),
     nacimiento: widget.nacimiento,
+    avatar: _avatar,
   );
 
   void _elegirPosicion(Posicion p) => setState(() {
@@ -82,7 +89,13 @@ class _CreadorJugadorPantallaState extends State<CreadorJugadorPantalla> {
           decoration: const InputDecoration(labelText: 'Nombre y apellido', border: OutlineInputBorder()),
           onChanged: (_) => setState(() {}),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
+        _EditorAvatar(
+          avatar: _avatar,
+          jugador: jugador,
+          alCambiar: (a) => setState(() => _avatar = a),
+        ),
+        const SizedBox(height: 16),
         Text('PUESTO', style: tema.textTheme.labelLarge),
         const SizedBox(height: 6),
         Wrap(
@@ -203,12 +216,13 @@ class _Deslizador extends StatelessWidget {
     final tema = Theme.of(context);
     return Row(
       children: [
-        SizedBox(width: 72, child: Text(etiqueta, style: tema.textTheme.labelLarge)),
+        SizedBox(width: valor.isEmpty ? 52 : 72, child: Text(etiqueta, style: tema.textTheme.labelLarge)),
         Expanded(child: slider),
-        SizedBox(
-          width: 70,
-          child: Text(valor, textAlign: TextAlign.end, style: tema.textTheme.bodyMedium),
-        ),
+        if (valor.isNotEmpty)
+          SizedBox(
+            width: 70,
+            child: Text(valor, textAlign: TextAlign.end, style: tema.textTheme.bodyMedium),
+          ),
       ],
     );
   }
@@ -319,4 +333,162 @@ class _Dato extends StatelessWidget {
       Text(etiqueta, style: Theme.of(context).textTheme.labelSmall),
     ],
   );
+}
+
+const _nombresEstilo = ['Calvo', 'Corto', 'Rapado', 'Rizado', 'Moño', 'Largo', 'Vincha'];
+
+/// Arma el avatar: vista previa con la camiseta, tono de piel, pelo, barba y forma de la cara.
+class _EditorAvatar extends StatelessWidget {
+  const _EditorAvatar({required this.avatar, required this.jugador, required this.alCambiar});
+
+  final AvatarCreado avatar;
+  final JugadorCreado jugador;
+  final ValueChanged<AvatarCreado> alCambiar;
+
+  Widget _muestra(BuildContext context, Color color, bool elegido, VoidCallback alTocar, String etiqueta) {
+    final esquema = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      selected: elegido,
+      label: etiqueta,
+      child: GestureDetector(
+        onTap: alTocar,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: elegido ? esquema.primary : esquema.outlineVariant, width: elegido ? 3 : 1),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final franquicia = franquicias.first;
+    final carta = jugador.comoCarta(id: 'mc-previa', franquiciaId: franquicia.id);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 104,
+            height: 130,
+            child: AvatarIlustrado(jugador: carta, franquicia: franquicia),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: Text('TU AVATAR', style: tema.textTheme.labelLarge)),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                    onPressed: () {
+                      final r = Random();
+                      alCambiar(
+                        AvatarCreado(
+                          piel: r.nextInt(AvatarCreado.pieles),
+                          pelo: r.nextInt(AvatarCreado.pelos),
+                          estilo: r.nextInt(AvatarCreado.estilos),
+                          barba: r.nextInt(4) == 0,
+                          ancho: r.nextInt(AvatarCreado.anchos),
+                          alto: r.nextInt(AvatarCreado.altos),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.casino_outlined, size: 18),
+                    label: const Text('Azar'),
+                  ),
+                ],
+              ),
+              Text('Piel', style: tema.textTheme.bodySmall),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (var i = 0; i < AvatarCreado.pieles; i++)
+                    _muestra(
+                      context,
+                      PerfilAvatar.pieles[i],
+                      avatar.piel == i,
+                      () => alCambiar(avatar.copyWith(piel: i)),
+                      'Piel ${i + 1}',
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text('Color de pelo', style: tema.textTheme.bodySmall),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (var i = 0; i < AvatarCreado.pelos; i++)
+                    _muestra(
+                      context,
+                      PerfilAvatar.pelosCreador[i],
+                      avatar.pelo == i,
+                      () => alCambiar(avatar.copyWith(pelo: i)),
+                      'Pelo ${i + 1}',
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text('Peinado', style: tema.textTheme.bodySmall),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (var i = 0; i < AvatarCreado.estilos; i++)
+                    ChoiceChip(
+                      label: Text(_nombresEstilo[i]),
+                      selected: avatar.estilo == i,
+                      visualDensity: VisualDensity.compact,
+                      onSelected: (_) => alCambiar(avatar.copyWith(estilo: i)),
+                    ),
+                  FilterChip(
+                    label: const Text('Barba'),
+                    selected: avatar.barba,
+                    visualDensity: VisualDensity.compact,
+                    onSelected: (v) => alCambiar(avatar.copyWith(barba: v)),
+                  ),
+                ],
+              ),
+              _Deslizador(
+                etiqueta: 'ANCHO',
+                valor: '',
+                slider: Slider(
+                  value: avatar.ancho.toDouble(),
+                  max: AvatarCreado.anchos - 1.0,
+                  divisions: AvatarCreado.anchos - 1,
+                  onChanged: (v) => alCambiar(avatar.copyWith(ancho: v.round())),
+                ),
+              ),
+              _Deslizador(
+                etiqueta: 'ALTO',
+                valor: '',
+                slider: Slider(
+                  value: avatar.alto.toDouble(),
+                  max: AvatarCreado.altos - 1.0,
+                  divisions: AvatarCreado.altos - 1,
+                  onChanged: (v) => alCambiar(avatar.copyWith(alto: v.round())),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
