@@ -12,6 +12,9 @@ import '../motor.dart';
 import '../playbook.dart';
 import '../premios.dart';
 import 'dinastia.dart';
+import 'habilidades.dart';
+
+export 'habilidades.dart';
 import '../entities/enum_tolerante.dart';
 
 // ===========================================================================================
@@ -67,36 +70,6 @@ class Atributos {
 
   factory Atributos.fromJson(Map<String, dynamic> j) =>
       Atributos({for (final a in Atributo.values) a: (j[a.name] as num?)?.toInt() ?? 50});
-}
-
-/// Insignias: se desbloquean al llegar a ciertos atributos y mejoran un poco las estadísticas.
-enum Insignia {
-  francotirador('Francotirador', 'Tiro 80+: más acierto en triples y libres.'),
-  finalizador('Finalizador', 'Finalización 80+: más acierto en el aro.'),
-  muralla('Muralla', 'Defensa 80+ y Físico 65+: más robos y tapones.'),
-  atleta('Atleta', 'Físico 82+: más rebotes.'),
-  maestroDelPase('Maestro del pase', 'IQ 82+: más asistencias y menos pérdidas.'),
-  sangreFria('Sangre fría', 'IQ 75+ y Tiro 75+: más puntos en los finales.'),
-  completo('Completo', 'Todos los atributos en 70+: un poco de todo.');
-
-  const Insignia(this.etiqueta, this.descripcion);
-  final String etiqueta;
-  final String descripcion;
-
-  bool la(Atributos a) => switch (this) {
-    Insignia.francotirador => a[Atributo.tiro] >= 80,
-    Insignia.finalizador => a[Atributo.finalizacion] >= 80,
-    Insignia.muralla => a[Atributo.defensa] >= 80 && a[Atributo.fisico] >= 65,
-    Insignia.atleta => a[Atributo.fisico] >= 82,
-    Insignia.maestroDelPase => a[Atributo.iq] >= 82,
-    Insignia.sangreFria => a[Atributo.iq] >= 75 && a[Atributo.tiro] >= 75,
-    Insignia.completo => Atributo.values.every((x) => a[x] >= 70),
-  };
-
-  static List<Insignia> de(Atributos a) => [
-    for (final i in values)
-      if (i.la(a)) i,
-  ];
 }
 
 /// Dónde juega tu jugador en el equipo (lo decide la confianza del DT).
@@ -274,6 +247,8 @@ class ModeloCarrera {
     required Atributos a,
     int relacion = 50,
     int moral = 60,
+    Map<Habilidad, int> espec = const {},
+    ContextoInsignia? ctx,
   }) {
     double d(Atributo x) => (a[x] - a0[x]).toDouble();
     var ppp = base.ppp + 0.275 * (d(Atributo.tiro) + d(Atributo.finalizacion));
@@ -287,30 +262,26 @@ class ModeloCarrera {
     var minP = base.minP + 0.15 * d(Atributo.fisico);
     var perP = base.perP - 0.02 * d(Atributo.iq);
     final iq = base.iq + d(Atributo.iq).round();
-    // Solo cuentan las insignias que ganaste (las de arranque ya están en las estadísticas base).
-    for (final i in Insignia.de(a).where((i) => !i.la(a0))) {
-      switch (i) {
-        case Insignia.francotirador:
-          pctT3 += 0.015;
-          pctTl += 0.015;
-        case Insignia.finalizador:
-          pctTc += 0.015;
-        case Insignia.muralla:
-          robP += 0.15;
-          tapP += 0.2;
-        case Insignia.atleta:
-          rpp += 0.8;
-        case Insignia.maestroDelPase:
-          app += 0.8;
-          perP -= 0.2;
-        case Insignia.sangreFria:
-          ppp += 0.8;
-        case Insignia.completo:
-          ppp += 0.4;
-          rpp += 0.3;
-          app += 0.3;
-      }
+    // Especializaciones: cada punto de una habilidad mueve un poco la estadística que le toca.
+    var extra = const EfectoStats();
+    espec.forEach((h, n) => extra = extra.mas(Habilidad.efectoPorPunto(h).por(min(n, Habilidad.maxEspecializacion).toDouble())));
+    // Insignias: cuenta el grado que ganaste desde que arrancaste (lo de arranque ya está en la base).
+    final antes = ContextoInsignia(atributos: a0);
+    final ahora = ctx ?? ContextoInsignia(atributos: a, espec: espec);
+    for (final i in Insignia.values) {
+      final ganado = i.grado(ahora).factor - i.grado(antes).factor;
+      if (ganado > 0) extra = extra.mas(i.efecto.por(ganado));
     }
+    ppp += extra.ppp;
+    rpp += extra.rpp;
+    app += extra.app;
+    robP += extra.robP;
+    tapP += extra.tapP;
+    pctTc += extra.pctTc;
+    pctT3 += extra.pctT3;
+    pctTl += extra.pctTl;
+    minP += extra.minP;
+    perP += extra.perP;
     if (relacion >= 70) {
       app += 0.4;
       pctTc += 0.005;
@@ -938,6 +909,8 @@ class EstadoCarrera {
     this.phBanco = 0,
     this.phAcreditados = 0,
     this.phGastados = 0,
+    this.espec = const {},
+    this.uso = const {},
     this.companeros = const [],
     this.objetivos = const [],
     this.historial = const [],
@@ -983,6 +956,12 @@ class EstadoCarrera {
 
   /// Puntos de habilidad: disponibles, ya acreditados en esta temporada y gastados en total.
   final int phBanco, phAcreditados, phGastados;
+
+  /// Lo que le sumaste a cada habilidad específica por encima de su atributo general (0 a 20).
+  final Map<Habilidad, int> espec;
+
+  /// Contadores de la carrera que usan las insignias y los logros ('clutch': jugadas decisivas en vivo…).
+  final Map<String, int> uso;
 
   /// Los siete compañeros del equipo (la IA arma el resto).
   final List<Jugador> companeros;
@@ -1042,7 +1021,29 @@ class EstadoCarrera {
   static double _suma(Map<Atributo, double> w, double Function(Atributo) f) =>
       Atributo.values.fold(0.0, (s, a) => s + w[a]! * f(a));
 
-  List<Insignia> get insignias => Insignia.de(atributos);
+  /// Totales de carrera para las insignias (temporadas cerradas).
+  ContextoInsignia get contexto => ContextoInsignia(
+    atributos: atributos,
+    espec: espec,
+    pts: historial.fold(0, (x, h) => x + (h.pts * h.pj).round()),
+    reb: historial.fold(0, (x, h) => x + (h.reb * h.pj).round()),
+    ast: historial.fold(0, (x, h) => x + (h.ast * h.pj).round()),
+    pj: historial.fold(0, (x, h) => x + h.pj),
+    titulos: historial.where((h) => h.campeon).length,
+    allStar: historial.where((h) => h.allStar).length,
+    premios: historial.fold(0, (x, h) => x + h.premios.length),
+    clutch: uso['clutch'] ?? 0,
+    fans: fans,
+  );
+
+  /// Grado actual de cada insignia (las de grado ninguno todavía no las tenés).
+  Map<Insignia, GradoInsignia> get grados => Insignia.grados(contexto);
+
+  /// Las que tenés (Bronce o más).
+  List<Insignia> get insignias => [
+    for (final e in grados.entries)
+      if (e.value.nivel >= 1) e.key,
+  ];
 
   /// Las que ya tenías al arrancar (ya están en las estadísticas) y las que ganaste después.
   List<Insignia> get insigniasDeArranque => Insignia.de(atributosBase);
@@ -1089,6 +1090,8 @@ class EstadoCarrera {
       a: atributos,
       relacion: relacion,
       moral: moral,
+      espec: espec,
+      ctx: contexto,
     ),
     media: media,
     equipo: franquiciaId,
@@ -1120,6 +1123,8 @@ class EstadoCarrera {
     int? phBanco,
     int? phAcreditados,
     int? phGastados,
+    Map<Habilidad, int>? espec,
+    Map<String, int>? uso,
     List<Jugador>? companeros,
     List<ObjetivoTemporada>? objetivos,
     List<TemporadaJugador>? historial,
@@ -1156,6 +1161,8 @@ class EstadoCarrera {
     phBanco: phBanco ?? this.phBanco,
     phAcreditados: phAcreditados ?? this.phAcreditados,
     phGastados: phGastados ?? this.phGastados,
+    espec: espec ?? this.espec,
+    uso: uso ?? this.uso,
     companeros: companeros ?? this.companeros,
     objetivos: objetivos ?? this.objetivos,
     historial: historial ?? this.historial,
@@ -1198,6 +1205,8 @@ class EstadoCarrera {
     'ph': phBanco,
     'phAcr': phAcreditados,
     'phGas': phGastados,
+    if (espec.isNotEmpty) 'esp': {for (final e in espec.entries) e.key.name: e.value},
+    if (uso.isNotEmpty) 'uso': uso,
     'comp': [for (final j in companeros) j.toJson()],
     'objetivos': [for (final o in objetivos) o.toJson()],
     'historial': [for (final h in historial) h.toJson()],
@@ -1236,6 +1245,11 @@ class EstadoCarrera {
     phBanco: j['ph'] as int? ?? 0,
     phAcreditados: j['phAcr'] as int? ?? 0,
     phGastados: j['phGas'] as int? ?? 0,
+    espec: {
+      for (final h in Habilidad.values)
+        if (((j['esp'] as Map?)?[h.name] as num?)?.toInt() case final n? when n > 0) h: n,
+    },
+    uso: {for (final e in ((j['uso'] as Map?) ?? const {}).entries) e.key as String: (e.value as num).toInt()},
     companeros: [for (final x in j['comp'] as List? ?? const []) Jugador.fromJson(x as Map<String, dynamic>)],
     objetivos: [
       for (final x in j['objetivos'] as List? ?? const []) ObjetivoTemporada.fromJson(x as Map<String, dynamic>),
@@ -1277,6 +1291,7 @@ class CierreTemporada {
     required this.phPremios,
     required this.desarrollo,
     required this.insigniasNuevas,
+    this.gradosNuevos = const {},
   });
 
   final EstadoCarrera estado;
@@ -1288,7 +1303,11 @@ class CierreTemporada {
 
   /// Cambio natural de atributos por la edad (aplicado en [estado]).
   final Map<Atributo, int> desarrollo;
+  /// Insignias que ganaste o subiste de grado este año.
   final List<Insignia> insigniasNuevas;
+
+  /// Grado de cada insignia al cerrar el año.
+  final Map<Insignia, GradoInsignia> gradosNuevos;
 }
 
 // -------------------------------------------------------------------------------------------
@@ -1828,6 +1847,29 @@ class CarreraJugador {
     );
   }
 
+  // ---------- Habilidades específicas ----------
+
+  /// Lo que cuesta sumar un punto a la habilidad [h]: la mitad (redondeada hacia arriba) de lo que costaría
+  /// subir un atributo general a su valor actual. Es más barato porque mueve menos cosas.
+  int costoHabilidad(EstadoCarrera e, Habilidad h) =>
+      max(1, (ModeloCarrera.costo(Habilidad.valor(h, e.atributos, e.espec)) / 2).ceil());
+
+  bool puedeSubirHabilidad(EstadoCarrera e, Habilidad h) =>
+      (e.espec[h] ?? 0) < Habilidad.maxEspecializacion &&
+      Habilidad.valor(h, e.atributos, e.espec) < ModeloCarrera.tope &&
+      e.phBanco >= costoHabilidad(e, h);
+
+  /// Suma un punto a la habilidad [h] gastando lo que cuesta. Si no se puede, devuelve el mismo estado.
+  EstadoCarrera subirHabilidad(EstadoCarrera e, Habilidad h) {
+    if (!puedeSubirHabilidad(e, h)) return e;
+    final costo = costoHabilidad(e, h);
+    return e.copyWith(
+      espec: {...e.espec, h: (e.espec[h] ?? 0) + 1},
+      phBanco: e.phBanco - costo,
+      phGastados: e.phGastados + costo,
+    );
+  }
+
   // ---------- Objetivos ----------
 
   /// Tres objetivos del DT: uno de estadística según tu puesto, uno de equipo y uno personal. La meta
@@ -1901,10 +1943,6 @@ class CarreraJugador {
       atributosNuevos = atributosNuevos.con(mayor, atributosNuevos[mayor] - 1);
     }
     final desarrollo = {for (final a in Atributo.values) a: atributosNuevos[a] - e.atributos[a]};
-    final insigniasNuevas = [
-      for (final i in Insignia.de(atributosNuevos))
-        if (!e.insignias.contains(i)) i,
-    ];
     final temporada = TemporadaJugador(
       numero: e.numero,
       etiqueta: e.etiquetaTemporada,
@@ -1957,6 +1995,9 @@ class CarreraJugador {
       cerrada: true,
       prensaHecha: 0,
     );
+    // Insignias que ganaste o subiste de grado este año (con la carrera ya sumada).
+    final antesG = e.grados;
+    final gradosNuevos = estado.grados;
     return CierreTemporada(
       estado: estado,
       temporada: temporada,
@@ -1965,7 +2006,11 @@ class CarreraJugador {
       phObjetivos: phObjetivos,
       phPremios: phPremios,
       desarrollo: desarrollo,
-      insigniasNuevas: insigniasNuevas,
+      insigniasNuevas: [
+        for (final i in Insignia.values)
+          if (gradosNuevos[i]!.nivel > antesG[i]!.nivel) i,
+      ],
+      gradosNuevos: gradosNuevos,
     );
   }
 

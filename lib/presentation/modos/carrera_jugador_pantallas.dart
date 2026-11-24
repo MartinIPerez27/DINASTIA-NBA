@@ -90,11 +90,18 @@ class _Panel extends StatelessWidget {
 
 /// Atributos con botones para subirlos, y las insignias. Se usa en el receso y en la pantalla de tu jugador.
 class PanelAtributos extends StatelessWidget {
-  const PanelAtributos({super.key, required this.estado, required this.carrera, required this.onSubir});
+  const PanelAtributos({
+    super.key,
+    required this.estado,
+    required this.carrera,
+    required this.onSubir,
+    this.onSubirHabilidad,
+  });
 
   final EstadoCarrera estado;
   final CarreraJugador carrera;
   final ValueChanged<Atributo> onSubir;
+  final ValueChanged<Habilidad>? onSubirHabilidad;
 
   @override
   Widget build(BuildContext context) {
@@ -131,35 +138,188 @@ class PanelAtributos extends StatelessWidget {
             techo: carrera.enTecho(estado, a),
             onSubir: () => onSubir(a),
           ),
+        if (onSubirHabilidad != null) ...[
+          const SizedBox(height: 12),
+          Text('HABILIDADES ESPECÍFICAS', style: tema.textTheme.labelLarge),
+          const SizedBox(height: 2),
+          Text(
+            'Cada atributo se abre en habilidades más finas. Sumales puntos a las que más usás: salen más baratos '
+            'que un atributo entero y te acercan a las insignias.',
+            style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+          ),
+          for (final at in Atributo.values)
+            Material(
+              type: MaterialType.transparency,
+              child: Theme(
+                data: tema.copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: Text(at.etiqueta, style: tema.textTheme.bodyMedium),
+                  children: [
+                    for (final h in Habilidad.de(at))
+                      _FilaHabilidad(
+                        habilidad: h,
+                        valor: Habilidad.valor(h, estado.atributos, estado.espec),
+                        espec: estado.espec[h] ?? 0,
+                        costo: carrera.costoHabilidad(estado, h),
+                        puede: carrera.puedeSubirHabilidad(estado, h),
+                        onSubir: () => onSubirHabilidad!(h),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
         const SizedBox(height: 12),
         Text('INSIGNIAS', style: tema.textTheme.labelLarge),
         const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final i in Insignia.values)
-              Tooltip(
-                message: i.descripcion,
-                child: Chip(
-                  avatar: Icon(
-                    i.la(estado.atributos) ? Icons.verified : Icons.lock_outline,
-                    size: 16,
-                    color: i.la(estado.atributos) ? esquema.primary : esquema.onSurfaceVariant,
-                  ),
-                  label: Text(i.etiqueta),
-                  side: BorderSide(color: i.la(estado.atributos) ? esquema.primary : esquema.outlineVariant),
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
-          ],
-        ),
+        _InsigniasPorFamilia(estado: estado),
         const SizedBox(height: 4),
         Text(
-          'Tocá una insignia para ver qué pide. Las ganadas suman a tus estadísticas.',
+          'Tocá una insignia para ver qué pide. Tienen cuatro grados (Bronce, Plata, Oro y Leyenda) y cada grado '
+          'suma más a tus estadísticas.',
           style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
         ),
       ],
+    );
+  }
+}
+
+Color _colorGrado(GradoInsignia g, ColorScheme esquema) => switch (g) {
+  GradoInsignia.ninguno => esquema.outlineVariant,
+  GradoInsignia.bronce => const Color(0xFFB87333),
+  GradoInsignia.plata => const Color(0xFFB8BCC4),
+  GradoInsignia.oro => const Color(0xFFE0B52E),
+  GradoInsignia.leyenda => const Color(0xFFB478F0),
+};
+
+/// Las insignias agrupadas por familia: las que ya tenés (con su grado) primero y después las que faltan.
+class _InsigniasPorFamilia extends StatelessWidget {
+  const _InsigniasPorFamilia({required this.estado});
+
+  final EstadoCarrera estado;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final ctx = estado.contexto;
+    final grados = Insignia.grados(ctx);
+    final tiene = grados.values.where((g) => g.nivel >= 1).length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('$tiene de ${Insignia.values.length} desbloqueadas', style: tema.textTheme.bodySmall),
+        for (final f in FamiliaInsignia.values) ...[
+          const SizedBox(height: 8),
+          Text(f.etiqueta, style: tema.textTheme.labelMedium?.copyWith(color: esquema.onSurfaceVariant)),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              for (final i in ([
+                ...Insignia.values.where((x) => x.familia == f),
+              ]..sort((a, b) => grados[b]!.nivel.compareTo(grados[a]!.nivel))))
+                _ChipInsignia(insignia: i, grado: grados[i]!, ctx: ctx),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ChipInsignia extends StatelessWidget {
+  const _ChipInsignia({required this.insignia, required this.grado, required this.ctx});
+
+  final Insignia insignia;
+  final GradoInsignia grado;
+  final ContextoInsignia ctx;
+
+  @override
+  Widget build(BuildContext context) {
+    final esquema = Theme.of(context).colorScheme;
+    final color = _colorGrado(grado, esquema);
+    final tiene = grado.nivel >= 1;
+    final siguiente = insignia.umbralDe(grado);
+    final puntaje = insignia.puntaje(ctx);
+    final msg = StringBuffer(insignia.descripcion);
+    msg.write(tiene ? '\nGrado: ${grado.etiqueta}.' : '\nTodavía bloqueada.');
+    if (siguiente != null) {
+      final prox = GradoInsignia.deNivel(grado.nivel + 1).etiqueta;
+      msg.write('\nPara $prox: puntaje $siguiente (tenés $puntaje).');
+    }
+    return Tooltip(
+      message: msg.toString(),
+      triggerMode: TooltipTriggerMode.tap,
+      showDuration: const Duration(seconds: 4),
+      child: Chip(
+        avatar: Icon(tiene ? Icons.verified : Icons.lock_outline, size: 16, color: color),
+        label: Text(tiene ? '${insignia.etiqueta} · ${grado.etiqueta}' : insignia.etiqueta),
+        side: BorderSide(color: color, width: tiene ? 1.5 : 1),
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+}
+
+class _FilaHabilidad extends StatelessWidget {
+  const _FilaHabilidad({
+    required this.habilidad,
+    required this.valor,
+    required this.espec,
+    required this.costo,
+    required this.puede,
+    required this.onSubir,
+  });
+
+  final Habilidad habilidad;
+  final int valor, espec, costo;
+  final bool puede;
+  final VoidCallback onSubir;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final maximo = espec >= Habilidad.maxEspecializacion || valor >= 99;
+    return Tooltip(
+      message: habilidad.descripcion,
+      triggerMode: TooltipTriggerMode.longPress,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                habilidad.etiqueta,
+                style: tema.textTheme.bodySmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            SizedBox(width: 30, child: TextoLed('$valor', tamano: 16)),
+            SizedBox(
+              width: 30,
+              child: Text(
+                espec == 0 ? '' : '+$espec',
+                style: tema.textTheme.labelSmall?.copyWith(color: esquema.primary),
+              ),
+            ),
+            FilledButton.tonal(
+              onPressed: puede ? onSubir : null,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(64, 32),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              child: Text(maximo ? 'MÁX.' : '+1 · $costo'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -397,6 +557,12 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
     widget.onCambiar(_t);
   }
 
+  void _subirHabilidad(Habilidad h) {
+    final e = widget.carrera.subirHabilidad(_e, h);
+    setState(() => _t = widget.carrera.sincronizar(_t, e));
+    widget.onCambiar(_t);
+  }
+
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
@@ -501,7 +667,7 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
     ];
     final derecha = <Widget>[
       _Panel(
-        child: PanelAtributos(estado: e, carrera: widget.carrera, onSubir: _subir),
+        child: PanelAtributos(estado: e, carrera: widget.carrera, onSubir: _subir, onSubirHabilidad: _subirHabilidad),
       ),
     ];
     const relleno = EdgeInsets.fromLTRB(16, 8, 16, 24);
@@ -796,7 +962,7 @@ class _RecesoJugadorPantallaState extends State<RecesoJugadorPantalla> {
               for (final i in c.insigniasNuevas) ...[
                 const SizedBox(height: 8),
                 Text(
-                  '¡Insignia desbloqueada: ${i.etiqueta}! ${i.descripcion}',
+                  '¡Insignia ${i.etiqueta}: ${c.gradosNuevos[i]?.etiqueta ?? 'nueva'}! ${i.descripcion}',
                   style: tema.textTheme.bodyMedium?.copyWith(color: esquema.primary),
                 ),
               ],
@@ -837,6 +1003,7 @@ class _RecesoJugadorPantallaState extends State<RecesoJugadorPantalla> {
             estado: _e,
             carrera: widget.carrera,
             onSubir: (a) => _cambiar(widget.carrera.subir(_e, a)),
+            onSubirHabilidad: (h) => _cambiar(widget.carrera.subirHabilidad(_e, h)),
           ),
         ),
       ],
