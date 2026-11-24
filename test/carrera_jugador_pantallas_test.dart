@@ -8,6 +8,7 @@ import 'package:dinastia_nba/domain/entities/rol_cancha.dart';
 import 'package:dinastia_nba/domain/entities/temporada.dart';
 import 'package:dinastia_nba/domain/liga.dart';
 import 'package:dinastia_nba/domain/modos/carrera_jugador.dart';
+import 'package:dinastia_nba/domain/modos/vida_carrera.dart';
 import 'package:dinastia_nba/presentation/modos/carrera_jugador_pantallas.dart';
 import 'package:dinastia_nba/presentation/modos/creador_jugador.dart';
 import 'package:dinastia_nba/presentation/tema/tema_franquicia.dart';
@@ -131,6 +132,20 @@ void main() {
     await t.tap(find.text('CONTINUAR'));
     await t.pumpAndSettle();
     expect(find.text('ENTRENAMIENTO'), findsOneWidget);
+    // Rutina de entrenamiento: se elige y queda guardada.
+    await t.ensureVisible(find.text('Taller de tiro'));
+    await t.tap(find.text('Taller de tiro'));
+    await t.pumpAndSettle();
+    expect(VidaCarrera.rutinaDe(guardado!), Rutina.tiro);
+    await t.ensureVisible(find.text('CONTINUAR'));
+    await t.tap(find.text('CONTINUAR'));
+    await t.pumpAndSettle();
+    // Evento fuera de la cancha: no deja seguir hasta elegir una respuesta.
+    expect(find.text('FUERA DE LA CANCHA'), findsOneWidget);
+    expect(t.widget<FilledButton>(find.widgetWithText(FilledButton, 'CONTINUAR')).onPressed, isNull);
+    await t.tap(find.byType(FilledButton).first);
+    await t.pumpAndSettle();
+    expect((guardado!.uso['evento'] ?? 0), greaterThan(0));
     await t.tap(find.text('CONTINUAR'));
     await t.pumpAndSettle();
     // Prensa: no deja seguir hasta responder las dos preguntas.

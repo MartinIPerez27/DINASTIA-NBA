@@ -168,6 +168,12 @@ class _HojaDecisionState extends State<HojaDecision> {
     TipoDecision.finalConVentaja => Icons.lock_clock,
     TipoDecision.entretiempo => Icons.pause_circle,
     TipoDecision.ajusteManual => Icons.tune,
+    TipoDecision.tuPlan => Icons.sports_basketball,
+    TipoDecision.tuMomento => Icons.bolt,
+    TipoDecision.tuMarca => Icons.shield_outlined,
+    TipoDecision.tuEnergia => Icons.battery_3_bar,
+    TipoDecision.tuClutch => Icons.timer,
+    TipoDecision.takeover => Icons.local_fire_department,
   };
 }
 

@@ -121,6 +121,32 @@ void main() {
       expect(sinPuntos.atributos[Atributo.tiro], antes);
     });
 
+    test('el potencial no es un techo duro: pasarlo se puede, pero cuesta más', () {
+      var e = carrera
+          .estadoCreado(raiz: 'p3', creado: creado(), pick: 12, franquiciaId: 'CHI', potencial: 60)
+          .copyWith(edad: 27, phBanco: 5000);
+      // Subo hasta llegar al techo de la edad: costo base.
+      while (!carrera.enTecho(e, Atributo.tiro) && e.atributos[Atributo.tiro] < 99) {
+        expect(carrera.costoMejora(e, Atributo.tiro), ModeloCarrera.costo(e.atributos[Atributo.tiro]));
+        e = carrera.subir(e, Atributo.tiro);
+      }
+      final base = ModeloCarrera.costo(e.atributos[Atributo.tiro]);
+      expect(carrera.costoMejora(e, Atributo.tiro), greaterThan(base), reason: 'sobre el techo cuesta más');
+      expect(carrera.puedeSubir(e, Atributo.tiro), isTrue, reason: 'pero se puede');
+      final antes = e.phBanco;
+      e = carrera.subir(e, Atributo.tiro);
+      expect(antes - e.phBanco, greaterThan(base));
+      // Sin puntos suficientes para el costo extra, no sube.
+      final justo = e.copyWith(phBanco: base);
+      expect(carrera.puedeSubir(justo, Atributo.tiro), isFalse);
+    });
+
+    test('avisa cuando hay muchos puntos sin gastar', () {
+      final e = carrera.estadoCreado(raiz: 'p4', creado: creado(), pick: 12, franquiciaId: 'CHI', potencial: 90);
+      expect(carrera.avisoPuntosSinUsar(e.copyWith(phBanco: 3)), isNull);
+      expect(carrera.avisoPuntosSinUsar(e.copyWith(phBanco: CarreraJugador.puntosSinUsarAviso)), isNotNull);
+    });
+
     test('subir atributos mueve estadísticas y media, y nunca pasa de 99', () {
       // Con un potencial de 99 y edad de pico, el techo no frena.
       var e = carrera

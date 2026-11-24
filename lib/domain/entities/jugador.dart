@@ -125,6 +125,7 @@ class Jugador {
     this.nacimiento,
     this.edad,
     this.legado = false,
+    this.avatar,
   }) : equipo = equipo ?? franquiciaId;
 
   final String id;
@@ -173,6 +174,9 @@ class Jugador {
   /// sorteos (draft, sobres, rivales, mercado) no la usan.
   final bool legado;
 
+  /// Avatar que eligió el usuario al crear su jugador (código de `AvatarCreado`); null: retrato automático.
+  final String? avatar;
+
   /// Qué tramo es la carta: "2020–23", "1985–98", "1999–2004"; sin datos, la época ("Años 90").
   String get tramo => switch (temporadas) {
     (final a, final b) when a == b => '$a',
@@ -213,6 +217,7 @@ class Jugador {
     nacimiento: nacimiento,
     edad: edad,
     legado: legado,
+    avatar: avatar,
   );
 
   /// Id de Basketball-Reference (prefijo del id de carta).
@@ -275,6 +280,7 @@ class Jugador {
       nacimiento: (j['nacimiento'] as num?)?.toInt(),
       edad: (j['edad'] as num?)?.toInt(),
       legado: j['legado'] as bool? ?? false,
+      avatar: j['avatar'] as String?,
     );
   }
 
@@ -299,6 +305,7 @@ class Jugador {
     if (nacimiento != null) 'nacimiento': nacimiento,
     if (edad != null) 'edad': edad,
     if (legado) 'legado': true,
+    if (avatar != null) 'avatar': avatar,
   };
 
   @override

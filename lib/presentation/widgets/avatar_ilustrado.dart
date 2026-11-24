@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../domain/entities/avatar_creado.dart';
 import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/jugador.dart';
 import '../tema/tema_franquicia.dart';
@@ -41,6 +42,10 @@ class PerfilAvatar {
 
   static const pelos = [Color(0xFF16110E), Color(0xFF2D1E16), Color(0xFF4B3321), Color(0xFF7A5A36), Color(0xFF9A9A98)];
 
+  /// Colores de pelo que ofrece el creador: los del retrato automático más tres (rubio, colorado, blanco).
+  /// El orden coincide con el índice de `AvatarCreado.pelo`.
+  static const pelosCreador = [...pelos, Color(0xFFD9B26A), Color(0xFF9C3B1E), Color(0xFFEDEDEA)];
+
   /// Hash FNV-1a de 32 bits: estable entre sesiones y plataformas (no usa `hashCode`).
   static int hash(String clave) {
     var h = 0x811c9dc5;
@@ -53,6 +58,16 @@ class PerfilAvatar {
     h ^= h >> 16;
     return h;
   }
+
+  /// Retrato que armó el usuario al crear su jugador (código de `AvatarCreado`).
+  factory PerfilAvatar.creado(AvatarCreado a) => PerfilAvatar(
+    piel: pieles[a.piel.clamp(0, pieles.length - 1)],
+    pelo: pelosCreador[a.pelo.clamp(0, pelosCreador.length - 1)],
+    estilo: PeloEstilo.values[a.estilo.clamp(0, PeloEstilo.values.length - 1)],
+    anchoCabeza: 0.92 + a.ancho * 0.02,
+    altoCabeza: 0.95 + a.alto * 0.02,
+    barba: a.barba && a.estilo != PeloEstilo.largo.index,
+  );
 
   /// Retrato de la persona identificada por [clave] (id de Basketball-Reference o id de carta).
   factory PerfilAvatar.de(String clave) {
@@ -87,7 +102,8 @@ class AvatarIlustrado extends StatelessWidget {
     final panel = Theme.of(context).colorScheme.surfaceContainerLowest;
     return LayoutBuilder(
       builder: (context, c) {
-        final perfil = PerfilAvatar.de(jugador.idBbref);
+        final propio = AvatarCreado.deCodigo(jugador.avatar);
+        final perfil = propio != null ? PerfilAvatar.creado(propio) : PerfilAvatar.de(jugador.idBbref);
         final primario = Color(franquicia.colorPrimario), secundario = Color(franquicia.colorSecundario);
         // Camiseta: el color principal; si se pierde contra el panel (negro, gris oscuro), el secundario.
         final camiseta = _contraste(primario, panel) >= 1.6 ? primario : secundario;

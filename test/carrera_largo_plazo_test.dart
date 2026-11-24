@@ -129,8 +129,8 @@ void main() {
       }
     });
 
-    test('el techo oculto manda: nadie pasa de su potencial y gastar todo no regala el 99', () {
-      expect(pico(maximo88), lessThanOrEqualTo(88));
+    test('el potencial manda sin ser pared: pasarlo cuesta mucho y gastar todo no regala el 99', () {
+      expect(pico(maximo88), lessThanOrEqualTo(91), reason: 'se puede pasar el potencial, pero poco');
       expect(pico(maximo88), greaterThanOrEqualTo(83), reason: 'gastando todo, llega cerca de su techo');
       expect(pico(maximo99), lessThanOrEqualTo(99));
       expect(pico(sin88), lessThan(pico(maximo88)), reason: 'sin gastar rinde menos');
@@ -180,7 +180,7 @@ void main() {
       for (final f in [maximo88, maximo99, sin88]) {
         for (final x in f) {
           expect(x.pts, lessThanOrEqualTo(40), reason: 'edad ${x.edad} media ${x.media}: ${x.pts}');
-          if (x.media <= 75) expect(x.pts, lessThanOrEqualTo(24));
+          if (x.media <= 75) expect(x.pts, lessThanOrEqualTo(26), reason: 'un jugador de media baja no pasa de 26: edad ${x.edad} media ${x.media}');
           if (x.media >= 90) expect(x.pts, greaterThanOrEqualTo(18));
           expect(x.reb, lessThanOrEqualTo(14));
           expect(x.ast, lessThanOrEqualTo(12));

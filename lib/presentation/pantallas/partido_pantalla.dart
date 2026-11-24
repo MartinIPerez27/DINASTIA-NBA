@@ -55,6 +55,8 @@ class PartidoPantalla extends StatefulWidget {
     required this.onTerminado,
     this.contexto,
     this.playoffs = false,
+    this.jugadorCarrera,
+    this.alUsarCarrera,
   });
 
   /// Partido de playoffs: más público, banderines y luz más dramática.
@@ -62,6 +64,13 @@ class PartidoPantalla extends StatefulWidget {
 
   /// Datos extra para el relato (serie, récord, historial…); lo que falte se completa solo.
   final ContextoRelato? contexto;
+
+  /// Tu jugador en Mi carrera: el partido te frena solo en tus momentos y las decisiones son las de un jugador
+  /// (no las del entrenador). Null: decisiones de entrenador, como siempre.
+  final PerfilVivo? jugadorCarrera;
+
+  /// Al terminar, lo que hiciste como jugador para sumar a tu carrera (jugadas decisivas, Takeover).
+  final ValueChanged<Map<String, int>>? alUsarCarrera;
 
   final MotorPartido motor;
   final bool usuarioLocal;
@@ -168,6 +177,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     motor: widget.motor,
     propio: widget.usuarioLocal,
     habilitado: ajustesApp.value.decisiones,
+    yo: widget.jugadorCarrera,
   );
   DecisionPartido? _decision;
   InformeEntretiempo? _informe;
@@ -278,7 +288,8 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   bool _haciaArriba(bool local) => local == (_cuarto <= 2);
 
   /// En el final apretado, antes de cada posesión tuya, el partido se frena para que elijas la jugada.
-  bool get _hayQuePreguntar => !_noPreguntar && !_final && _m.momentoClutch && _m.ataqueDelUsuario;
+  bool get _hayQuePreguntar =>
+      !_noPreguntar && !_final && !_dir.esJugador && _m.momentoClutch && _m.ataqueDelUsuario;
 
   void _elegirJugada(JugadaClave? jugada, {bool noPreguntarMas = false}) {
     if (jugada != null) _m.pedirJugada(jugada);
@@ -668,6 +679,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     _registrado = true;
     PartidoEnCurso.alTerminar?.call();
     Misiones.anotar(TipoMision.jugarEnVivo);
+    widget.alUsarCarrera?.call(_dir.usoCarrera);
     widget.onTerminado(_m);
     setState(() => _final = true);
     _sonido.chicharra();

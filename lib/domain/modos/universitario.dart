@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../entities/avatar_creado.dart';
 import '../entities/franquicia.dart';
 import '../entities/jugador.dart';
 import '../entities/modo_juego.dart';
@@ -268,6 +269,7 @@ class Estudiante {
     this.estrellas = 3,
     this.potencial = 1,
     this.creado = false,
+    this.avatar,
     this.pj = 0,
     this.pts = 0,
     this.reb = 0,
@@ -286,6 +288,9 @@ class Estudiante {
 
   /// Lo creaste vos (y se puede llevar a Mi carrera).
   final bool creado;
+
+  /// Código de `AvatarCreado` si lo creaste vos con avatar propio.
+  final String? avatar;
   final int pj, pts, reb, ast;
 
   int get media => ModeloCarrera.mediaDe(atributos, posicion);
@@ -309,6 +314,7 @@ class Estudiante {
     stats: estadisticas,
     media: media,
     fotos: const [],
+    avatar: avatar,
   );
 
   static List<Posicion> _vecinos(Posicion p) => switch (p) {
@@ -337,6 +343,7 @@ class Estudiante {
     estrellas: estrellas,
     potencial: potencial,
     creado: creado,
+    avatar: avatar,
     pj: pj ?? this.pj,
     pts: pts ?? this.pts,
     reb: reb ?? this.reb,
@@ -355,6 +362,7 @@ class Estudiante {
     's': estrellas,
     'pot': potencial,
     if (creado) 'c': true,
+    if (avatar != null) 'av': avatar,
     if (pj > 0) 'st': [pj, pts, reb, ast],
   };
 
@@ -372,6 +380,7 @@ class Estudiante {
       estrellas: j['s'] as int? ?? 3,
       potencial: j['pot'] as int? ?? 1,
       creado: j['c'] as bool? ?? false,
+      avatar: j['av'] as String?,
       pj: st[0],
       pts: st[1],
       reb: st[2],
@@ -392,6 +401,7 @@ class Estudiante {
     estrellas: 4,
     potencial: 2,
     creado: true,
+    avatar: c.avatar?.codigo,
   );
 
   /// Un jugador generado: [media] objetivo de su nivel de partida.
@@ -534,6 +544,7 @@ class Egresado {
     required this.media,
     this.pick,
     this.creado = false,
+    this.avatar,
   });
 
   final String nombre;
@@ -545,6 +556,7 @@ class Egresado {
   /// Elección del draft (1 a 30); null si nadie lo eligió.
   final int? pick;
   final bool creado;
+  final String? avatar;
 
   String get destino => pick == null ? 'Sin draft' : (pick! <= 30 ? 'Pick $pick' : 'Sin draft');
 
@@ -562,6 +574,7 @@ class Egresado {
       atributosFijos: atributos,
       pickFijo: pick,
       edadInicial: (18 + anios).clamp(19, 23),
+      avatar: AvatarCreado.deCodigo(avatar),
     );
   }
 
@@ -577,6 +590,7 @@ class Egresado {
     'm': media,
     if (pick != null) 'pick': pick,
     if (creado) 'c': true,
+    if (avatar != null) 'av': avatar,
   };
 
   factory Egresado.fromJson(Map<String, dynamic> j) => Egresado(
@@ -591,6 +605,7 @@ class Egresado {
     media: j['m'] as int,
     pick: j['pick'] as int?,
     creado: j['c'] as bool? ?? false,
+    avatar: j['av'] as String?,
   );
 }
 
@@ -1477,6 +1492,7 @@ class Universitario {
           media: s.media,
           pick: tabla.pickDe(s.id),
           creado: s.creado,
+          avatar: s.avatar,
         ),
     ];
     final picks = [

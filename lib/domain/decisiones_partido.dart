@@ -5,6 +5,7 @@ import 'entities/jugador.dart';
 import 'entities/posicion.dart';
 import 'entities/tactica.dart';
 import 'modificadores.dart';
+import 'modos/carrera_jugador.dart' show Atributo, Atributos, EstadoCarrera, GradoInsignia, Habilidad, Insignia;
 import 'motor.dart';
 import 'premios.dart' show apellido;
 
@@ -27,13 +28,20 @@ enum TipoDecision {
   faltaIntencional('Falta intencional'),
   finalConVentaja('Final con ventaja'),
   entretiempo('Entretiempo'),
-  ajusteManual('Ajuste táctico');
+  ajusteManual('Ajuste táctico'),
+  // Decisiones como jugador (Mi carrera): solo lo que hacés vos en la cancha.
+  tuPlan('Tu plan'),
+  tuMomento('Tu momento'),
+  tuMarca('Tu marca'),
+  tuEnergia('Tu energía'),
+  tuClutch('Tu último tiro'),
+  takeover('Takeover');
 
   const TipoDecision(this.titulo);
   final String titulo;
 
   /// Momentos que no cuentan para el tope del cuarto: pasan o no pasan en segundos.
-  bool get critica => this == ultimoTiro || this == faltaIntencional || this == finalConVentaja;
+  bool get critica => this == ultimoTiro || this == faltaIntencional || this == finalConVentaja || this == tuClutch;
 }
 
 /// Un ajuste del mismo grupo reemplaza al anterior (no se acumulan dos defensas).
@@ -66,7 +74,19 @@ enum AccionTactica {
   lineaTiempoMuerto(CategoriaAjuste.linea),
   defenderTriple(CategoriaAjuste.defensa),
   faltaTactica(CategoriaAjuste.falta),
-  enfriar(CategoriaAjuste.ritmo);
+  enfriar(CategoriaAjuste.ritmo),
+  // Como jugador (Mi carrera).
+  pedirPelota(CategoriaAjuste.foco),
+  atacarAro(CategoriaAjuste.foco),
+  tirarTriple(CategoriaAjuste.foco),
+  buscarAbierto(CategoriaAjuste.foco),
+  takeover(CategoriaAjuste.foco),
+  cerrarMarca(CategoriaAjuste.defensa),
+  apostarRobo(CategoriaAjuste.defensa),
+  guardarEnergia(CategoriaAjuste.descanso),
+  yoAislamiento(CategoriaAjuste.jugada),
+  yoTriple(CategoriaAjuste.jugada),
+  yoPasar(CategoriaAjuste.jugada);
 
   const AccionTactica(this.categoria);
   final CategoriaAjuste categoria;
@@ -78,7 +98,10 @@ enum AccionTactica {
       this == jugadaPickAndRoll ||
       this == lineaMejor ||
       this == lineaTiempoMuerto ||
-      this == faltaTactica;
+      this == faltaTactica ||
+      this == yoAislamiento ||
+      this == yoTriple ||
+      this == yoPasar;
 }
 
 /// Una opción de una decisión: qué hace, qué cuesta y, si hace falta, sobre quién.
@@ -291,10 +314,46 @@ class InformeEntretiempo {
   final List<OpcionDecision> defensas, ritmos, quintetos, focos, descansos;
 }
 
+/// Lo que el partido necesita saber de tu jugador en Mi carrera: quién es y cómo es (atributos,
+/// habilidades específicas e insignias). Con esto las decisiones "como jugador" rinden distinto según
+/// el jugador que armaste.
+class PerfilVivo {
+  const PerfilVivo({
+    required this.id,
+    required this.nombre,
+    required this.atributos,
+    this.espec = const {},
+    this.grados = const {},
+    this.moral = 60,
+  });
+
+  factory PerfilVivo.de(EstadoCarrera e) => PerfilVivo(
+    id: e.jugadorId,
+    nombre: e.nombre,
+    atributos: e.atributos,
+    espec: e.espec,
+    grados: e.grados,
+    moral: e.moral,
+  );
+
+  final String id, nombre;
+  final Atributos atributos;
+  final Map<Habilidad, int> espec;
+  final Map<Insignia, GradoInsignia> grados;
+  final int moral;
+
+  int a(Atributo x) => atributos[x];
+  int h(Habilidad x) => Habilidad.valor(x, atributos, espec);
+  int nivel(Insignia i) => grados[i]?.nivel ?? 0;
+
+  /// Nivel ofensivo (tiro y finalización).
+  double get ataque => (a(Atributo.tiro) + a(Atributo.finalizacion)) / 2;
+}
+
 /// El cerebro de las decisiones en vivo. Se crea con el motor y el lado del usuario; la pantalla le avisa
 /// de cada jugada (`observar` + `tick`) y antes de la próxima pregunta si hay algo para decidir (`evaluar`).
 class DirectorDecisiones {
-  DirectorDecisiones({required this.motor, required this.propio, this.habilitado = true}) {
+  DirectorDecisiones({required this.motor, required this.propio, this.habilitado = true, this.yo}) {
     _tm = motor.tiemposMuertos(propio);
   }
 
@@ -305,6 +364,20 @@ class DirectorDecisiones {
 
   /// Las decisiones sugeridas (el ajuste del usuario). Los ajustes manuales siempre están.
   bool habilitado;
+
+  /// Tu jugador en Mi carrera (null: decisiones de entrenador, como siempre). Con jugador, el partido solo te
+  /// frena en tus momentos y las opciones son las de un jugador, no las del DT.
+  final PerfilVivo? yo;
+  bool get esJugador => yo != null;
+
+  /// Jugadas decisivas que resolviste bien como jugador y veces que activaste el Takeover (van a Mi carrera).
+  int clutchLogrados = 0, takeoversUsados = 0;
+
+  /// Lo que se suma a los contadores de la carrera al terminar el partido.
+  Map<String, int> get usoCarrera => {
+    if (clutchLogrados > 0) 'clutch': clutchLogrados,
+    if (takeoversUsados > 0) 'takeover': takeoversUsados,
+  };
 
   // ── límites: nunca en cada posesión ──
   static const maxPorCuarto = 2, maxPorPartido = 6;
@@ -444,6 +517,16 @@ class DirectorDecisiones {
     // Efectos de una sola jugada: se cumplen cuando pasa lo que pedimos.
     for (final ef in activos) {
       switch (ef.opcion.accion) {
+        case AccionTactica.yoAislamiento || AccionTactica.yoTriple || AccionTactica.yoPasar:
+          if (e.jugadaClave != null && mio) {
+            ef.cumplido = true;
+            ef.extra = e.puntos;
+            final bien = e.puntos > 0;
+            if (bien) clutchLogrados++;
+            ef.registro
+              ..aviso = _avisoYo(ef, e)
+              ..veredicto = bien ? Veredicto.ayudo : Veredicto.empeoro;
+          }
         case AccionTactica.jugadaAislamiento || AccionTactica.jugadaTriple || AccionTactica.jugadaPickAndRoll:
           if (e.jugadaClave != null && mio) {
             ef.cumplido = true;
@@ -491,6 +574,18 @@ class DirectorDecisiones {
     return e.puntos > 0 ? '$que: ¡entró! +${e.puntos}.' : '$que: no entró, la pelota no tuvo premio.';
   }
 
+  String _avisoYo(EfectoActivo ef, EventoPartido e) {
+    final que = switch (ef.opcion.accion) {
+      AccionTactica.yoAislamiento => 'Pediste la pelota',
+      AccionTactica.yoTriple => 'Fuiste por el triple',
+      _ => 'Buscaste al compañero',
+    };
+    final quien = _nombreDe(e.jugadorId);
+    return e.puntos > 0
+        ? '$que: ¡salió! $quien anotó +${e.puntos}. Cuenta para tu insignia Clutch.'
+        : '$que: no entró, esta vez no hubo premio.';
+  }
+
   /// Vence los ajustes que ya cumplieron su tiempo y devuelve los avisos para mostrar.
   List<String> tick() {
     final avisos = <String>[];
@@ -516,6 +611,7 @@ class DirectorDecisiones {
   /// ¿Hay algo para decidir ahora? Llamar antes de cada posesión. Si devuelve algo, el partido se frena.
   DecisionPartido? evaluar() {
     if (!habilitado || motor.terminado || _actual != null) return null;
+    if (esJugador) return _evaluarJugador();
     if (_permite(critica: true)) {
       final d = _faltaIntencional() ?? _finalConVentaja() ?? _ultimoTiro();
       if (d != null) return _presentar(d);
@@ -587,6 +683,7 @@ class DirectorDecisiones {
 
   /// Todo lo que se puede pedir ahora, agrupado por categoría (para el menú de ajustes).
   List<OpcionDecision> menuTactico() {
+    if (esJugador) return _menuJugador();
     final star = _estrella;
     final (org, grande) = _duoPickAndRoll;
     final lista = <OpcionDecision?>[
@@ -807,6 +904,18 @@ class DirectorDecisiones {
           'Cortás la jugada y los mandás a la línea (2 libres).',
           'Si meten los dos siguen en juego y pueden tener el último tiro.',
         );
+      case AccionTactica.pedirPelota ||
+          AccionTactica.atacarAro ||
+          AccionTactica.tirarTriple ||
+          AccionTactica.buscarAbierto ||
+          AccionTactica.takeover ||
+          AccionTactica.cerrarMarca ||
+          AccionTactica.apostarRobo ||
+          AccionTactica.guardarEnergia ||
+          AccionTactica.yoAislamiento ||
+          AccionTactica.yoTriple ||
+          AccionTactica.yoPasar:
+        return _opYo(a, recomendada: recomendada, rival: rival);
     }
   }
 
@@ -815,7 +924,10 @@ class DirectorDecisiones {
     const neutro = EfectoEnVivo();
     return switch (o.accion) {
       AccionTactica.defensaIndividual => (const EfectoEnVivo(defensa: EsquemaDefensivo.switchAll), null),
-      AccionTactica.zona => (const EfectoEnVivo(defensa: EsquemaDefensivo.zona23, tripleRival: 1.04, interiorRival: 1.03), null),
+      AccionTactica.zona => (
+        const EfectoEnVivo(defensa: EsquemaDefensivo.zona23, tripleRival: 1.04, interiorRival: 1.03),
+        null,
+      ),
       AccionTactica.presion => (
         const EfectoEnVivo(
           defensa: EsquemaDefensivo.presionTodaCancha,
@@ -867,6 +979,17 @@ class DirectorDecisiones {
       AccionTactica.lineaTiempoMuerto => (EfectoEnVivo(linea: o.jugadorId, lineaRiesgo: 0), null),
       AccionTactica.defenderTriple => (const EfectoEnVivo(tripleRival: 0.9, interiorRival: 1.06), null),
       AccionTactica.faltaTactica => (const EfectoEnVivo(faltar: 1), null),
+      AccionTactica.pedirPelota ||
+      AccionTactica.atacarAro ||
+      AccionTactica.tirarTriple ||
+      AccionTactica.buscarAbierto ||
+      AccionTactica.takeover ||
+      AccionTactica.cerrarMarca ||
+      AccionTactica.apostarRobo ||
+      AccionTactica.guardarEnergia ||
+      AccionTactica.yoAislamiento ||
+      AccionTactica.yoTriple ||
+      AccionTactica.yoPasar => (_efectoYo(o.accion), null),
       _ => (neutro, null),
     };
   }
@@ -897,6 +1020,15 @@ class DirectorDecisiones {
         motor.pedirJugada(JugadaClave.triple);
       case AccionTactica.jugadaPickAndRoll:
         motor.pedirJugada(JugadaClave.pickAndRoll);
+      case AccionTactica.yoAislamiento:
+        motor.pedirJugada(JugadaClave.aislamiento, tiradorId: yo?.id);
+      case AccionTactica.yoTriple:
+        motor.pedirJugada(JugadaClave.triple, tiradorId: yo?.id);
+      case AccionTactica.yoPasar:
+        motor.pedirJugada(JugadaClave.pickAndRoll, evitarId: yo?.id);
+      case AccionTactica.takeover:
+        takeoversUsados++;
+        _takeoverCuarto.add(motor.cuarto);
       case _:
     }
     final cat = o.accion.categoria;
@@ -985,7 +1117,15 @@ class DirectorDecisiones {
       AccionTactica.ritmoAlto ||
       AccionTactica.ritmoBajo ||
       AccionTactica.enfriar => 'Con el ritmo cambiado: $d.$cierre',
-      AccionTactica.focoAislamiento || AccionTactica.focoPickAndRoll => _avisoFoco(ef, d, cierre),
+      AccionTactica.focoAislamiento ||
+      AccionTactica.focoPickAndRoll ||
+      AccionTactica.pedirPelota ||
+      AccionTactica.atacarAro ||
+      AccionTactica.tirarTriple ||
+      AccionTactica.buscarAbierto ||
+      AccionTactica.takeover => _avisoYoFoco(ef, d, cierre),
+      AccionTactica.cerrarMarca || AccionTactica.apostarRobo => '$nom: ellos $rFgm de $rFga, $d.$cierre',
+      AccionTactica.guardarEnergia => 'Cuidándote: $d.$cierre',
       AccionTactica.hack => () {
         final att = fin.tlaR - ini.tlaR, hechos = fin.tlmR - ini.tlmR;
         return att == 0 ? 'El hack no llegó a usarse ($d).' : 'El hack: ellos $hechos de $att en libres ($d).$cierre';
@@ -1013,6 +1153,374 @@ class DirectorDecisiones {
     }
     return p - r;
   }
+
+  // ───────────── Decisiones como jugador (Mi carrera) ─────────────
+
+  /// Tu jugador si está en la cancha (null si está en el banco o expulsado).
+  Jugador? get _yoJ {
+    final id = yo?.id;
+    if (id == null) return null;
+    for (final j in _cancha) {
+      if (j.id == id) return j;
+    }
+    return null;
+  }
+
+  final _takeoverCuarto = <int>{};
+
+  /// Carga del Takeover (0 a 100): sube con tus aciertos y baja con los fallos recientes.
+  double get takeoverCarga {
+    final id = yo?.id;
+    if (id == null) return 0;
+    final mios = [
+      for (final t in _tiros.reversed)
+        if (t.$1 && t.$2 == id) t,
+    ].take(10).toList();
+    var c = 0.0;
+    for (final t in mios) {
+      c += t.$4 ? (t.$3 ? 30 : 20) : -8;
+    }
+    return c.clamp(0, 100).toDouble();
+  }
+
+  /// Los últimos [n] tiros de tu jugador (true: entró).
+  List<bool> _misUltimos(int n) {
+    final id = yo?.id;
+    return [
+      for (final t in _tiros.reversed)
+        if (t.$1 && t.$2 == id) t.$4,
+    ].take(n).toList();
+  }
+
+  double _k(num valor, double por, {double base = 75}) => (valor - base) * por;
+
+  /// Cuánto cambia el acierto de tu jugador (en puntos porcentuales) con cada acción: sale de lo que sabe hacer.
+  double _extraFoco(AccionTactica a) {
+    final y = yo!;
+    switch (a) {
+      case AccionTactica.pedirPelota:
+        return _k(y.ataque, 0.0007) - 0.012;
+      case AccionTactica.atacarAro:
+        return _k(y.a(Atributo.finalizacion), 0.0008) +
+            _k((y.h(Habilidad.bandeja) + y.h(Habilidad.volcada)) / 2, 0.0004) -
+            0.006;
+      case AccionTactica.tirarTriple:
+        return _k(y.h(Habilidad.triple), 0.0009) - 0.01;
+      case AccionTactica.takeover:
+        return 0.02 + _k(y.ataque, 0.0005, base: 80).clamp(-0.01, 0.02);
+      case AccionTactica.yoAislamiento:
+        return _k(y.a(Atributo.iq), 0.0004) +
+            0.008 * y.nivel(Insignia.clutch) +
+            0.004 * y.nivel(Insignia.sangreFria) -
+            0.01;
+      case AccionTactica.yoTriple:
+        return _k(y.h(Habilidad.triple), 0.0008) +
+            0.008 * y.nivel(Insignia.clutch) +
+            0.004 * y.nivel(Insignia.sangreFria) -
+            0.014;
+      default:
+        return 0;
+    }
+  }
+
+  EfectoEnVivo _efectoYo(AccionTactica a) {
+    final y = yo!;
+    double lim(double v, double lo, double hi) => v.clamp(lo, hi).toDouble();
+    switch (a) {
+      case AccionTactica.pedirPelota:
+        return EfectoEnVivo(foco: y.id, focoPeso: 1.9, focoExtra: _extraFoco(a));
+      case AccionTactica.atacarAro:
+        return EfectoEnVivo(foco: y.id, focoPeso: 1.5, focoExtra: _extraFoco(a));
+      case AccionTactica.tirarTriple:
+        return EfectoEnVivo(
+          foco: y.id,
+          focoPeso: 1.6,
+          focoExtra: _extraFoco(a),
+          mods: const ModificadoresEquipo(tripleExtra: 0.004),
+        );
+      case AccionTactica.buscarAbierto:
+        final pase = (y.h(Habilidad.pase) + y.h(Habilidad.vision)) / 2;
+        return EfectoEnVivo(
+          foco: y.id,
+          focoPeso: 0.5,
+          mods: ModificadoresEquipo(asistidoExtra: lim(0.008 + _k(pase, 0.0006), 0.004, 0.03)),
+        );
+      case AccionTactica.takeover:
+        return EfectoEnVivo(
+          foco: y.id,
+          focoPeso: 2.4,
+          focoExtra: _extraFoco(a),
+          fatigaFactor: 1.15,
+          mods: const ModificadoresEquipo(tripleExtra: 0.006, clutchExtra: 0.01),
+        );
+      case AccionTactica.cerrarMarca:
+        return EfectoEnVivo(
+          tripleRival: 1 - lim(_k(y.h(Habilidad.defPerimetral), 0.0025, base: 70), 0.0, 0.08) - 0.01,
+          interiorRival: 1 - lim(_k(y.h(Habilidad.defInterior), 0.002, base: 70), 0.0, 0.05),
+          fatigaFactor: 1.08,
+        );
+      case AccionTactica.apostarRobo:
+        return EfectoEnVivo(
+          robosFactor: 1 + lim(_k(y.h(Habilidad.robo), 0.008, base: 60), 0.05, 0.4),
+          interiorRival: lim(1.05 - _k(y.h(Habilidad.robo), 0.001, base: 70), 1.01, 1.08),
+        );
+      case AccionTactica.guardarEnergia:
+        return EfectoEnVivo(
+          foco: y.id,
+          focoPeso: 0.85,
+          fatigaFactor: lim(0.78 - _k(y.h(Habilidad.resistencia), 0.001, base: 70), 0.6, 0.9),
+        );
+      case AccionTactica.yoAislamiento:
+      case AccionTactica.yoTriple:
+        return EfectoEnVivo(foco: y.id, focoPeso: 1, focoExtra: _extraFoco(a));
+      default:
+        return const EfectoEnVivo();
+    }
+  }
+
+  String _signo(double v) => '${v >= 0 ? '+' : '−'}${(v.abs() * 100).toStringAsFixed(1).replaceAll('.', ',')} %';
+
+  OpcionDecision? _opYo(AccionTactica a, {bool recomendada = false, Jugador? rival}) {
+    final y = yo;
+    final yoJ = _yoJ;
+    if (y == null || yoJ == null) return null;
+    OpcionDecision o(String titulo, String efecto, String costo, {double s = 180}) => OpcionDecision(
+      accion: a,
+      titulo: titulo,
+      efecto: efecto,
+      costo: costo,
+      jugadorId: y.id,
+      recomendada: recomendada,
+      segundos: a.unaJugada ? 0 : s,
+    );
+    switch (a) {
+      case AccionTactica.pedirPelota:
+        return o(
+          'Pedir la pelota',
+          'El doble de tiros para vos. Con tu nivel ofensivo (${y.ataque.round()}) el acierto cambia ${_signo(_extraFoco(a))}.',
+          'Los demás se enfrían y, si no estás fino, forzás tiros.',
+        );
+      case AccionTactica.atacarAro:
+        return o(
+          'Atacar el aro',
+          'Más tiros cerca del aro (×1,5). Tu finalización (${y.a(Atributo.finalizacion)}) mueve el acierto ${_signo(_extraFoco(a))}.',
+          'Si te cierran la pintura, perdés rebote y energía.',
+        );
+      case AccionTactica.tirarTriple:
+        return o(
+          'Tirar de tres',
+          'Más triples tuyos (×1,6). Tu triple (${y.h(Habilidad.triple)}) mueve el acierto ${_signo(_extraFoco(a))}.',
+          'Tiro largo: sin buen triple, el costo se nota.',
+        );
+      case AccionTactica.buscarAbierto:
+        return o(
+          'Buscar al compañero',
+          'Vos tirás menos y el equipo mete más asistido (tu pase y visión: ${((y.h(Habilidad.pase) + y.h(Habilidad.vision)) / 2).round()}).',
+          'Tus puntos bajan; es lo que el equipo necesita si no estás fino.',
+        );
+      case AccionTactica.takeover:
+        return o(
+          'TAKEOVER',
+          'Te hacés cargo: ×2,4 de tiros y mejor puntería (${_signo(_extraFoco(a))}) por 2 minutos y medio.',
+          'Te cansás 15 % más rápido.',
+          s: 150,
+        );
+      case AccionTactica.cerrarMarca:
+        return o(
+          'Cerrar a tu marca',
+          'Tu defensa (perimetral ${y.h(Habilidad.defPerimetral)}, interior ${y.h(Habilidad.defInterior)}) baja el acierto rival.',
+          'Te cansás 8 % más rápido y arriesgás faltas.',
+        );
+      case AccionTactica.apostarRobo:
+        return o(
+          'Apostar al robo',
+          'Más robos (tu robo: ${y.h(Habilidad.robo)}). Lo que robes sale en contraataque.',
+          'Si fallás la apuesta, regalás el aro (sus dobles suben).',
+        );
+      case AccionTactica.guardarEnergia:
+        return o(
+          'Cuidar la energía',
+          'Gastás menos (tu resistencia: ${y.h(Habilidad.resistencia)}) y jugás con más aire más adelante.',
+          'Tirás un poco menos ahora.',
+        );
+      case AccionTactica.yoAislamiento:
+        return o(
+          'Pedir la última',
+          'Uno contra uno: tirás vos. Tu IQ y tus insignias de clutch mueven el acierto ${_signo(_extraFoco(a))}.',
+          'Todo depende de vos: si te cargan, no hay plan B.',
+        );
+      case AccionTactica.yoTriple:
+        return o(
+          'Ir por el triple',
+          'Tirás de tres vos (${y.h(Habilidad.triple)} de triple): acierto ${_signo(_extraFoco(a))}.',
+          'Vale 3 si entra, nada si no.',
+        );
+      case AccionTactica.yoPasar:
+        return o(
+          'Pasar al abierto',
+          'Atraés la marca y buscás al compañero libre (pase ${y.h(Habilidad.pase)}, visión ${y.h(Habilidad.vision)}).',
+          'No sumás puntos propios, pero el tiro sale más limpio.',
+        );
+      default:
+        return null;
+    }
+  }
+
+  /// Lo que se puede pedir ahora como jugador (menú de AJUSTES).
+  List<OpcionDecision> _menuJugador() {
+    final lista = <OpcionDecision?>[
+      if (takeoverCarga >= 70 && !_takeoverCuarto.contains(motor.cuarto)) _opYo(AccionTactica.takeover),
+      _opYo(AccionTactica.pedirPelota),
+      _opYo(AccionTactica.atacarAro),
+      _opYo(AccionTactica.tirarTriple),
+      _opYo(AccionTactica.buscarAbierto),
+      _opYo(AccionTactica.cerrarMarca),
+      _opYo(AccionTactica.apostarRobo),
+      _opYo(AccionTactica.guardarEnergia),
+      if (_yoJ != null && _banco != null) _op(AccionTactica.descansar, j: _yoJ),
+    ];
+    return [for (final o in lista) ?o];
+  }
+
+  String _avisoYoFoco(EfectoActivo ef, String d, String cierre) {
+    if (yo == null) return _avisoFoco(ef, d, cierre);
+    final id = yo?.id;
+    final l = id == null ? null : _boxP[id];
+    if (l == null) return '${ef.opcion.titulo}: $d.$cierre';
+    return '${ef.opcion.titulo}: vos hiciste ${l.pts} pts, ${l.reb} reb y ${l.ast} ast en total ($d).$cierre';
+  }
+
+  /// El partido se frena solo en tus momentos: plan, jugadas decisivas, rachas, marca, energía y Takeover.
+  DecisionPartido? _evaluarJugador() {
+    final yoJ = _yoJ;
+    if (yoJ == null || motor.terminado) return null;
+    if (_permite(critica: true)) {
+      final d = _tuClutch();
+      if (d != null) return _presentar(d);
+    }
+    if (_permite(critica: false)) {
+      final d = _tuPlan() ?? _tuTakeover() ?? _tuCaliente() ?? _tuFrio() ?? _tuMarca() ?? _tuEnergia();
+      if (d != null) return _presentar(d);
+    }
+    return null;
+  }
+
+  /// Plan de juego al arrancar el partido y la segunda parte.
+  DecisionPartido? _tuPlan() {
+    final y = yo!;
+    final primera = motor.cuarto == 1 && ahora < 60;
+    final segunda = motor.cuarto == 3 && motor.reloj > 690;
+    if (!primera && !segunda) return null;
+    if (_visto(primera ? 'plan:1' : 'plan:2')) return null;
+    final ataca = y.ataque >= 72 ? AccionTactica.pedirPelota : AccionTactica.buscarAbierto;
+    return _decision(
+      TipoDecision.tuPlan,
+      primera
+          ? 'Arranca el partido: ¿cómo querés jugarlo hoy?'
+          : 'Segunda parte. Hasta acá: ${_linea1(_yoJ!).pts} pts, ${_linea1(_yoJ!).reb} reb, ${_linea1(_yoJ!).ast} ast. ¿Qué cambiás?',
+      [
+        _opYo(AccionTactica.pedirPelota, recomendada: ataca == AccionTactica.pedirPelota),
+        _opYo(AccionTactica.buscarAbierto, recomendada: ataca == AccionTactica.buscarAbierto),
+        _opYo(AccionTactica.cerrarMarca),
+        _opYo(AccionTactica.guardarEnergia),
+      ],
+    );
+  }
+
+  /// Estás encendido: aprovechalo.
+  DecisionPartido? _tuCaliente() {
+    final ult = _misUltimos(5);
+    if (ult.length < 5 || ult.where((x) => x).length < 4) return null;
+    if (motor.efecto(propio)?.foco != null) return null;
+    if (_visto('caliente:${motor.cuarto}')) return null;
+    return _decision(
+      TipoDecision.tuMomento,
+      'Metiste ${ult.where((x) => x).length} de tus últimos 5 tiros. Estás encendido.',
+      [
+        _opYo(AccionTactica.pedirPelota, recomendada: true),
+        _opYo(AccionTactica.tirarTriple),
+        _opYo(AccionTactica.atacarAro),
+      ],
+    );
+  }
+
+  /// Estás frío: cambiá la forma de ayudar.
+  DecisionPartido? _tuFrio() {
+    final ult = _misUltimos(6);
+    if (ult.length < 5 || ult.where((x) => x).length > 1) return null;
+    if (_visto('frio:${motor.cuarto <= 2 ? 0 : 1}')) return null;
+    return _decision(
+      TipoDecision.tuMomento,
+      'Tus últimos tiros no entran (${ult.where((x) => x).length} de ${ult.length}). Hay que cambiar algo.',
+      [
+        _opYo(AccionTactica.buscarAbierto, recomendada: true),
+        _opYo(AccionTactica.atacarAro),
+        _opYo(AccionTactica.cerrarMarca),
+        _opYo(AccionTactica.guardarEnergia),
+      ],
+    );
+  }
+
+  /// La figura rival te la está haciendo difícil.
+  DecisionPartido? _tuMarca() {
+    final rivales = [..._canchaR]..sort((a, b) => (_box(b.id)?.pts ?? 0).compareTo(_box(a.id)?.pts ?? 0));
+    if (rivales.isEmpty) return null;
+    final f = rivales.first;
+    final pts = _box(f.id)?.pts ?? 0;
+    if (pts < 14 || _visto('marca:${f.id}:${pts ~/ 8}')) return null;
+    return _decision(TipoDecision.tuMarca, '${_n(f)} ya lleva $pts puntos. Te toca hacerle la vida difícil.', [
+      _opYo(AccionTactica.cerrarMarca, recomendada: true),
+      _opYo(AccionTactica.apostarRobo),
+      _opYo(AccionTactica.guardarEnergia),
+    ]);
+  }
+
+  /// Estás sin aire.
+  DecisionPartido? _tuEnergia() {
+    final j = _yoJ;
+    if (j == null || _energia(j) > 48 || _visto('energia:${motor.cuarto}')) return null;
+    return _decision(TipoDecision.tuEnergia, 'Te quedó ${_energia(j).round()} % de energía y todavía falta partido.', [
+      _opYo(AccionTactica.guardarEnergia, recomendada: true),
+      if (_banco != null) _op(AccionTactica.descansar, j: j),
+      _opYo(AccionTactica.cerrarMarca),
+    ]);
+  }
+
+  /// Barra llena: podés hacerte cargo del partido.
+  DecisionPartido? _tuTakeover() {
+    if (takeoverCarga < 70 || _takeoverCuarto.contains(motor.cuarto)) return null;
+    if (_visto('takeover:${motor.cuarto}')) return null;
+    return _decision(
+      TipoDecision.takeover,
+      'Tu racha llenó la barra de Takeover (${takeoverCarga.round()} %). ¿Te hacés cargo?',
+      [_opYo(AccionTactica.takeover, recomendada: true), _opYo(AccionTactica.pedirPelota)],
+    );
+  }
+
+  /// Final apretado con la pelota en tu equipo: elegís qué hacés con ella.
+  DecisionPartido? _tuClutch() {
+    if (motor.cuarto < 4 || motor.reloj > 150 || !motor.ataqueDelUsuario || _dif.abs() > 5) return null;
+    if (_visto('clutch:${motor.cuarto}:${(motor.reloj / 40).floor()}')) return null;
+    final y = yo!;
+    final abajo3 = _dif == -3 || (_dif < -3 && motor.reloj < 40);
+    final tiro = y.h(Habilidad.triple) >= y.a(Atributo.iq) ? AccionTactica.yoTriple : AccionTactica.yoAislamiento;
+    return _decision(
+      TipoDecision.tuClutch,
+      '${_situacion.split(' · ').first}: la pelota es de tu equipo en el final. ${abajo3 ? 'Hace falta un triple.' : 'Decidís vos.'}',
+      [
+        _opYo(abajo3 ? AccionTactica.yoTriple : tiro, recomendada: true),
+        _opYo(
+          abajo3
+              ? AccionTactica.yoAislamiento
+              : (tiro == AccionTactica.yoTriple ? AccionTactica.yoAislamiento : AccionTactica.yoTriple),
+        ),
+        _opYo(AccionTactica.yoPasar),
+      ],
+      espera: 10,
+    );
+  }
+
+  LineaEstadistica? _box(String id) => _boxR[id] ?? _boxP[id];
 
   // ── los disparadores ──
 
@@ -1262,6 +1770,7 @@ class DirectorDecisiones {
 
   /// Devuelve el informe del entretiempo una sola vez, cuando termina el 2.º cuarto.
   InformeEntretiempo? evaluarEntretiempo() {
+    if (esJugador) return null;
     if (!habilitado || _entretiempoVisto || motor.terminado) return null;
     if (motor.cuarto != 3 || motor.reloj < 719) return null;
     _entretiempoVisto = true;
