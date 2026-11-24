@@ -13,6 +13,7 @@ import '../playbook.dart';
 import '../premios.dart';
 import 'dinastia.dart';
 import 'habilidades.dart';
+import 'vida_carrera.dart';
 
 export 'habilidades.dart';
 import '../entities/enum_tolerante.dart';
@@ -1861,8 +1862,11 @@ class CarreraJugador {
 
   /// Lo que cuesta sumar un punto a la habilidad [h]: la mitad (redondeada hacia arriba) de lo que costaría
   /// subir un atributo general a su valor actual. Es más barato porque mueve menos cosas.
-  int costoHabilidad(EstadoCarrera e, Habilidad h) =>
-      max(1, (ModeloCarrera.costo(Habilidad.valor(h, e.atributos, e.espec)) / 2).ceil());
+  int costoHabilidad(EstadoCarrera e, Habilidad h) {
+    final mitad = ModeloCarrera.costo(Habilidad.valor(h, e.atributos, e.espec)) / 2;
+    final afin = VidaCarrera.afines(e.base.rol).contains(h);
+    return max(1, (afin ? mitad * 0.7 : mitad).ceil());
+  }
 
   bool puedeSubirHabilidad(EstadoCarrera e, Habilidad h) =>
       (e.espec[h] ?? 0) < Habilidad.maxEspecializacion &&
@@ -1933,7 +1937,7 @@ class CarreraJugador {
         .floor();
     final azar = Random(_hash('${e.raiz}-cierre-${e.numero}'));
     final edadNueva = e.edad + 1;
-    final lesion = azar.nextDouble() < ModeloCarrera.probabilidadLesion(edadNueva);
+    final lesion = azar.nextDouble() < ModeloCarrera.probabilidadLesion(edadNueva) * VidaCarrera.factorLesion(e);
     final crecimiento = ModeloCarrera.desarrolloAnual(
       edad: edadNueva,
       media: e.media,
@@ -1952,6 +1956,8 @@ class CarreraJugador {
       if (mayor == null) break;
       atributosNuevos = atributosNuevos.con(mayor, atributosNuevos[mayor] - 1);
     }
+    // La rutina de entrenamiento suma lo suyo después del tope (es trabajo tuyo, no del cuerpo).
+    atributosNuevos = atributosNuevos.sumar(VidaCarrera.efectoRutina(e));
     final desarrollo = {for (final a in Atributo.values) a: atributosNuevos[a] - e.atributos[a]};
     final temporada = TemporadaJugador(
       numero: e.numero,
@@ -1988,9 +1994,17 @@ class CarreraJugador {
     );
     final sinJugar = (l?.pj ?? 0) == 0 ? 4 : 0;
     final dConfianza = (cumplidos - (resultados.length - cumplidos)) * 2 + (resumen.campeon ? 3 : 0) + sinJugar;
-    final dMoral = (resumen.campeon ? 4 : 0) + (cumplidos >= 2 ? 2 : -2) + (resumen.victorias >= 50 ? 1 : 0);
+    final dMoral =
+        (resumen.campeon ? 4 : 0) +
+        (cumplidos >= 2 ? 2 : -2) +
+        (resumen.victorias >= 50 ? 1 : 0) +
+        (VidaCarrera.rutinaDe(e) == Rutina.recuperacion ? 3 : 0);
     final dFans =
-        (marcaFinal.allStar ? 3 : 0) + (resumen.campeon ? 4 : 0) + min(3, premios.length) + (cumplidos >= 2 ? 1 : -1);
+        (marcaFinal.allStar ? 3 : 0) +
+        (resumen.campeon ? 4 : 0) +
+        min(3, premios.length) +
+        (cumplidos >= 2 ? 1 : -1) +
+        VidaCarrera.fansPorPatrocinios(e);
     final estado = e.copyWith(
       atributos: atributosNuevos,
       edad: edadNueva,
@@ -1998,6 +2012,7 @@ class CarreraJugador {
       phBanco: e.phBanco + phBase + phObjetivos + phPremios,
       phAcreditados: 0,
       historial: [...e.historial, temporada],
+      uso: {...e.uso}..remove('rutina'),
       hitos: hitos,
       confianza: (confianzaAnio + dConfianza).clamp(0, 98).toInt(),
       moral: (moralAnio + dMoral).clamp(0, 97).toInt(),

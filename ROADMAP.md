@@ -95,3 +95,17 @@ final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
 - [x] ✅ Competitivo: Divisiones, Conquista, Creador de torneos, Fantasy NBA.
 - [x] ✅ Evoluciones de cartas (solo modos que usan el álbum) y Perfil perfecto (acertijos de lógica).
 - [x] ✅ Insignias acumulables en Camino al anillo.
+
+## 8. Mi carrera: segunda tanda ✅
+- [x] ✅ **Sin techo duro** para mejorar atributos: pasar el potencial se puede, pero cuesta hasta ×6; aviso
+      cuando acumulás muchos puntos sin gastar.
+- [x] ✅ **Avatar propio** al crear el jugador (piel, pelo, peinado, barba, forma de cara), guardado en la carta.
+- [x] ✅ **18 habilidades específicas** (triple, media distancia, bandejas, defensa perimetral…) bajo los 5
+      atributos, con especialización hasta +20 y descuento en las de tu arquetipo.
+- [x] ✅ **28 insignias con 4 grados** (Bronce, Plata, Oro, Leyenda) por familia: tiro, anotación interior,
+      creación, defensa, físico y mentalidad; algunas se ganan por lo vivido (títulos, partidos, All-Star, clutch).
+- [x] ✅ **Decisiones como jugador en el partido en vivo**: plan de juego, última jugada, racha fría o caliente,
+      marcar a la figura rival, energía y **Takeover**. Cada decisión cambia el motor según tus atributos,
+      habilidades e insignias (no las del DT).
+- [x] ✅ **Rutina de entrenamiento** por receso, **eventos fuera de la cancha** con elección, **marca personal**
+      con patrocinios, y **legado**: récords, camisetas retiradas y qué pasa después del retiro.

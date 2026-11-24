@@ -133,8 +133,7 @@ class VidaCarrera {
     return n <= 0 || n > Rutina.values.length ? null : Rutina.values[n - 1];
   }
 
-  static EstadoCarrera elegirRutina(EstadoCarrera e, Rutina r) =>
-      e.copyWith(uso: {...e.uso, 'rutina': r.index + 1});
+  static EstadoCarrera elegirRutina(EstadoCarrera e, Rutina r) => e.copyWith(uso: {...e.uso, 'rutina': r.index + 1});
 
   /// Cambio extra en los atributos al cerrar la temporada por la rutina elegida.
   static Map<Atributo, int> efectoRutina(EstadoCarrera e) {
@@ -197,7 +196,13 @@ class VidaCarrera {
       'Cruce con el DT',
       'Discutís con el entrenador por tus minutos y el tono sube delante de todos.',
       const [
-        OpcionEvento('Pedir disculpas', 'Se recompone la relación; el equipo respira.', confianza: 5, relacion: 2, moral: -2),
+        OpcionEvento(
+          'Pedir disculpas',
+          'Se recompone la relación; el equipo respira.',
+          confianza: 5,
+          relacion: 2,
+          moral: -2,
+        ),
         OpcionEvento('Mantener tu postura', 'Los compañeros te respaldan, el DT no.', relacion: 5, confianza: -6),
       ],
       condicion: (e) => e.confianza < 62,
@@ -216,7 +221,12 @@ class VidaCarrera {
       'Cena de equipo',
       'Se acerca el cierre del año y el grupo quiere juntarse. Alguien tiene que organizar.',
       const [
-        OpcionEvento('Invitar vos a todos', 'Una noche para el recuerdo: el grupo está más unido.', relacion: 7, moral: 3),
+        OpcionEvento(
+          'Invitar vos a todos',
+          'Una noche para el recuerdo: el grupo está más unido.',
+          relacion: 7,
+          moral: 3,
+        ),
         OpcionEvento('Que cada uno ponga lo suyo', 'Sale bien y sin vueltas.', relacion: 2),
       ],
     ),
@@ -225,7 +235,13 @@ class VidaCarrera {
       'Tu fundación',
       'Un amigo te propone armar una escuelita de básquet en tu barrio de origen.',
       const [
-        OpcionEvento('Ponerle tu nombre y tu tiempo', 'La ciudad se enamora de tu historia.', fans: 7, moral: 3, ph: -1),
+        OpcionEvento(
+          'Ponerle tu nombre y tu tiempo',
+          'La ciudad se enamora de tu historia.',
+          fans: 7,
+          moral: 3,
+          ph: -1,
+        ),
         OpcionEvento('Ayudar sin hacer ruido', 'Hacés el bien y te cuidás del foco.', moral: 4, fans: 2),
       ],
       condicion: (e) => e.fans >= 35,
@@ -235,7 +251,13 @@ class VidaCarrera {
       'Declaración polémica',
       'Una frase tuya en una nota se volvió viral y no cayó bien en todos lados.',
       const [
-        OpcionEvento('Defender lo que dijiste', 'Los tuyos te aplauden y los rivales también.', fans: 3, relacion: -3, confianza: -2),
+        OpcionEvento(
+          'Defender lo que dijiste',
+          'Los tuyos te aplauden y los rivales también.',
+          fans: 3,
+          relacion: -3,
+          confianza: -2,
+        ),
         OpcionEvento('Pedir disculpas', 'Se apaga el fuego rápido.', fans: -2, confianza: 3),
         OpcionEvento('Dejar que el juego hable', 'Cambiás la conversación con una gran noche.', moral: 2, ph: 1),
       ],

@@ -5,6 +5,7 @@ import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/modos/carrera_jugador.dart';
+import '../../domain/modos/vida_carrera.dart';
 import '../widgets/disposicion.dart';
 import '../widgets/escudo.dart';
 import '../widgets/jugador_avatar.dart';
@@ -165,6 +166,7 @@ class PanelAtributos extends StatelessWidget {
                         espec: estado.espec[h] ?? 0,
                         costo: carrera.costoHabilidad(estado, h),
                         puede: carrera.puedeSubirHabilidad(estado, h),
+                        afin: VidaCarrera.afines(estado.base.rol).contains(h),
                         onSubir: () => onSubirHabilidad!(h),
                       ),
                   ],
@@ -274,11 +276,12 @@ class _FilaHabilidad extends StatelessWidget {
     required this.costo,
     required this.puede,
     required this.onSubir,
+    this.afin = false,
   });
 
   final Habilidad habilidad;
   final int valor, espec, costo;
-  final bool puede;
+  final bool puede, afin;
   final VoidCallback onSubir;
 
   @override
@@ -287,7 +290,7 @@ class _FilaHabilidad extends StatelessWidget {
     final esquema = tema.colorScheme;
     final maximo = espec >= Habilidad.maxEspecializacion || valor >= 99;
     return Tooltip(
-      message: habilidad.descripcion,
+      message: afin ? '${habilidad.descripcion}\nVa con tu arquetipo: sube un 30 % más barato.' : habilidad.descripcion,
       triggerMode: TooltipTriggerMode.longPress,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
@@ -295,7 +298,7 @@ class _FilaHabilidad extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                habilidad.etiqueta,
+                afin ? '★ ${habilidad.etiqueta}' : habilidad.etiqueta,
                 style: tema.textTheme.bodySmall,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -320,6 +323,91 @@ class _FilaHabilidad extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Qué trabajás este receso: una rutina por temporada, con su premio al cerrar el año.
+class _PanelRutina extends StatelessWidget {
+  const _PanelRutina({required this.estado, required this.onElegir});
+
+  final EstadoCarrera estado;
+  final ValueChanged<Rutina> onElegir;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final actual = VidaCarrera.rutinaDe(estado);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('RUTINA DE LA PRÓXIMA TEMPORADA', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 2),
+        Text(
+          'Elegí en qué trabajar este verano: es un punto gratis al cerrar el año, sin gastar tus puntos.',
+          style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            for (final r in Rutina.values)
+              ChoiceChip(label: Text(r.etiqueta), selected: actual == r, onSelected: (_) => onElegir(r)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(actual?.descripcion ?? 'Todavía no elegiste ninguna.', style: tema.textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
+/// Tu marca personal: fama, patrocinios y camisetas retiradas.
+class PanelMarca extends StatelessWidget {
+  const PanelMarca({super.key, required this.estado});
+
+  final EstadoCarrera estado;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final tiene = VidaCarrera.patrocinios(estado);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('MARCA PERSONAL', style: tema.textTheme.labelLarge),
+            const Spacer(),
+            TextoLed('${VidaCarrera.marca(estado)}', tamano: 22),
+          ],
+        ),
+        const SizedBox(height: 6),
+        for (final p in Patrocinio.values)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                Icon(
+                  tiene.contains(p) ? Icons.handshake : Icons.lock_outline,
+                  size: 16,
+                  color: tiene.contains(p) ? esquema.primary : esquema.onSurfaceVariant,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '${p.etiqueta}: ${p.descripcion}',
+                    style: tema.textTheme.bodySmall?.copyWith(
+                      color: tiene.contains(p) ? null : esquema.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
@@ -666,6 +754,8 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
       ),
     ];
     final derecha = <Widget>[
+      _Panel(child: PanelMarca(estado: e)),
+      const SizedBox(height: 12),
       _Panel(
         child: PanelAtributos(estado: e, carrera: widget.carrera, onSubir: _subir, onSubirHabilidad: _subirHabilidad),
       ),
@@ -697,7 +787,7 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
 // Receso
 // ===========================================================================================
 
-enum _Paso { resumen, entrenar, prensa, contrato, retiro }
+enum _Paso { resumen, entrenar, evento, prensa, contrato, retiro }
 
 /// Entre temporada y temporada: el resumen, entrenar, la prensa, el contrato y, a veces, el retiro.
 /// Cada paso se guarda, así que podés cerrar la app y seguir donde quedaste.
@@ -749,6 +839,11 @@ class _RecesoJugadorPantallaState extends State<RecesoJugadorPantalla> {
   late var _pidioTraspaso = widget.estado.pidioTraspaso;
   RespuestaPrensa? _respondida;
 
+  /// El evento del año (si hay) y la respuesta que elegiste.
+  late final EventoCarrera? _evento = VidaCarrera.eventoPara(widget.estado);
+  int? _respuestaEvento;
+  late final bool _hayEvento = _evento != null || widget.pasoInicial == 'evento';
+
   void _cambiar(EstadoCarrera e) {
     setState(() => _e = e);
     widget.onEstado(e);
@@ -761,6 +856,7 @@ class _RecesoJugadorPantallaState extends State<RecesoJugadorPantalla> {
   List<_Paso> get _pasos => [
     if (widget.cierre != null) _Paso.resumen,
     _Paso.entrenar,
+    if (_hayEvento) _Paso.evento,
     _Paso.prensa,
     _Paso.contrato,
     if (_hayRetiro) _Paso.retiro,
@@ -789,6 +885,7 @@ class _RecesoJugadorPantallaState extends State<RecesoJugadorPantalla> {
     final indice = pasos.indexOf(_paso);
     final ultimo = indice == pasos.length - 1;
     final bloqueado = switch (_paso) {
+      _Paso.evento => _evento != null && _respuestaEvento == null && VidaCarrera.eventoPara(_e) != null,
       _Paso.prensa => _e.prensaHecha < 2,
       _Paso.contrato => _hayContrato && _oferta == null,
       _ => false,
@@ -826,6 +923,7 @@ class _RecesoJugadorPantallaState extends State<RecesoJugadorPantalla> {
                   child: switch (_paso) {
                     _Paso.resumen => _pasoResumen(context),
                     _Paso.entrenar => _pasoEntrenar(context),
+                    _Paso.evento => _pasoEvento(context),
                     _Paso.prensa => _pasoPrensa(context),
                     _Paso.contrato => _pasoContrato(context),
                     _Paso.retiro => _pasoRetiro(context, forzoso),
@@ -1006,6 +1104,70 @@ class _RecesoJugadorPantallaState extends State<RecesoJugadorPantalla> {
             onSubirHabilidad: (h) => _cambiar(widget.carrera.subirHabilidad(_e, h)),
           ),
         ),
+        const SizedBox(height: 12),
+        _Panel(
+          child: _PanelRutina(estado: _e, onElegir: (r) => _cambiar(VidaCarrera.elegirRutina(_e, r))),
+        ),
+      ],
+    );
+  }
+
+  // ---------- Evento ----------
+
+  Widget _pasoEvento(BuildContext context) {
+    final tema = Theme.of(context);
+    final ev = _evento;
+    if (ev == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('SIN NOVEDADES', style: tema.textTheme.headlineSmall),
+          const SizedBox(height: 8),
+          const Text('Ya resolviste lo que pasó este año fuera de la cancha.'),
+        ],
+      );
+    }
+    final elegida = _respuestaEvento;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('FUERA DE LA CANCHA', style: tema.textTheme.headlineSmall),
+        const SizedBox(height: 8),
+        _Panel(
+          destacado: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(ev.titulo, style: tema.textTheme.titleMedium),
+              const SizedBox(height: 6),
+              Text(ev.texto, style: tema.textTheme.bodyMedium),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (elegida == null)
+          for (var i = 0; i < ev.opciones.length; i++) ...[
+            FilledButton.tonal(
+              onPressed: () {
+                setState(() => _respuestaEvento = i);
+                _cambiar(VidaCarrera.resolver(_e, ev, i));
+              },
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48), alignment: Alignment.centerLeft),
+              child: Text(ev.opciones[i].texto),
+            ),
+            const SizedBox(height: 8),
+          ]
+        else
+          _Panel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(ev.opciones[elegida].texto, style: tema.textTheme.titleSmall),
+                const SizedBox(height: 4),
+                Text(ev.opciones[elegida].resultado, style: tema.textTheme.bodyMedium),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -1392,6 +1554,51 @@ class LegadoCarreraPantalla extends StatelessWidget {
         ],
       ),
     );
+    final camisetas = VidaCarrera.camisetas(l);
+    final records = VidaCarrera.records(l);
+    final despues = estado.retirado ? VidaCarrera.epilogo(estado) : const <String>[];
+    final huella = (camisetas.isEmpty && records.isEmpty && despues.isEmpty)
+        ? null
+        : _Panel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (records.isNotEmpty) ...[
+                  Text('TUS MEJORES TEMPORADAS', style: tema.textTheme.labelLarge),
+                  const SizedBox(height: 6),
+                  for (final r in records)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Text('${r.etiqueta}: ${_n1(r.valor)} (${r.temporada})', style: tema.textTheme.bodyMedium),
+                    ),
+                ],
+                if (camisetas.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text('CAMISETAS RETIRADAS', style: tema.textTheme.labelLarge),
+                  const SizedBox(height: 6),
+                  for (final c in camisetas)
+                    Row(
+                      children: [
+                        Escudo(_franq(c.franquiciaId), tamano: 24),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${_franq(c.franquiciaId).nombreCompleto} · ${c.temporadas} temporadas',
+                            style: tema.textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+                if (despues.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text('DESPUÉS DE LA CANCHA', style: tema.textTheme.labelLarge),
+                  const SizedBox(height: 6),
+                  for (final d in despues) _Hito(d),
+                ],
+              ],
+            ),
+          );
     final historia = _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1419,7 +1626,13 @@ class LegadoCarreraPantalla extends StatelessWidget {
                     child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 8, 24), children: [totales]),
                   ),
                   Expanded(
-                    child: ListView(padding: const EdgeInsets.fromLTRB(8, 8, 16, 24), children: [historia]),
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(8, 8, 16, 24),
+                      children: [
+                        if (huella != null) ...[huella, const SizedBox(height: 12)],
+                        historia,
+                      ],
+                    ),
                   ),
                 ],
               )
@@ -1428,6 +1641,7 @@ class LegadoCarreraPantalla extends StatelessWidget {
                 children: [
                   totales,
                   const SizedBox(height: 12),
+                  if (huella != null) ...[huella, const SizedBox(height: 12)],
                   historia,
                   if (alInicio != null) ...[
                     const SizedBox(height: 16),
