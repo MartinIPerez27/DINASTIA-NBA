@@ -72,6 +72,14 @@ jugable · Salón de la Fama con cuadro de honor por generación.
 - Los datos reales se cargan desde una fuente verificada (Basketball-Reference) y se revisan antes de usarlos.
 - Hay que guardar el **mejor partido** y los hitos por partido en tu carrera (hoy solo se guardan totales por año).
 
+### Ideas adicionales elegidas ✔
+- **Compañero de generación**: una clase de draft que se sigue a lo largo de los años (el #1 de tu año, tu rival).
+- **Camiseta y número**: elegir el número al crear el jugador; se retira junto con la camiseta.
+- **Fecha límite de traspasos**, con rumores que se concretan.
+- **Slots y exportación**: varias carreras en paralelo y copia de seguridad.
+- No elegidas: dificultad de carrera, eras comparables, capítulos, álbum, reto del día, fantasma de leyenda,
+  tarjeta para compartir, logros de carrera.
+
 ## Orden sugerido
 1. Puntos y costos (1, 3) · 2. Objetivos y premios (2, 4) · 3. Habilidades 2K (5) · 4. Año, edad y plantilla (6)
 · 5. Editor de personaje (7) · 6. Récords históricos · 7. Barra de tiro y control del jugador (8)
