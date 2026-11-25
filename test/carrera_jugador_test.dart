@@ -314,7 +314,8 @@ void main() {
         expect(cierre.temporada.pj, greaterThan(0));
         expect(cierre.objetivos, hasLength(ObjetivosCarrera.minAceptados));
         final deCarrera = cierre.objetivosCarrera.fold(0, (x, o) => x + o.puntos);
-        expect(c.phBanco, e.phBanco + cierre.phBase + cierre.phObjetivos + cierre.phPremios + deCarrera);
+        final delMentor = (RivalidadCarrera.mentorActivo(c) ? 1 : 0) + EconomiaCarrera.puntosEntrenador(e);
+        expect(c.phBanco, e.phBanco + cierre.phBase + cierre.phObjetivos + cierre.phPremios + deCarrera + delMentor);
         // Prensa.
         final preguntas = carrera.preguntasDelReceso(c);
         expect(preguntas, hasLength(2));

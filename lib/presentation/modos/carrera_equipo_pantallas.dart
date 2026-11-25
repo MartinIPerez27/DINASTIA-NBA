@@ -287,13 +287,13 @@ class _RecordsPantallaState extends State<RecordsPantalla> {
   Widget _vista(BuildContext context, RecordsNba r) {
     final e = widget.estado;
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Camino a los récords'),
           bottom: const TabBar(
             isScrollable: true,
-            tabs: [Tab(text: 'CARRERA'), Tab(text: 'TEMPORADA'), Tab(text: 'PARTIDO'), Tab(text: 'HITOS')],
+            tabs: [Tab(text: 'CARRERA'), Tab(text: 'TEMPORADA'), Tab(text: 'PARTIDO'), Tab(text: 'HITOS'), Tab(text: 'HONOR')],
           ),
         ),
         body: SafeArea(
@@ -303,10 +303,34 @@ class _RecordsPantallaState extends State<RecordsPantalla> {
               _lista(context, RecordsCarrera.temporada(r, e), r, decimales: true),
               _lista(context, RecordsCarrera.partido(r, e), r),
               _hitos(context, e),
+              _honor(context, r, e),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _honor(BuildContext context, RecordsNba r, EstadoCarrera e) {
+    final tema = Theme.of(context);
+    final c = CuadroDeHonor.evaluar(r, e);
+    final filas = c.puestos.entries.toList()..sort((a, b) => a.value.compareTo(b.value));
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        Text('CUADRO DE HONOR', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        Text(c.nivel, style: tema.textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text('Top 10: ${c.top10} · Top 25: ${c.top25} · En alguna lista: ${c.top50}', style: tema.textTheme.bodySmall),
+        const SizedBox(height: 12),
+        if (filas.isEmpty)
+          Text('Todavía no entrás en ninguna lista de totales de la historia de la NBA.', style: tema.textTheme.bodyMedium)
+        else
+          for (final f in filas) ListTile(dense: true, title: Text(f.key), trailing: Text('Puesto ${f.value}.º')),
+        const SizedBox(height: 8),
+        Text('Salón de la Fama: ${e.legado.salon ? 'ya tenés el pase' : '${14 - e.legado.puntosSalon} puntos para entrar'} (${e.legado.puntosSalon} puntos).', style: tema.textTheme.bodyMedium),
+      ],
     );
   }
 

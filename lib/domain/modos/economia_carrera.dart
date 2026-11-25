@@ -40,7 +40,7 @@ class EconomiaCarrera {
   static double comision(EstadoCarrera e) => sueldo(e) * 0.03 * nivel(e, Personal.agente);
 
   /// Lo que entra por marcas: patrocinios y fama.
-  static double patrocinios(EstadoCarrera e) => VidaCarrera.patrocinios(e).length * 1.2 + e.fans / 100 * 3;
+  static double patrocinios(EstadoCarrera e) => VidaCarrera.patrocinios(e).length * 1.2 + e.fans / 100 * 3 + RedesCarrera.ingresos(e);
 
   /// Costo anual del equipo personal (sin la comisión del agente).
   static double costoStaff(EstadoCarrera e) => [for (final p in Personal.values) p.costoPorNivel * nivel(e, p)].fold(0.0, (a, b) => a + b);

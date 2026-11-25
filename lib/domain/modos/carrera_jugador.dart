@@ -19,6 +19,7 @@ import 'dinastia.dart';
 import 'economia_carrera.dart';
 import 'habilidades.dart';
 import 'mundo_carrera.dart';
+import 'narrativa_carrera.dart';
 import 'objetivos_carrera.dart';
 import 'plantel_carrera.dart';
 import 'premios_carrera.dart';
@@ -28,6 +29,8 @@ import 'vida_carrera.dart';
 
 export 'cuerpo_carrera.dart';
 export 'economia_carrera.dart';
+export 'mapa_tiro.dart';
+export 'narrativa_carrera.dart';
 export 'mundo_carrera.dart';
 export 'objetivos_carrera.dart';
 export 'generacion_carrera.dart';
@@ -1847,6 +1850,8 @@ class CarreraJugador {
       'c:tcI': (e.uso['c:tcI'] ?? 0) + l.tcI,
       'c:tcA': (e.uso['c:tcA'] ?? 0) + l.tcA,
       'c:t3A': (e.uso['c:t3A'] ?? 0) + l.t3A,
+      'c:pinI': (e.uso['c:pinI'] ?? 0) + l.pinI,
+      'c:pinA': (e.uso['c:pinA'] ?? 0) + l.pinA,
       'c:tlI': (e.uso['c:tlI'] ?? 0) + l.tlI,
       'c:tlA': (e.uso['c:tlA'] ?? 0) + l.tlA,
       'c:per': (e.uso['c:per'] ?? 0) + l.per,
@@ -2284,7 +2289,8 @@ class CarreraJugador {
     // Objetivos de carrera que se cumplieron con esta temporada sumada.
     final torneo = SeleccionCarrera.jugar(e, media: e.media, ppg: marcaFinal.ppg);
     final conSeleccion = torneo == null ? cerrado : SeleccionCarrera.aplicar(cerrado, torneo, e.etiquetaTemporada);
-    final conPlata = EconomiaCarrera.alCerrar(conSeleccion);
+    final conRivales = RedesCarrera.alCerrar(RivalidadCarrera.alCerrar(conSeleccion, temporada, liga.catalogo), temporada);
+    final conPlata = EconomiaCarrera.alCerrar(conRivales);
     final logradosCarrera = ObjetivosCarrera.nuevosDeCarrera(conPlata);
     final estado = ObjetivosCarrera.cobrarCarrera(conPlata, logradosCarrera);
     // Insignias que ganaste o subiste de grado este año (con la carrera ya sumada).

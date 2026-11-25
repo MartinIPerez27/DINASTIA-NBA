@@ -20,6 +20,9 @@ class LineaEstadistica {
   /// Faltas personales (con 6 queda afuera del partido).
   int fal = 0;
   int tcI = 0, tcA = 0, t3I = 0, t3A = 0, tlI = 0, tlA = 0;
+
+  /// Tiros de dos en la pintura (convertidos e intentados): contraataques y tiros de los grandes. El resto de los dobles es media distancia.
+  int pinI = 0, pinA = 0;
   double seg = 0;
 
   void sumar(LineaEstadistica o) {
@@ -38,6 +41,8 @@ class LineaEstadistica {
     tlA += o.tlA;
     seg += o.seg;
     fal += o.fal;
+    pinI += o.pinI;
+    pinA += o.pinA;
   }
 
   factory LineaEstadistica.fromJson(Map<String, dynamic> j) {
@@ -57,11 +62,13 @@ class LineaEstadistica {
       ..tlI = v[11].toInt()
       ..tlA = v[12].toInt()
       ..seg = v[13].toDouble()
-      ..fal = v.length > 14 ? v[14].toInt() : 0;
+      ..fal = v.length > 14 ? v[14].toInt() : 0
+      ..pinI = v.length > 16 ? v[15].toInt() : 0
+      ..pinA = v.length > 16 ? v[16].toInt() : 0;
   }
 
   Map<String, dynamic> toJson() => {
-    'v': [pj, pts, reb, ast, rob, tap, per, tcI, tcA, t3I, t3A, tlI, tlA, seg.round(), fal],
+    'v': [pj, pts, reb, ast, rob, tap, per, tcI, tcA, t3I, t3A, tlI, tlA, seg.round(), fal, pinI, pinA],
   };
 }
 
@@ -1526,6 +1533,7 @@ class MotorPartido {
       if (convertido || !falta) {
         caja.tcA++;
         if (triple) caja.t3A++;
+        if (!triple && !desdeLejos && (contraataque || interior(tirador))) caja.pinA++;
       }
       _restoPosesion = 24;
 
@@ -1533,6 +1541,7 @@ class MotorPartido {
         final puntos = triple ? 3 : 2;
         caja.tcI++;
         if (triple) caja.t3I++;
+        if (!triple && !desdeLejos && (contraataque || interior(tirador))) caja.pinI++;
         if (asistente != null) ataque.box[asistente.id]!.ast++;
         final extra = falta ? _libres(ataque, tirador, 1) : 0;
         caja.pts += puntos + extra;

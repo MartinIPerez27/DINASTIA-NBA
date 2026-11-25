@@ -714,6 +714,107 @@ class PanelControlPartido extends StatelessWidget {
   }
 }
 
+/// Tu rival, tu mentor, las redes y lo que se acuerda el relator.
+class PanelNarrativa extends StatelessWidget {
+  const PanelNarrativa({super.key, required this.estado, required this.rival, required this.alPublicar});
+
+  final EstadoCarrera estado;
+  final Jugador? rival;
+  final ValueChanged<PostRedes> alPublicar;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final mentor = RivalidadCarrera.mentor(estado);
+    final memorias = RelatorCarrera.memorias(estado, rival: rival);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('RIVAL Y MENTOR', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        Text(
+          rival == null
+              ? 'Todavía no tenés un rival de época.'
+              : 'Rival: ${rival!.nombre} (${rival!.media}). Duelo de temporadas: ${RivalidadCarrera.ganados(estado)}-${RivalidadCarrera.perdidos(estado)}.',
+          style: tema.textTheme.bodyMedium,
+        ),
+        Text(
+          mentor == null
+              ? 'Sin mentor.'
+              : RivalidadCarrera.mentorActivo(estado)
+              ? 'Mentor: ${mentor.nombre}: te enseña y suma 1 punto de habilidad por temporada.'
+              : 'Mentor posible: ${mentor.nombre}. Necesitás relación 60 con el vestuario para que te enseñe.',
+          style: tema.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 10),
+        Text('REDES · ${RedesCarrera.seguidores(estado)} mil seguidores', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        if (RedesCarrera.yaPublico(estado))
+          Text('Ya publicaste esta temporada.', style: tema.textTheme.bodySmall)
+        else
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final p in PostRedes.values)
+                Tooltip(
+                  message: p.descripcion,
+                  child: OutlinedButton(onPressed: () => alPublicar(p), child: Text(p.etiqueta)),
+                ),
+            ],
+          ),
+        const SizedBox(height: 10),
+        Text('EL RELATOR SE ACUERDA', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        if (memorias.isEmpty)
+          Text('Todavía no hay historia que contar.', style: tema.textTheme.bodySmall)
+        else
+          for (final m in memorias.take(4)) Text('• $m', style: tema.textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
+/// Dónde tirás: pintura, media distancia y triples, contra la liga.
+class PanelMapaTiro extends StatelessWidget {
+  const PanelMapaTiro({super.key, required this.estado});
+
+  final EstadoCarrera estado;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final mapa = MapaTiro.de(estado);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('MAPA DE TIRO', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 6),
+        for (final z in mapa.zonas)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${z.nombre}: ${z.hechos}/${z.intentos} (${(z.pct * 100).toStringAsFixed(1).replaceAll('.', ',')} %) · ${z.veredicto}',
+                  style: tema.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 2),
+                LinearProgressIndicator(value: mapa.participacion(z), minHeight: 6),
+                Text(
+                  '${(mapa.participacion(z) * 100).round()} % de tus tiros · liga ${(z.ligaPct * 100).round()} %',
+                  style: tema.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        Text(mapa.consejo, style: tema.textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
 /// Sueldo, marcas, caja y equipo personal (entrenador, fisio, nutricionista y agente).
 class PanelFinanzas extends StatelessWidget {
   const PanelFinanzas({super.key, required this.estado, required this.alSubir, required this.alBajar});
@@ -1487,6 +1588,16 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
       ),
       const SizedBox(height: 12),
       _Panel(child: PanelAvanzadas(estado: e)),
+      const SizedBox(height: 12),
+      _Panel(child: PanelMapaTiro(estado: e)),
+      const SizedBox(height: 12),
+      _Panel(
+        child: PanelNarrativa(
+          estado: e,
+          rival: RivalidadCarrera.rival(e, widget.carrera.liga.catalogo),
+          alPublicar: (p) => _cambiarEstado(RedesCarrera.publicar(e, p)),
+        ),
+      ),
       const SizedBox(height: 12),
       _Panel(
         child: PanelControlPartido(estado: e, alCambiar: _ajustarMedidor),
