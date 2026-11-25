@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../entities/avatar_creado.dart';
+import '../entities/estilo_creado.dart';
 import '../entities/jugador.dart';
 import '../entities/modo_juego.dart';
 import '../entities/partido.dart';
@@ -528,6 +529,7 @@ class JugadorCreado {
     this.avatar,
     this.anioDraft,
     this.dorsal = 0,
+    this.estilo,
   });
 
   final String nombre;
@@ -552,6 +554,9 @@ class JugadorCreado {
   /// Año del draft en el que arranca (null: 2026) y número de camiseta (0 a 99).
   final int? anioDraft;
   final int dorsal;
+
+  /// Envergadura, mano, origen, forma de tirar y festejo (null en jugadores viejos: sin ajustes).
+  final EstiloCreado? estilo;
 
   static const anioMin = 1980, anioMax = 2026, edadMin = 18, edadMax = 28;
 
@@ -591,12 +596,40 @@ class JugadorCreado {
     for (final f in fuertes) {
       a = a.con(f, a[f] + 4);
     }
+    // El origen inclina un poco el arranque (solo si lo elegiste).
+    switch (estilo?.origen) {
+      case OrigenJugador.secundario:
+        a = a.con(Atributo.fisico, a[Atributo.fisico] + 2).con(Atributo.iq, a[Atributo.iq] - 1);
+      case OrigenJugador.universidad:
+        a = a.con(Atributo.iq, a[Atributo.iq] + 2).con(Atributo.fisico, a[Atributo.fisico] - 1);
+      case OrigenJugador.internacional:
+        a = a.con(Atributo.tiro, a[Atributo.tiro] + 2).con(Atributo.fisico, a[Atributo.fisico] - 1);
+      case null:
+    }
     return a;
   }
 
   int get media => ModeloCarrera.mediaDe(atributos, posicion);
 
-  EstadisticasJugador get estadisticas => ModeloCarrera.estadisticasDe(atributos, posicion, media);
+  EstadisticasJugador get estadisticas {
+    final s = ModeloCarrera.estadisticasDe(atributos, posicion, media);
+    final env = estilo?.envergadura ?? 0;
+    if (env == 0) return s;
+    // Brazos largos: más tapones, robos y rebotes (cada centímetro de envergadura suma un poquito).
+    return EstadisticasJugador(
+      ppp: s.ppp,
+      rpp: s.rpp + 0.012 * env,
+      app: s.app,
+      robP: max(0.2, s.robP + 0.004 * env),
+      tapP: max(0.0, s.tapP + 0.007 * env),
+      pctTc: s.pctTc,
+      pctT3: s.pctT3,
+      pctTl: s.pctTl,
+      minP: s.minP,
+      perP: s.perP,
+      iq: s.iq,
+    );
+  }
 
   /// La carta de tu jugador en [franquiciaId] (la franquicia y la época cambian con los equipos).
   Jugador comoCarta({required String id, required String franquiciaId, Epoca epoca = Epoca.actualidad, int? anio}) =>
@@ -631,6 +664,7 @@ class JugadorCreado {
     if (pickFijo != null) 'pickFijo': pickFijo,
     if (edadInicial != null) 'edadInicial': edadInicial,
     if (anioDraft != null) 'anioDraft': anioDraft,
+    if (estilo != null) 'estilo': estilo!.codigo,
     if (dorsal != 0) 'dorsal': dorsal,
   };
 
@@ -647,6 +681,7 @@ class JugadorCreado {
     pickFijo: j['pickFijo'] as int?,
     edadInicial: j['edadInicial'] as int?,
     anioDraft: j['anioDraft'] as int?,
+    estilo: EstiloCreado.deCodigo(j['estilo'] as String?),
     dorsal: j['dorsal'] as int? ?? 0,
   );
 }

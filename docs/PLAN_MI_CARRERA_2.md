@@ -124,6 +124,17 @@ estadísticas avanzadas.
   - Pendiente de este punto: que el jugador "salga" mid-season por una decisión del club (hoy solo se mueven
     compañeros; el traspaso propio se negocia en el receso).
 
+- **Bloque 5 (editor de personaje completo) — hecho.**
+  - Rostro: 6 ojos, 5 cejas, 5 narices, 5 bocas, 3 orejas, ancho y alto de cara, 6 tonos de piel y 8 colores de pelo.
+  - 20 peinados (los 7 de siempre + afro, trenzas, rastas, mohicano, plano, undercut, degradé, ondas, peinado atrás,
+    raya, colita alta, dos moños y rulos largos), 7 barbas, 5 tatuajes (cuello y hombros), 4 gafas, cinta de brazo y
+    5 complexiones. Los avatares viejos y los retratos automáticos (sin foto) no cambian.
+  - Cuerpo y origen: envergadura (−10 a +15 cm: más tapones, robos y rebotes), mano dominante y origen
+    (secundario, universidad, internacional) que inclina un poco los atributos de arranque.
+  - Estilo de juego: forma de tirar (5) y festejo (6): quedan guardados para la barra de tiro y el relato.
+  - Para ver todo hay grupos plegables (ROSTRO, PEINADO Y BARBA, ACCESORIOS Y TATUAJES, CUERPO Y ORIGEN, ESTILO DE
+    JUEGO) al final del creador, con "Al azar" y "Restablecer".
+
 ## Orden sugerido
 1. Puntos y costos (1, 3) · 2. Objetivos y premios (2, 4) · 3. Habilidades 2K (5) · 4. Año, edad y plantilla (6)
 · 5. Editor de personaje (7) · 6. Récords históricos · 7. Barra de tiro y control del jugador (8)

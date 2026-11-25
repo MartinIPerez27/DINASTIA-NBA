@@ -27,12 +27,12 @@ void main() {
     final perfiles = [for (final p in personas) PerfilAvatar.de(p)];
     expect(perfiles.map((p) => p.piel).toSet().length, PerfilAvatar.pieles.length);
     expect(perfiles.map((p) => p.pelo).toSet().length, PerfilAvatar.pelos.length);
-    expect(perfiles.map((p) => p.estilo).toSet().length, PeloEstilo.values.length);
+    expect(perfiles.map((p) => p.estilo).toSet().length, PeloEstilo.automaticos);
     for (final piel in PerfilAvatar.pieles) {
       final n = perfiles.where((p) => p.piel == piel).length;
       expect(n / perfiles.length, inInclusiveRange(0.08, 0.28), reason: 'tono $piel');
     }
-    for (final e in PeloEstilo.values) {
+    for (final e in PeloEstilo.values.take(PeloEstilo.automaticos)) {
       expect(perfiles.where((p) => p.estilo == e).length / perfiles.length, inInclusiveRange(0.07, 0.25), reason: '$e');
     }
     for (final p in perfiles) {

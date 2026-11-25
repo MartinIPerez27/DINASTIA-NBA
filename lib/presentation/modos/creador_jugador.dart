@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/franquicias.dart';
 import '../../domain/entities/avatar_creado.dart';
+import '../../domain/entities/estilo_creado.dart';
 import '../../domain/entities/posicion.dart';
 import '../../domain/entities/rol_cancha.dart';
 import '../../domain/modos/carrera_jugador.dart';
@@ -44,6 +45,7 @@ class _CreadorJugadorPantallaState extends State<CreadorJugadorPantalla> {
   late double _altura = JugadorCreado.alturaSugerida(_posicion).toDouble();
   var _peso = 92.0;
   var _avatar = const AvatarCreado();
+  var _estilo = const EstiloCreado();
   var _anio = 2026, _edad = 20, _dorsal = 7;
   final _fuertes = <Atributo>[Atributo.tiro, Atributo.iq, Atributo.defensa];
 
@@ -62,6 +64,7 @@ class _CreadorJugadorPantallaState extends State<CreadorJugadorPantalla> {
     pesoKg: _peso.round(),
     nacimiento: widget.conArranque ? _anio - _edad : widget.nacimiento,
     avatar: _avatar,
+    estilo: _estilo,
     anioDraft: widget.conArranque ? _anio : null,
     edadInicial: widget.conArranque ? _edad : null,
     dorsal: widget.conArranque ? _dorsal : 0,
@@ -96,12 +99,6 @@ class _CreadorJugadorPantallaState extends State<CreadorJugadorPantalla> {
           maxLength: 24,
           decoration: const InputDecoration(labelText: 'Nombre y apellido', border: OutlineInputBorder()),
           onChanged: (_) => setState(() {}),
-        ),
-        const SizedBox(height: 12),
-        _EditorAvatar(
-          avatar: _avatar,
-          jugador: jugador,
-          alCambiar: (a) => setState(() => _avatar = a),
         ),
         const SizedBox(height: 16),
         Text('PUESTO', style: tema.textTheme.labelLarge),
@@ -220,6 +217,14 @@ class _CreadorJugadorPantallaState extends State<CreadorJugadorPantalla> {
             ),
           ),
         ],
+        const SizedBox(height: 20),
+        _EditorAvatar(
+          avatar: _avatar,
+          estilo: _estilo,
+          jugador: jugador,
+          alCambiar: (a) => setState(() => _avatar = a),
+          alCambiarEstilo: (e) => setState(() => _estilo = e),
+        ),
       ],
     );
     final vista = _VistaPrevia(jugador: jugador, error: error);
@@ -393,15 +398,88 @@ class _Dato extends StatelessWidget {
   );
 }
 
-const _nombresEstilo = ['Calvo', 'Corto', 'Rapado', 'Rizado', 'Moño', 'Largo', 'Vincha'];
+/// Un rasgo con opciones en fichas (ojos, peinado, barba…).
+class _Opciones extends StatelessWidget {
+  const _Opciones({required this.titulo, required this.nombres, required this.valor, required this.alElegir});
 
-/// Arma el avatar: vista previa con la camiseta, tono de piel, pelo, barba y forma de la cara.
+  final String titulo;
+  final List<String> nombres;
+  final int valor;
+  final ValueChanged<int> alElegir;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(titulo, style: tema.textTheme.bodySmall),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (var i = 0; i < nombres.length; i++)
+                ChoiceChip(
+                  label: Text(nombres[i]),
+                  selected: valor == i,
+                  visualDensity: VisualDensity.compact,
+                  onSelected: (_) => alElegir(i),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Un grupo plegable del editor.
+class _Grupo extends StatelessWidget {
+  const _Grupo({required this.titulo, required this.hijos, this.abierto = false});
+
+  final String titulo;
+  final List<Widget> hijos;
+  final bool abierto;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return Material(
+      type: MaterialType.transparency,
+      child: Theme(
+        data: tema.copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: abierto,
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(bottom: 8),
+          expandedAlignment: Alignment.centerLeft,
+          expandedCrossAxisAlignment: CrossAxisAlignment.start,
+          title: Text(titulo, style: tema.textTheme.labelLarge),
+          children: hijos,
+        ),
+      ),
+    );
+  }
+}
+
+/// El editor completo del jugador: vista previa, rostro, peinado y barba, accesorios, cuerpo y estilo de juego.
 class _EditorAvatar extends StatelessWidget {
-  const _EditorAvatar({required this.avatar, required this.jugador, required this.alCambiar});
+  const _EditorAvatar({
+    required this.avatar,
+    required this.estilo,
+    required this.jugador,
+    required this.alCambiar,
+    required this.alCambiarEstilo,
+  });
 
   final AvatarCreado avatar;
+  final EstiloCreado estilo;
   final JugadorCreado jugador;
   final ValueChanged<AvatarCreado> alCambiar;
+  final ValueChanged<EstiloCreado> alCambiarEstilo;
 
   Widget _muestra(BuildContext context, Color color, bool elegido, VoidCallback alTocar, String etiqueta) {
     final esquema = Theme.of(context).colorScheme;
@@ -424,127 +502,181 @@ class _EditorAvatar extends StatelessWidget {
     );
   }
 
+  AvatarCreado _azar() {
+    final r = Random();
+    return AvatarCreado(
+      piel: r.nextInt(AvatarCreado.pieles),
+      pelo: r.nextInt(AvatarCreado.pelos),
+      estilo: r.nextInt(AvatarCreado.estilos),
+      barba: r.nextInt(3) == 0 ? 1 + r.nextInt(AvatarCreado.barbas - 1) : 0,
+      ancho: r.nextInt(AvatarCreado.anchos),
+      alto: r.nextInt(AvatarCreado.altos),
+      ojos: r.nextInt(AvatarCreado.ojosN),
+      cejas: r.nextInt(AvatarCreado.cejasN),
+      nariz: r.nextInt(AvatarCreado.narices),
+      boca: r.nextInt(AvatarCreado.bocas),
+      orejas: r.nextInt(AvatarCreado.orejasN),
+      tatuaje: r.nextInt(4) == 0 ? 1 + r.nextInt(AvatarCreado.tatuajes - 1) : 0,
+      gafas: r.nextInt(5) == 0 ? 1 + r.nextInt(AvatarCreado.gafasN - 1) : 0,
+      cinta: r.nextInt(4) == 0,
+      cuerpo: r.nextInt(AvatarCreado.cuerpos),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     final franquicia = franquicias.first;
     final carta = jugador.comoCarta(id: 'mc-previa', franquiciaId: franquicia.id);
-    return Row(
+    final a = avatar;
+    final colores = Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (var i = 0; i < AvatarCreado.pieles; i++)
+          _muestra(context, PerfilAvatar.pieles[i], a.piel == i, () => alCambiar(a.copyWith(piel: i)), 'Piel ${i + 1}'),
+      ],
+    );
+    final coloresPelo = Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (var i = 0; i < AvatarCreado.pelos; i++)
+          _muestra(context, PerfilAvatar.pelosCreador[i], a.pelo == i, () => alCambiar(a.copyWith(pelo: i)), 'Pelo ${i + 1}'),
+      ],
+    );
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: SizedBox(
-            width: 104,
-            height: 130,
-            child: AvatarIlustrado(jugador: carta, franquicia: franquicia),
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(width: 120, height: 150, child: AvatarIlustrado(jugador: carta, franquicia: franquicia)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('TU JUGADOR', style: tema.textTheme.labelLarge),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Armalo a tu gusto: rostro, peinado, accesorios, cuerpo y estilo de juego.',
+                    style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => alCambiar(_azar()),
+                        icon: const Icon(Icons.casino_outlined, size: 18),
+                        label: const Text('Al azar'),
+                      ),
+                      TextButton(onPressed: () => alCambiar(const AvatarCreado()), child: const Text('Restablecer')),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: Text('TU AVATAR', style: tema.textTheme.labelLarge)),
-                  TextButton.icon(
-                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8)),
-                    onPressed: () {
-                      final r = Random();
-                      alCambiar(
-                        AvatarCreado(
-                          piel: r.nextInt(AvatarCreado.pieles),
-                          pelo: r.nextInt(AvatarCreado.pelos),
-                          estilo: r.nextInt(AvatarCreado.estilos),
-                          barba: r.nextInt(4) == 0,
-                          ancho: r.nextInt(AvatarCreado.anchos),
-                          alto: r.nextInt(AvatarCreado.altos),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.casino_outlined, size: 18),
-                    label: const Text('Azar'),
-                  ),
-                ],
+        const SizedBox(height: 8),
+        _Grupo(
+          titulo: 'ROSTRO',
+          abierto: false,
+          hijos: [
+            Text('Piel', style: tema.textTheme.bodySmall),
+            const SizedBox(height: 4),
+            colores,
+            const SizedBox(height: 10),
+            _Opciones(titulo: 'Ojos', nombres: AvatarCreado.nombresOjos, valor: a.ojos, alElegir: (v) => alCambiar(a.copyWith(ojos: v))),
+            _Opciones(titulo: 'Cejas', nombres: AvatarCreado.nombresCejas, valor: a.cejas, alElegir: (v) => alCambiar(a.copyWith(cejas: v))),
+            _Opciones(titulo: 'Nariz', nombres: AvatarCreado.nombresNariz, valor: a.nariz, alElegir: (v) => alCambiar(a.copyWith(nariz: v))),
+            _Opciones(titulo: 'Boca', nombres: AvatarCreado.nombresBoca, valor: a.boca, alElegir: (v) => alCambiar(a.copyWith(boca: v))),
+            _Opciones(titulo: 'Orejas', nombres: AvatarCreado.nombresOrejas, valor: a.orejas, alElegir: (v) => alCambiar(a.copyWith(orejas: v))),
+            _Deslizador(
+              etiqueta: 'ANCHO',
+              valor: '',
+              slider: Slider(
+                value: a.ancho.toDouble(),
+                max: AvatarCreado.anchos - 1.0,
+                divisions: AvatarCreado.anchos - 1,
+                onChanged: (v) => alCambiar(a.copyWith(ancho: v.round())),
               ),
-              Text('Piel', style: tema.textTheme.bodySmall),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (var i = 0; i < AvatarCreado.pieles; i++)
-                    _muestra(
-                      context,
-                      PerfilAvatar.pieles[i],
-                      avatar.piel == i,
-                      () => alCambiar(avatar.copyWith(piel: i)),
-                      'Piel ${i + 1}',
-                    ),
-                ],
+            ),
+            _Deslizador(
+              etiqueta: 'ALTO',
+              valor: '',
+              slider: Slider(
+                value: a.alto.toDouble(),
+                max: AvatarCreado.altos - 1.0,
+                divisions: AvatarCreado.altos - 1,
+                onChanged: (v) => alCambiar(a.copyWith(alto: v.round())),
               ),
-              const SizedBox(height: 8),
-              Text('Color de pelo', style: tema.textTheme.bodySmall),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (var i = 0; i < AvatarCreado.pelos; i++)
-                    _muestra(
-                      context,
-                      PerfilAvatar.pelosCreador[i],
-                      avatar.pelo == i,
-                      () => alCambiar(avatar.copyWith(pelo: i)),
-                      'Pelo ${i + 1}',
-                    ),
-                ],
+            ),
+          ],
+        ),
+        _Grupo(
+          titulo: 'PEINADO Y BARBA',
+          hijos: [
+            Text('Color de pelo', style: tema.textTheme.bodySmall),
+            const SizedBox(height: 4),
+            coloresPelo,
+            const SizedBox(height: 10),
+            _Opciones(titulo: 'Peinado', nombres: AvatarCreado.nombresEstilo, valor: a.estilo, alElegir: (v) => alCambiar(a.copyWith(estilo: v))),
+            _Opciones(titulo: 'Barba', nombres: AvatarCreado.nombresBarba, valor: a.barba, alElegir: (v) => alCambiar(a.copyWith(barba: v))),
+          ],
+        ),
+        _Grupo(
+          titulo: 'ACCESORIOS Y TATUAJES',
+          hijos: [
+            _Opciones(titulo: 'Gafas', nombres: AvatarCreado.nombresGafas, valor: a.gafas, alElegir: (v) => alCambiar(a.copyWith(gafas: v))),
+            _Opciones(titulo: 'Tatuajes', nombres: AvatarCreado.nombresTatuaje, valor: a.tatuaje, alElegir: (v) => alCambiar(a.copyWith(tatuaje: v))),
+            FilterChip(
+              label: const Text('Cinta de brazo'),
+              selected: a.cinta,
+              visualDensity: VisualDensity.compact,
+              onSelected: (v) => alCambiar(a.copyWith(cinta: v)),
+            ),
+          ],
+        ),
+        _Grupo(
+          titulo: 'CUERPO Y ORIGEN',
+          hijos: [
+            _Opciones(titulo: 'Complexión', nombres: AvatarCreado.nombresCuerpo, valor: a.cuerpo, alElegir: (v) => alCambiar(a.copyWith(cuerpo: v))),
+            _Deslizador(
+              etiqueta: 'BRAZOS',
+              valor: '${estilo.envergadura >= 0 ? '+' : ''}${estilo.envergadura} cm',
+              slider: Slider(
+                value: estilo.envergadura.toDouble(),
+                min: EstiloCreado.envergaduraMin.toDouble(),
+                max: EstiloCreado.envergaduraMax.toDouble(),
+                divisions: EstiloCreado.envergaduraMax - EstiloCreado.envergaduraMin,
+                onChanged: (v) => alCambiarEstilo(estilo.copyWith(envergadura: v.round())),
               ),
-              const SizedBox(height: 8),
-              Text('Peinado', style: tema.textTheme.bodySmall),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (var i = 0; i < AvatarCreado.estilos; i++)
-                    ChoiceChip(
-                      label: Text(_nombresEstilo[i]),
-                      selected: avatar.estilo == i,
-                      visualDensity: VisualDensity.compact,
-                      onSelected: (_) => alCambiar(avatar.copyWith(estilo: i)),
-                    ),
-                  FilterChip(
-                    label: const Text('Barba'),
-                    selected: avatar.barba,
-                    visualDensity: VisualDensity.compact,
-                    onSelected: (v) => alCambiar(avatar.copyWith(barba: v)),
-                  ),
-                ],
-              ),
-              _Deslizador(
-                etiqueta: 'ANCHO',
-                valor: '',
-                slider: Slider(
-                  value: avatar.ancho.toDouble(),
-                  max: AvatarCreado.anchos - 1.0,
-                  divisions: AvatarCreado.anchos - 1,
-                  onChanged: (v) => alCambiar(avatar.copyWith(ancho: v.round())),
-                ),
-              ),
-              _Deslizador(
-                etiqueta: 'ALTO',
-                valor: '',
-                slider: Slider(
-                  value: avatar.alto.toDouble(),
-                  max: AvatarCreado.altos - 1.0,
-                  divisions: AvatarCreado.altos - 1,
-                  onChanged: (v) => alCambiar(avatar.copyWith(alto: v.round())),
-                ),
-              ),
-            ],
-          ),
+            ),
+            Text('Brazos largos suman tapones, robos y rebotes; cortos, los restan.', style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 10),
+            _Opciones(titulo: 'Mano dominante', nombres: EstiloCreado.manos, valor: estilo.mano, alElegir: (v) => alCambiarEstilo(estilo.copyWith(mano: v))),
+            _Opciones(
+              titulo: 'Origen',
+              nombres: [for (final o in OrigenJugador.values) o.etiqueta],
+              valor: estilo.origen.index,
+              alElegir: (v) => alCambiarEstilo(estilo.copyWith(origen: OrigenJugador.values[v])),
+            ),
+            Text(estilo.origen.descripcion, style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
+          ],
+        ),
+        _Grupo(
+          titulo: 'ESTILO DE JUEGO',
+          hijos: [
+            _Opciones(titulo: 'Forma de tirar', nombres: EstiloCreado.formas, valor: estilo.formaDeTiro, alElegir: (v) => alCambiarEstilo(estilo.copyWith(formaDeTiro: v))),
+            _Opciones(titulo: 'Festejo', nombres: EstiloCreado.festejos, valor: estilo.festejo, alElegir: (v) => alCambiarEstilo(estilo.copyWith(festejo: v))),
+            Text('Tu forma de tirar y tu festejo te identifican en el relato y en la barra de tiro.', style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
+          ],
         ),
       ],
     );
