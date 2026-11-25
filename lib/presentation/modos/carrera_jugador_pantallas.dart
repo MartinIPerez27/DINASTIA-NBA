@@ -1079,6 +1079,12 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
           ),
         ],
       ),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(
+        onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => RecordsPantalla(estado: e))),
+        icon: const Icon(Icons.emoji_events_outlined),
+        label: const Text('CAMINO A LOS RÉCORDS'),
+      ),
       const SizedBox(height: 12),
       _Panel(child: PanelObjetivosLargos(estado: e)),
       const SizedBox(height: 12),

@@ -124,6 +124,19 @@ estadísticas avanzadas.
   - Pendiente de este punto: que el jugador "salga" mid-season por una decisión del club (hoy solo se mueven
     compañeros; el traspaso propio se negocia en el receso).
 
+- **Bloque 6 (récords históricos de la NBA) — hecho.**
+  - Datos reales en `assets/database/records_nba.json`, generados por `tools/records_nba.py` (con tests) desde
+    Basketball-Reference (totales de carrera, promedios por temporada y triples en un partido) y Wikipedia (marcas de
+    un partido: las de Basketball-Reference no cubren las épocas viejas, p. ej. faltan los 55 rebotes de Wilt). Solo
+    NBA, con la fecha de descarga. Para actualizar: `python tools/records_nba.py`.
+  - Pantalla "Camino a los récords" (carrera, temporada, partido, hitos): tu valor, puesto histórico que ocuparías,
+    próximo rival a superar, cuánto falta y a qué ritmo, y a quiénes ya superaste.
+  - Se llevan por partido los totales de carrera (puntos, rebotes, asistencias, robos, tapones, triples,
+    triples-dobles), tus mejores marcas de un partido y tu mejor promedio de robos y tapones por temporada.
+  - Límite: no hay un ranking confiable de partidos de 40 y 50 puntos, así que "Hitos" muestra solo tu cuenta.
+    Las partidas viejas tienen totales de puntos, rebotes y asistencias desde su historial; los demás empiezan a
+    contarse desde esta versión.
+
 - **Bloque 5 (editor de personaje completo) — hecho.**
   - Rostro: 6 ojos, 5 cejas, 5 narices, 5 bocas, 3 orejas, ancho y alto de cara, 6 tonos de piel y 8 colores de pelo.
   - 20 peinados (los 7 de siempre + afro, trenzas, rastas, mohicano, plano, undercut, degradé, ondas, peinado atrás,

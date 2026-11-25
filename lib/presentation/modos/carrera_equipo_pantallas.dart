@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/draft_2026.dart';
 import '../../data/franquicias.dart';
+import '../../data/records_nba.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/modos/carrera_jugador.dart';
 import '../widgets/disposicion.dart';
@@ -233,4 +234,204 @@ Future<void> mostrarFechaLimite(BuildContext context, ValueChanged<OpcionFechaLi
       ],
     ),
   );
+}
+
+/// "Camino a los récords": tu jugador contra los récords históricos reales de la NBA (carrera, temporada y partido).
+class RecordsPantalla extends StatefulWidget {
+  const RecordsPantalla({super.key, required this.estado, this.records});
+
+  final EstadoCarrera estado;
+
+  /// Los datos ya cargados (si no se pasan, se leen del asset).
+  final RecordsNba? records;
+
+  @override
+  State<RecordsPantalla> createState() => _RecordsPantallaState();
+}
+
+class _RecordsPantallaState extends State<RecordsPantalla> {
+  late final Future<RecordsNba> _datos = widget.records != null ? Future.value(widget.records) : cargarRecordsNba();
+
+  static String _n(double v, {bool entero = true}) {
+    final base = entero ? v.round().toString() : v.toStringAsFixed(1).replaceAll('.', ',');
+    // Separador de miles con punto: 43.672.
+    if (!entero) return base;
+    final b = StringBuffer();
+    for (var i = 0; i < base.length; i++) {
+      if (i > 0 && (base.length - i) % 3 == 0) b.write('.');
+      b.write(base[i]);
+    }
+    return b.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<RecordsNba>(
+    future: _datos,
+    builder: (context, snap) {
+      if (snap.connectionState != ConnectionState.done) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Camino a los récords')),
+          body: const Center(child: CircularProgressIndicator()),
+        );
+      }
+      if (snap.hasError || snap.data == null) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Camino a los récords')),
+          body: const Center(child: Text('No se pudieron leer los récords.')),
+        );
+      }
+      return _vista(context, snap.data!);
+    },
+  );
+
+  Widget _vista(BuildContext context, RecordsNba r) {
+    final e = widget.estado;
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Camino a los récords'),
+          bottom: const TabBar(
+            isScrollable: true,
+            tabs: [Tab(text: 'CARRERA'), Tab(text: 'TEMPORADA'), Tab(text: 'PARTIDO'), Tab(text: 'HITOS')],
+          ),
+        ),
+        body: SafeArea(
+          child: TabBarView(
+            children: [
+              _lista(context, RecordsCarrera.carrera(r, e), r, ritmo: true, novedades: RecordsCarrera.novedades(r, e)),
+              _lista(context, RecordsCarrera.temporada(r, e), r, decimales: true),
+              _lista(context, RecordsCarrera.partido(r, e), r),
+              _hitos(context, e),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _lista(
+    BuildContext context,
+    List<CaminoRecord> caminos,
+    RecordsNba r, {
+    bool ritmo = false,
+    bool decimales = false,
+    List<String> novedades = const [],
+  }) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        Text(
+          'Datos reales de la NBA (${r.fuente}), al ${r.fecha}. Los jugadores en actividad pueden seguir sumando.',
+          style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+        ),
+        if (novedades.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text('YA SUPERASTE A…', style: tema.textTheme.labelLarge),
+          for (final n in novedades) Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(n, style: tema.textTheme.bodySmall)),
+        ],
+        const SizedBox(height: 8),
+        for (final c in caminos) _tarjeta(context, c, ritmo: ritmo, decimales: decimales),
+      ],
+    );
+  }
+
+  Widget _tarjeta(BuildContext context, CaminoRecord c, {required bool ritmo, required bool decimales}) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    String v(double x) => _n(x, entero: !decimales);
+    final rec = c.lista.record;
+    final top = c.lista.filas.take(5).toList();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: esquema.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: esquema.outlineVariant.withValues(alpha: 0.6)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text(c.lista.etiqueta.toUpperCase(), style: tema.textTheme.labelLarge)),
+                TextoLed(v(c.tuValor), tamano: 22),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              c.puesto == null
+                  ? (c.tuValor <= 0 ? 'Todavía sin marca.' : 'Todavía fuera del top ${c.lista.filas.length} histórico.')
+                  : (c.puesto == 1 ? '¡Sos el récord histórico!' : 'Ocuparías el puesto n.º ${c.puesto} de la historia.'),
+              style: tema.textTheme.bodyMedium?.copyWith(color: c.puesto != null ? esquema.primary : null),
+            ),
+            const SizedBox(height: 6),
+            LinearProgressIndicator(value: c.progreso, minHeight: 6),
+            const SizedBox(height: 4),
+            Text(
+              'Récord: ${rec.nombre} · ${v(rec.valor)}${rec.detalle.isEmpty ? '' : ' (${rec.detalle})'}',
+              style: tema.textTheme.bodySmall,
+            ),
+            if (c.siguiente != null)
+              Text(
+                'Próximo: ${c.siguiente!.nombre} (${v(c.siguiente!.valor)}) · te faltan ${v(c.faltan)}'
+                '${ritmo && c.temporadasParaSuperar != null ? ' · a tu ritmo, ~${c.temporadasParaSuperar!.ceil()} temporadas' : ''}',
+                style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+              ),
+            const SizedBox(height: 6),
+            for (final f in top)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 1),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${f.nombre}${f.activo ? ' ●' : ''}${f.detalle.isEmpty ? '' : ' · ${f.detalle}'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: tema.textTheme.bodySmall?.copyWith(
+                          color: f.valor <= c.tuValor ? esquema.primary : null,
+                          decoration: f.valor <= c.tuValor ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                    ),
+                    Text(v(f.valor), style: tema.textTheme.bodySmall),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _hitos(BuildContext context, EstadoCarrera e) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        Text(
+          'Tus marcas partido a partido. La NBA no publica un ranking de partidos de 40 o 50 puntos que podamos usar, '
+          'así que acá solo ves tu cuenta (y tu mejor partido, en la solapa PARTIDO).',
+          style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+        ),
+        const SizedBox(height: 10),
+        for (final (t, n) in RecordsCarrera.hitos(e))
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                Expanded(child: Text(t, style: tema.textTheme.bodyMedium)),
+                TextoLed('$n', tamano: 22),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
 }

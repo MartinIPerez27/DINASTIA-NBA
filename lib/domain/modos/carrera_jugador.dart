@@ -26,6 +26,7 @@ export 'generacion_carrera.dart';
 export 'plantel_carrera.dart';
 export 'premios_carrera.dart';
 export 'puntos_carrera.dart';
+export 'records_carrera.dart';
 
 export 'habilidades.dart';
 import '../entities/enum_tolerante.dart';
@@ -1807,6 +1808,12 @@ class CarreraJugador {
       'gr:${nota.etiqueta}': (e.uso['gr:${nota.etiqueta}'] ?? 0) + 1,
       'dg:nota': (e.uso['dg:nota'] ?? 0) + (nota.puntos * 100).round(),
       'c:pj': (e.uso['c:pj'] ?? 0) + 1,
+      'c:pts': (e.uso['c:pts'] ?? 0) + l.pts,
+      'c:reb': (e.uso['c:reb'] ?? 0) + l.reb,
+      'c:ast': (e.uso['c:ast'] ?? 0) + l.ast,
+      'c:rob': (e.uso['c:rob'] ?? 0) + l.rob,
+      'c:tap': (e.uso['c:tap'] ?? 0) + l.tap,
+      'c:t3': (e.uso['c:t3'] ?? 0) + l.t3I,
       if (l.pts >= 30) 'c:p30': (e.uso['c:p30'] ?? 0) + 1,
       if (l.pts >= 40) 'c:p40': (e.uso['c:p40'] ?? 0) + 1,
       if (l.pts >= 50) 'c:p50': (e.uso['c:p50'] ?? 0) + 1,
@@ -2202,7 +2209,14 @@ class CarreraJugador {
       phBanco: e.phBanco + phBase + phObjetivos + phPremios,
       phAcreditados: 0,
       historial: [...e.historial, temporada],
-      uso: {...e.uso, 'dg:obj': phObjetivos * 100, 'dg:prem': phPremios * 100}..remove('rutina'),
+      uso: {
+        ...e.uso,
+        'dg:obj': phObjetivos * 100,
+        'dg:prem': phPremios * 100,
+        // Mejores promedios de una temporada (para los récords): los de puntos, rebotes y asistencias salen del historial.
+        'b:rob100': max(e.uso['b:rob100'] ?? 0, (marcaFinal.robPorPartido * 100).round()),
+        'b:tap100': max(e.uso['b:tap100'] ?? 0, (marcaFinal.tapPorPartido * 100).round()),
+      }..remove('rutina'),
       hitos: hitos,
       confianza: (confianzaAnio + dConfianza).clamp(0, 98).toInt(),
       moral: (moralAnio + dMoral).clamp(0, 97).toInt(),
