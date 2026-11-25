@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:dinastia_nba/data/catalogo_jugadores.dart';
 import 'package:dinastia_nba/data/franquicias.dart';
+import 'package:dinastia_nba/domain/entities/estilo_creado.dart';
 import 'package:dinastia_nba/domain/entities/posicion.dart';
 import 'package:dinastia_nba/domain/entities/rol_cancha.dart';
 import 'package:dinastia_nba/domain/liga.dart';
@@ -20,6 +21,8 @@ void main() {
     posicion: Posicion.escolta,
     rol: RolCancha.especialista3D,
     fuertes: const [Atributo.tiro, Atributo.defensa, Atributo.iq],
+    // Personalidad neutra para estas cuentas (el Showman y el Líder suman un poco a las decisiones).
+    estilo: const EstiloCreado(personalidad: Personalidad.profesional),
   );
   EstadoCarrera nuevo() =>
       carrera.estadoCreado(raiz: 'v1', creado: creado, pick: 10, franquiciaId: 'CHI', potencial: 90);

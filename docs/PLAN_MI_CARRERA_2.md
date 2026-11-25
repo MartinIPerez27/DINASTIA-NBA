@@ -124,6 +124,24 @@ estadísticas avanzadas.
   - Pendiente de este punto: que el jugador "salga" mid-season por una decisión del club (hoy solo se mueven
     compañeros; el traspaso propio se negocia en el receso).
 
+- **Bloque 8 (el mundo alrededor de tu jugador) — hecho.**
+  - **Bandeja de entrada**: premios, objetivos, plantel y mercado en un solo lugar, con filtros y contador de no
+    leídos (se arma con tu historia y los movimientos; no guarda nada aparte).
+  - **Rivales que se adaptan + informe de scouting**: con los partidos (150 para conocerte del todo) los rivales
+    cierran lo que más hacés: si el 30 % o más de tus puntos son de triples te cierran el triple (hasta −7 %) y si
+    casi no tirás de afuera te cierran la pintura (hasta −6 %); un juego equilibrado casi no se marca. Entra al
+    motor como ajuste del rival en simular y en vivo, y el director de decisiones lo conserva.
+  - **Química con compañeros**: cada partido juntos suma (Bronce 20, Plata 60, Oro 150); sube el acierto de los tiros
+    asistidos (hasta +1,2 %) y la química general (hasta +0,6 %); si el compañero se va, se pierde.
+  - **Personalidad** (Líder, Competidor, Showman, Profesional), elegida al crear el jugador (los reales reciben una
+    fija): relación, clutch y Takeover, fans, lesiones y ánimo.
+  - **Estadísticas avanzadas** (TS %, eFG %, TC, T3, TL, asistencias por pérdida, valoración de Hollinger, minutos y
+    puntos por 36), llevadas partido a partido desde esta versión.
+  - Sin hacer todavía de las ideas aprobadas: carga de partidos, lesiones por partes del cuerpo, secundario→
+    universidad→NBA, selección nacional, carrera generacional, staff y agente, tu carta de carrera, relator con
+    memoria, mapa de tiro de carrera, entrenamientos interactivos, mercado y contratos, mentores, rehabilitación,
+    prensa y redes, All-Star jugable, Salón de la Fama con cuadro de honor, y el timing de libres/robo/rebote/pase.
+
 - **Bloque 7 (barra de tiro y control del jugador) — hecho en parte.**
   - Motor: el tiro se parte en dos pasos sin tocar el azar (`siguienteInteractivo` / `resolverMomento`): con timing
     neutro el partido sale idéntico al de siempre (probado). Simular, saltar jugadas y los demás modos nunca se frenan.

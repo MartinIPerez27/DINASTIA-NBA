@@ -10,6 +10,17 @@ enum OrigenJugador {
   final String etiqueta, descripcion;
 }
 
+/// Cómo es tu jugador de carácter: cada personalidad inclina un poco la carrera.
+enum Personalidad {
+  lider('Líder', 'El vestuario te sigue: más relación con el equipo y eventos que la refuerzan.'),
+  competidor('Competidor', 'Te crecés en el final: el rasgo Clutch rinde más y el Takeover se carga antes.'),
+  showman('Showman', 'La gente te quiere: ganás más fans cada año y mejores contratos de marca.'),
+  profesional('Profesional', 'Te cuidás: menos lesiones y el ánimo no se desploma en las malas rachas.');
+
+  const Personalidad(this.etiqueta, this.descripcion);
+  final String etiqueta, descripcion;
+}
+
 class EstiloCreado {
   const EstiloCreado({
     this.envergadura = 0,
@@ -17,6 +28,7 @@ class EstiloCreado {
     this.origen = OrigenJugador.universidad,
     this.formaDeTiro = 0,
     this.festejo = 0,
+    this.personalidad = Personalidad.profesional,
   });
 
   /// Centímetros de brazos de más (o de menos) respecto de tu altura: de −10 a +15.
@@ -26,21 +38,30 @@ class EstiloCreado {
   final int mano;
   final OrigenJugador origen;
   final int formaDeTiro, festejo;
+  final Personalidad personalidad;
 
   static const envergaduraMin = -10, envergaduraMax = 15;
   static const manos = ['Derecho', 'Zurdo', 'Ambidiestro'];
   static const formas = ['Clásico', 'Rápido', 'Alto y liviano', 'Salto hacia atrás', 'Muñeca suelta'];
   static const festejos = ['Tranquilo', 'Puño al aire', 'Silencio al público', 'Brazos abiertos', 'Baile corto', 'Señalar al cielo'];
 
-  EstiloCreado copyWith({int? envergadura, int? mano, OrigenJugador? origen, int? formaDeTiro, int? festejo}) => EstiloCreado(
+  EstiloCreado copyWith({
+    int? envergadura,
+    int? mano,
+    OrigenJugador? origen,
+    int? formaDeTiro,
+    int? festejo,
+    Personalidad? personalidad,
+  }) => EstiloCreado(
     envergadura: (envergadura ?? this.envergadura).clamp(envergaduraMin, envergaduraMax),
     mano: mano ?? this.mano,
     origen: origen ?? this.origen,
     formaDeTiro: formaDeTiro ?? this.formaDeTiro,
     festejo: festejo ?? this.festejo,
+    personalidad: personalidad ?? this.personalidad,
   );
 
-  String get codigo => '$envergadura.$mano.${origen.index}.$formaDeTiro.$festejo';
+  String get codigo => '$envergadura.$mano.${origen.index}.$formaDeTiro.$festejo.${personalidad.index}';
 
   static EstiloCreado? deCodigo(String? codigo) {
     if (codigo == null) return null;
@@ -52,6 +73,7 @@ class EstiloCreado {
       origen: OrigenJugador.values[v(2, 0, OrigenJugador.values.length - 1, 1)],
       formaDeTiro: v(3, 0, formas.length - 1, 0),
       festejo: v(4, 0, festejos.length - 1, 0),
+      personalidad: Personalidad.values[v(5, 0, Personalidad.values.length - 1, Personalidad.profesional.index)],
     );
   }
 }

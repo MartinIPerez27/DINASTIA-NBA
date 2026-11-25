@@ -41,7 +41,7 @@ class MiEquipoPantalla extends StatelessWidget {
                     children: [
                       Text(j.nombre, maxLines: 1, overflow: TextOverflow.ellipsis, style: tema.textTheme.bodyMedium),
                       Text(
-                        '${j.posiciones.first.etiqueta} · ${PlantelCarrera.edadEn(j, anio)} años',
+                        '${j.posiciones.first.etiqueta} · ${PlantelCarrera.edadEn(j, anio)} años · química: ${QuimicaCarrera.nivelCon(estado, j).etiqueta}',
                         style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
                       ),
                     ],
@@ -432,6 +432,95 @@ class _RecordsPantallaState extends State<RecordsPantalla> {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// La bandeja de entrada de tu carrera: todo lo que te pasó, por categoría, de lo más nuevo a lo más viejo.
+class BandejaPantalla extends StatefulWidget {
+  const BandejaPantalla({super.key, required this.estado, this.alAbrir});
+
+  final EstadoCarrera estado;
+
+  /// Se llama al abrirla (para marcar todo como leído).
+  final VoidCallback? alAbrir;
+
+  @override
+  State<BandejaPantalla> createState() => _BandejaPantallaState();
+}
+
+class _BandejaPantallaState extends State<BandejaPantalla> {
+  CategoriaMensaje? _filtro;
+  late final int _sinLeer = BandejaCarrera.sinLeer(widget.estado);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => widget.alAbrir?.call());
+  }
+
+  static IconData _icono(CategoriaMensaje c) => switch (c) {
+    CategoriaMensaje.premios => Icons.emoji_events_outlined,
+    CategoriaMensaje.objetivos => Icons.flag_outlined,
+    CategoriaMensaje.plantel => Icons.groups_outlined,
+    CategoriaMensaje.mercado => Icons.swap_horiz,
+    CategoriaMensaje.general => Icons.chat_bubble_outline,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final todos = BandejaCarrera.mensajes(widget.estado);
+    final lista = [
+      for (final m in todos)
+        if (_filtro == null || m.categoria == _filtro) m,
+    ];
+    return Scaffold(
+      appBar: AppBar(title: const Text('Bandeja de entrada')),
+      body: SafeArea(
+        child: Column(
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Row(
+                children: [
+                  ChoiceChip(label: Text('Todos (${todos.length})'), selected: _filtro == null, onSelected: (_) => setState(() => _filtro = null)),
+                  for (final c in CategoriaMensaje.values) ...[
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: Text(c.etiqueta),
+                      selected: _filtro == c,
+                      onSelected: (_) => setState(() => _filtro = _filtro == c ? null : c),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Expanded(
+              child: lista.isEmpty
+                  ? const Center(child: Text('Todavía no hay novedades.'))
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                      itemCount: lista.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (context, i) {
+                        final m = lista[i];
+                        final nuevo = todos.indexOf(m) < _sinLeer;
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(_icono(m.categoria), color: nuevo ? esquema.primary : esquema.onSurfaceVariant),
+                          title: Text(m.texto, style: tema.textTheme.bodyMedium?.copyWith(fontWeight: nuevo ? FontWeight.w700 : null)),
+                          subtitle: Text(m.categoria.etiqueta, style: tema.textTheme.labelSmall),
+                          trailing: nuevo ? Icon(Icons.fiber_manual_record, size: 10, color: esquema.primary) : null,
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

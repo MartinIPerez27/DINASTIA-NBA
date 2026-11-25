@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../entities/estilo_creado.dart' show Personalidad;
 import '../entities/rol_cancha.dart';
 import 'carrera_jugador.dart';
 
@@ -126,6 +127,12 @@ class VidaCarrera {
     RolCancha.inyeccionEnergia => {Habilidad.resistencia, Habilidad.robo, Habilidad.defPerimetral},
   };
 
+  // ---- personalidad ----
+
+  /// Tu personalidad: la que elegiste al crear el jugador o, si es un jugador real, una fija según tu carrera.
+  static Personalidad personalidad(EstadoCarrera e) =>
+      e.creado?.estilo?.personalidad ?? Personalidad.values[_hash('${e.raiz}-personalidad') % Personalidad.values.length];
+
   // ---- rutina ----
 
   static Rutina? rutinaDe(EstadoCarrera e) {
@@ -148,7 +155,8 @@ class VidaCarrera {
     // La durabilidad pesa: 95 casi no se lesiona (×0,7); 50, bastante más (×1,3).
     final dur = Habilidad.valor(Habilidad.durabilidad, e.atributos, e.espec);
     final porDurabilidad = (1 - (dur - 75) * 0.015).clamp(0.7, 1.3).toDouble();
-    return rutina * porDurabilidad;
+    final profesional = personalidad(e) == Personalidad.profesional ? 0.85 : 1.0;
+    return rutina * porDurabilidad * profesional;
   }
 
   // ---- eventos ----
@@ -296,11 +304,13 @@ class VidaCarrera {
   /// Aplica la respuesta [i] al evento [ev]. Suma al ánimo, los fans, la relación, la confianza y los puntos.
   static EstadoCarrera resolver(EstadoCarrera e, EventoCarrera ev, int i) {
     final o = ev.opciones[i.clamp(0, ev.opciones.length - 1)];
+    final p = personalidad(e);
     return e.copyWith(
       confianza: e.confianza + o.confianza,
       moral: e.moral + o.moral,
-      fans: e.fans + o.fans,
-      relacion: e.relacion + o.relacion,
+      // La personalidad suma un poco a lo que ya mueve cada decisión.
+      fans: e.fans + o.fans + (p == Personalidad.showman && o.fans > 0 ? 2 : 0),
+      relacion: e.relacion + o.relacion + (p == Personalidad.lider && o.relacion > 0 ? 2 : 0),
       phBanco: max(0, e.phBanco + o.ph),
       uso: {
         ...e.uso,

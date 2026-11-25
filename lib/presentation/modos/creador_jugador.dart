@@ -673,6 +673,17 @@ class _EditorAvatar extends StatelessWidget {
         _Grupo(
           titulo: 'ESTILO DE JUEGO',
           hijos: [
+            _Opciones(
+              titulo: 'Personalidad',
+              nombres: [for (final p in Personalidad.values) p.etiqueta],
+              valor: estilo.personalidad.index,
+              alElegir: (v) => alCambiarEstilo(estilo.copyWith(personalidad: Personalidad.values[v])),
+            ),
+            Text(
+              estilo.personalidad.descripcion,
+              style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 10),
             _Opciones(titulo: 'Forma de tirar', nombres: EstiloCreado.formas, valor: estilo.formaDeTiro, alElegir: (v) => alCambiarEstilo(estilo.copyWith(formaDeTiro: v))),
             _Opciones(titulo: 'Festejo', nombres: EstiloCreado.festejos, valor: estilo.festejo, alElegir: (v) => alCambiarEstilo(estilo.copyWith(festejo: v))),
             Text('Tu forma de tirar y tu festejo te identifican en el relato y en la barra de tiro.', style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant)),

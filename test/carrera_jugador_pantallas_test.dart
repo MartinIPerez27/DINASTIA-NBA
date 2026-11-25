@@ -309,6 +309,42 @@ void main() {
     expect(salida?.nacimiento, 1975);
   });
 
+  testWidgets('la bandeja filtra por categoría y marca todo como leído al abrirla', (t) async {
+    telefono(t);
+    var leidos = 0;
+    final base = carrera.estadoCreado(raiz: 'w14', creado: creado, pick: 5, franquiciaId: 'CHI');
+    final et = base.etiquetaDe(1);
+    final e = base.copyWith(
+      hitos: ['$et: Jugador del mes.', '$et: mini-objetivo del mes cumplido — algo.'],
+      movimientos: ['$et: Zutano se retira a los 36 años.'],
+    );
+    await t.pumpWidget(app(BandejaPantalla(estado: e, alAbrir: () => leidos++)));
+    await t.pumpAndSettle();
+    expect(find.text('Bandeja de entrada'), findsOneWidget);
+    expect(find.textContaining('Todos (3)'), findsOneWidget);
+    expect(leidos, 1);
+    await t.tap(find.widgetWithText(ChoiceChip, 'Premios'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('Jugador del mes'), findsOneWidget);
+    expect(find.textContaining('se retira'), findsNothing);
+  });
+
+  testWidgets('los paneles de scouting, química, personalidad y avanzadas se ven', (t) async {
+    telefono(t);
+    t.view.physicalSize = const Size(412, 2400) * 2.5;
+    final base = carrera.estadoCreado(raiz: 'w15', creado: creado, pick: 5, franquiciaId: 'CHI');
+    final e = EstadoCarrera.de(carrera.nuevaCarrera(estado: base, dificultad: Dificultad.normal))!.copyWith(
+      uso: {'c:pj': 150, 'c:pts': 3000, 'c:t3': 700, 'c:tcI': 1100, 'c:tcA': 2300, 'c:t3A': 1800, 'c:tlI': 400, 'c:tlA': 500, 'c:ast': 400, 'c:per': 300, 'c:seg': 150 * 30 * 60},
+    );
+    await t.pumpWidget(app(Scaffold(body: SingleChildScrollView(child: Column(children: [PanelMundo(estado: e), PanelAvanzadas(estado: e)])))));
+    expect(find.textContaining('TU PERSONALIDAD'), findsOneWidget);
+    expect(find.text('QUÍMICA DEL EQUIPO'), findsOneWidget);
+    expect(find.text('SCOUTING DE LOS RIVALES'), findsOneWidget);
+    expect(find.textContaining('Te cierran el triple'), findsOneWidget);
+    expect(find.text('ESTADÍSTICAS AVANZADAS'), findsOneWidget);
+    expect(find.text('TS %'), findsOneWidget);
+  });
+
   testWidgets('legado: totales, veredicto y línea de tiempo', (t) async {
     telefono(t);
     var e = carrera.estadoCreado(raiz: 'w3', creado: creado, pick: 5, franquiciaId: 'CHI');

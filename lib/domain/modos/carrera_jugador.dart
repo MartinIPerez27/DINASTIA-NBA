@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../efecto_en_vivo.dart';
 import '../entities/avatar_creado.dart';
 import '../entities/estilo_creado.dart';
 import '../entities/jugador.dart';
@@ -15,12 +16,14 @@ import '../playbook.dart';
 import '../premios.dart';
 import 'dinastia.dart';
 import 'habilidades.dart';
+import 'mundo_carrera.dart';
 import 'objetivos_carrera.dart';
 import 'plantel_carrera.dart';
 import 'premios_carrera.dart';
 import 'puntos_carrera.dart';
 import 'vida_carrera.dart';
 
+export 'mundo_carrera.dart';
 export 'objetivos_carrera.dart';
 export 'generacion_carrera.dart';
 export 'plantel_carrera.dart';
@@ -1359,6 +1362,17 @@ class CierreTemporada {
 class CarreraJugador {
   CarreraJugador(this.liga) {
     liga.alRegistrarPartido = (t, p, m) => t.modoJuego == ModoJuego.carreraJugador ? alPartido(t, p, m) : t;
+    liga.alCrearMotor = (t, p, m) {
+      if (t.modoJuego != ModoJuego.carreraJugador) return;
+      final e = EstadoCarrera.de(t);
+      if (e == null || e.retirado) return;
+      final local = p.localId == t.franquiciaUsuarioId;
+      // La química con tus compañeros suma a tu equipo; los rivales, ya preparados, cierran lo que más hacés.
+      final quimica = QuimicaCarrera.mods(e);
+      if (!quimica.esNeutro) m.aplicarEfecto(local, EfectoEnVivo(mods: quimica));
+      final rival = AdaptacionRival.efecto(e);
+      if (rival != null) m.aplicarEfecto(!local, rival);
+    };
   }
 
   final Liga liga;
@@ -1814,6 +1828,14 @@ class CarreraJugador {
       'c:rob': (e.uso['c:rob'] ?? 0) + l.rob,
       'c:tap': (e.uso['c:tap'] ?? 0) + l.tap,
       'c:t3': (e.uso['c:t3'] ?? 0) + l.t3I,
+      'c:tcI': (e.uso['c:tcI'] ?? 0) + l.tcI,
+      'c:tcA': (e.uso['c:tcA'] ?? 0) + l.tcA,
+      'c:t3A': (e.uso['c:t3A'] ?? 0) + l.t3A,
+      'c:tlI': (e.uso['c:tlI'] ?? 0) + l.tlI,
+      'c:tlA': (e.uso['c:tlA'] ?? 0) + l.tlA,
+      'c:per': (e.uso['c:per'] ?? 0) + l.per,
+      'c:fal': (e.uso['c:fal'] ?? 0) + l.fal,
+      'c:seg': (e.uso['c:seg'] ?? 0) + l.seg.round(),
       if (l.pts >= 30) 'c:p30': (e.uso['c:p30'] ?? 0) + 1,
       if (l.pts >= 40) 'c:p40': (e.uso['c:p40'] ?? 0) + 1,
       if (l.pts >= 50) 'c:p50': (e.uso['c:p50'] ?? 0) + 1,
@@ -1826,7 +1848,13 @@ class CarreraJugador {
       'm:tap': mejor('m:tap', l.tap),
       'm:t3': mejor('m:t3', l.t3I),
     };
-    var ne = e.copyWith(uso: uso, phBanco: e.phBanco + enteros);
+    // Química: un partido más con cada compañero que jugó.
+    final cajas = local ? m.boxLocal : m.boxVisitante;
+    final jugaron = [
+      for (final x in cajas.entries)
+        if (x.value.seg > 0 && x.key != e.jugadorId) x.key,
+    ];
+    var ne = e.copyWith(uso: QuimicaCarrera.alPartido(e.copyWith(uso: uso), jugaron), phBanco: e.phBanco + enteros);
     // Temporada regular: contadores del año y del "mes" (14 partidos), con su mini-objetivo.
     if (regular) {
       if (ne.uso['mo:tipo'] == null) ne = ne.copyWith(uso: {...ne.uso, ...ObjetivosCarrera.fijarMini(ne)});
@@ -2027,7 +2055,7 @@ class CarreraJugador {
       dobles: e.uso['sc:dd'] ?? 0,
       triplesDobles: e.uso['sc:td'] ?? 0,
       jugadorDelMes: e.uso['sc:mes'] ?? 0,
-      relacion: e.relacion,
+      relacion: (e.relacion + (VidaCarrera.personalidad(e) == Personalidad.lider ? 2 : 0)).clamp(0, 100),
       moral: e.moral,
       confianza: e.confianza,
       fans: e.fans,
@@ -2195,13 +2223,15 @@ class CarreraJugador {
         (resumen.campeon ? 4 : 0) +
         (cumplidos >= 2 ? 2 : -2) +
         (resumen.victorias >= 50 ? 1 : 0) +
-        (VidaCarrera.rutinaDe(e) == Rutina.recuperacion ? 3 : 0);
+        (VidaCarrera.rutinaDe(e) == Rutina.recuperacion ? 3 : 0) +
+        (VidaCarrera.personalidad(e) == Personalidad.profesional ? 1 : 0);
     final dFans =
         (marcaFinal.allStar ? 3 : 0) +
         (resumen.campeon ? 4 : 0) +
         min(3, premios.length) +
         (cumplidos >= 2 ? 1 : -1) +
-        VidaCarrera.fansPorPatrocinios(e);
+        VidaCarrera.fansPorPatrocinios(e) +
+        (VidaCarrera.personalidad(e) == Personalidad.showman ? 3 : 0);
     final cerrado = e.copyWith(
       atributos: atributosNuevos,
       edad: edadNueva,
@@ -2219,10 +2249,11 @@ class CarreraJugador {
       }..remove('rutina'),
       hitos: hitos,
       confianza: (confianzaAnio + dConfianza).clamp(0, 98).toInt(),
-      moral: (moralAnio + dMoral).clamp(0, 97).toInt(),
+      moral: (moralAnio + dMoral).clamp(VidaCarrera.personalidad(e) == Personalidad.profesional ? 35 : 0, 97).toInt(),
       fans: (fansAnio + dFans).clamp(0, 98).toInt(),
       cerrada: true,
       prensaHecha: 0,
+      relacion: e.relacion + (VidaCarrera.personalidad(e) == Personalidad.lider ? 2 : 0),
     );
     // Objetivos de carrera que se cumplieron con esta temporada sumada.
     final logradosCarrera = ObjetivosCarrera.nuevosDeCarrera(cerrado);

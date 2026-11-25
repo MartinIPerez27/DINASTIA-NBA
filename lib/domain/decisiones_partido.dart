@@ -6,7 +6,9 @@ import 'entities/posicion.dart';
 import 'entities/tactica.dart';
 import 'modificadores.dart';
 import 'modos/carrera_jugador.dart' show Atributo, Atributos, EstadoCarrera, GradoInsignia, Habilidad, Insignia;
+import 'entities/estilo_creado.dart' show Personalidad;
 import 'modos/medidor_tiro.dart' show AjustesMedidor;
+import 'modos/vida_carrera.dart' show VidaCarrera;
 import 'motor.dart';
 import 'premios.dart' show apellido;
 
@@ -328,6 +330,7 @@ class PerfilVivo {
     this.moral = 60,
     this.ajustes = const AjustesMedidor(),
     this.formaDeTiro = 0,
+    this.personalidad = Personalidad.profesional,
   });
 
   factory PerfilVivo.de(EstadoCarrera e) => PerfilVivo(
@@ -339,6 +342,7 @@ class PerfilVivo {
     moral: e.moral,
     ajustes: AjustesMedidor.de(e),
     formaDeTiro: e.creado?.estilo?.formaDeTiro ?? 0,
+    personalidad: VidaCarrera.personalidad(e),
   );
 
   final String id, nombre;
@@ -350,9 +354,13 @@ class PerfilVivo {
   /// Cómo jugás el control del partido (barra de tiro) y tu forma de tirar.
   final AjustesMedidor ajustes;
   final int formaDeTiro;
+  final Personalidad personalidad;
 
   int a(Atributo x) => atributos[x];
-  int h(Habilidad x) => Habilidad.valor(x, atributos, espec);
+  /// Los Competidores se crecen en el final: +5 al rasgo Clutch.
+  int h(Habilidad x) =>
+      (Habilidad.valor(x, atributos, espec) + (x == Habilidad.clutch && personalidad == Personalidad.competidor ? 5 : 0))
+          .clamp(25, 99);
   int nivel(Insignia i) => grados[i]?.nivel ?? 0;
 
   /// Promedio de varias habilidades (las que juegan en una misma acción).
@@ -367,6 +375,9 @@ class PerfilVivo {
 class DirectorDecisiones {
   DirectorDecisiones({required this.motor, required this.propio, this.habilitado = true, this.yo}) {
     _tm = motor.tiemposMuertos(propio);
+    // Se anota lo que traían los equipos antes de la primera decisión.
+    _baseP;
+    _baseR;
   }
 
   final MotorPartido motor;
@@ -400,6 +411,9 @@ class DirectorDecisiones {
 
   final registro = <RegistroDecision>[];
   final activos = <EfectoActivo>[];
+
+  /// Lo que ya tenían los equipos al empezar (química, rivales que te estudian): las decisiones se suman encima.
+  late final EfectoEnVivo? _baseP = motor.efecto(propio), _baseR = motor.efecto(!propio);
 
   /// Jugada que se pide sola en cada posesión del final apretado (la elegida en el entretiempo).
   JugadaClave? jugadaPreferida;
@@ -1063,7 +1077,7 @@ class DirectorDecisiones {
   }
 
   void _reaplicar() {
-    var p = const EfectoEnVivo(), r = const EfectoEnVivo();
+    var p = _baseP ?? const EfectoEnVivo(), r = _baseR ?? const EfectoEnVivo();
     for (final ef in activos) {
       p = p.mas(ef.propio);
       r = r.mas(ef.rival);
@@ -1195,6 +1209,8 @@ class DirectorDecisiones {
     for (final t in mios) {
       c += t.$4 ? (t.$3 ? 30 : 20) : -8;
     }
+    // El Competidor carga el Takeover un 15 % más rápido.
+    if (yo!.personalidad == Personalidad.competidor) c *= 1.15;
     return c.clamp(0, 100).toDouble();
   }
 

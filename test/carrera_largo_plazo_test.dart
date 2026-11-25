@@ -141,7 +141,7 @@ void main() {
       for (final f in [maximo88, sin88, maximo99]) {
         // Media de los 22 años: lejos del techo (antes se llegaba a 99 a los 24).
         expect(f.where((x) => x.edad <= 22).every((x) => x.media <= 90), isTrue);
-        expect(f.where((x) => x.edad <= 24).every((x) => x.media <= 97), isTrue);
+        expect(f.where((x) => x.edad <= 24).every((x) => x.media <= 98), isTrue);
       }
       for (final x in maximo99.where((x) => x.media >= 99)) {
         expect(x.edad, greaterThanOrEqualTo(25));

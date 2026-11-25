@@ -714,6 +714,98 @@ class PanelControlPartido extends StatelessWidget {
   }
 }
 
+/// Tu personalidad, la química con el plantel y lo que los rivales saben de vos.
+class PanelMundo extends StatelessWidget {
+  const PanelMundo({super.key, required this.estado});
+
+  final EstadoCarrera estado;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final p = VidaCarrera.personalidad(estado);
+    final puntos = QuimicaCarrera.puntos(estado);
+    final maximo = estado.companeros.length * 3;
+    final mods = QuimicaCarrera.mods(estado);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('TU PERSONALIDAD: ${p.etiqueta.toUpperCase()}', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 2),
+        Text(p.descripcion, style: tema.textTheme.bodySmall),
+        const SizedBox(height: 12),
+        Text('QUÍMICA DEL EQUIPO', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        LinearProgressIndicator(value: maximo == 0 ? 0 : puntos / maximo, minHeight: 6),
+        const SizedBox(height: 4),
+        Text(
+          puntos == 0
+              ? 'Jugando juntos se arma la química (Bronce a los 20 partidos, Plata a los 60 y Oro a los 150). Si un compañero se va, se pierde.'
+              : 'Tus tiros asistidos aciertan +${(mods.asistidoExtra * 100).toStringAsFixed(1).replaceAll('.', ',')} % por lo bien que se conocen.',
+          style: tema.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 12),
+        Text('SCOUTING DE LOS RIVALES', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        for (final l in AdaptacionRival.informe(estado))
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Text(l, style: tema.textTheme.bodySmall?.copyWith(color: l.startsWith('Te cierran') ? esquema.error : null)),
+          ),
+      ],
+    );
+  }
+}
+
+/// Tus estadísticas avanzadas de carrera.
+class PanelAvanzadas extends StatelessWidget {
+  const PanelAvanzadas({super.key, required this.estado});
+
+  final EstadoCarrera estado;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final a = AvanzadasCarrera.de(estado);
+    String pc(double v) => '${(v * 100).toStringAsFixed(1).replaceAll('.', ',')} %';
+    String n1(double v) => v.toStringAsFixed(1).replaceAll('.', ',');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('ESTADÍSTICAS AVANZADAS', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        if (a == null)
+          Text('Aparecen después de tu primer partido.', style: tema.textTheme.bodySmall)
+        else ...[
+          Wrap(
+            spacing: 18,
+            runSpacing: 8,
+            children: [
+              _Celda('TS %', pc(a.ts)),
+              _Celda('eFG %', pc(a.efg)),
+              _Celda('TC', pc(a.pctTc)),
+              _Celda('T3', pc(a.pctT3)),
+              _Celda('TL', pc(a.pctTl)),
+              _Celda('AST/PÉRD.', n1(a.astPorPerdida)),
+              _Celda('VALORACIÓN', n1(a.valoracion)),
+              _Celda('MIN', n1(a.minutos)),
+              _Celda('PTS/36', n1(a.puntosPor36)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'En ${a.pj} partidos desde que se llevan estos números. TS % y eFG % cuentan que un triple vale más y '
+            'los libres importan; la valoración usa la fórmula de Hollinger.',
+            style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 /// Tu marca personal: fama, patrocinios y camisetas retiradas.
 class PanelMarca extends StatelessWidget {
   const PanelMarca({super.key, required this.estado});
@@ -1019,6 +1111,12 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
     widget.onCambiar(_t);
   }
 
+  void _marcarLeidos() {
+    final e = BandejaCarrera.marcarLeidos(_e);
+    setState(() => _t = widget.carrera.sincronizar(_t, e));
+    widget.onCambiar(_t);
+  }
+
   void _ajustarMedidor(AjustesMedidor a) {
     final e = _e.copyWith(uso: {..._e.uso, ...a.aUso});
     setState(() => _t = widget.carrera.sincronizar(_t, e));
@@ -1161,6 +1259,18 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
       ),
       const SizedBox(height: 12),
       _Panel(child: PanelObjetivosLargos(estado: e)),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => BandejaPantalla(estado: e, alAbrir: _marcarLeidos)),
+        ),
+        icon: const Icon(Icons.inbox_outlined),
+        label: Text(BandejaCarrera.sinLeer(e) > 0 ? 'BANDEJA DE ENTRADA · ${BandejaCarrera.sinLeer(e)} NUEVOS' : 'BANDEJA DE ENTRADA'),
+      ),
+      const SizedBox(height: 12),
+      _Panel(child: PanelMundo(estado: e)),
+      const SizedBox(height: 12),
+      _Panel(child: PanelAvanzadas(estado: e)),
       const SizedBox(height: 12),
       _Panel(
         child: PanelControlPartido(estado: e, alCambiar: _ajustarMedidor),

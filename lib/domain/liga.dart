@@ -356,13 +356,20 @@ class Liga {
     return null;
   }
 
-  MotorPartido motor(Temporada t, Partido p, {Random? azar, Map<String, int>? lesiones}) => MotorPartido(
-    local: _conDesgaste(equipo(t, p.localId, lesiones: lesiones), t, p, p.localId),
-    visitante: _conDesgaste(equipo(t, p.visitanteId, lesiones: lesiones), t, p, p.visitanteId),
-    // Partido entre dos IA: sin lado del usuario (así los dos piden tiempo muerto igual).
-    usuarioLocal: p.participa(t.franquiciaUsuarioId) ? p.localId == t.franquiciaUsuarioId : null,
-    azar: azar ?? _azar,
-  );
+  /// Lo que hace un modo con cada motor recién armado de un partido de tu equipo (Mi carrera: química y rivales que te estudian).
+  void Function(Temporada t, Partido partido, MotorPartido motor)? alCrearMotor;
+
+  MotorPartido motor(Temporada t, Partido p, {Random? azar, Map<String, int>? lesiones}) {
+    final m = MotorPartido(
+      local: _conDesgaste(equipo(t, p.localId, lesiones: lesiones), t, p, p.localId),
+      visitante: _conDesgaste(equipo(t, p.visitanteId, lesiones: lesiones), t, p, p.visitanteId),
+      // Partido entre dos IA: sin lado del usuario (así los dos piden tiempo muerto igual).
+      usuarioLocal: p.participa(t.franquiciaUsuarioId) ? p.localId == t.franquiciaUsuarioId : null,
+      azar: azar ?? _azar,
+    );
+    if (p.participa(t.franquiciaUsuarioId)) alCrearMotor?.call(t, p, m);
+    return m;
+  }
 
   /// Calendario con desgaste: ¿jugó la noche anterior (back-to-back)? ¿cuántos partidos seguidos
   /// lleva de visitante (gira)? Solo en temporada regular.
