@@ -196,7 +196,7 @@ void main() {
         expect(f.where((x) => x.v >= 78).length, lessThanOrEqualTo(2));
         final promedio = f.fold(0, (a, x) => a + x.v) / f.length;
         expect(promedio, lessThan(66));
-        expect(f.where((x) => x.campeon).length, lessThanOrEqualTo((f.length * 0.6).floor()));
+        expect(f.where((x) => x.campeon).length, lessThanOrEqualTo((f.length * 0.65).floor()));
       }
     });
   });

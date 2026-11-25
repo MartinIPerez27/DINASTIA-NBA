@@ -435,7 +435,7 @@ class Liga {
             final m = motor(t, p, lesiones: lesiones)..simularTodo();
             _sumarBox(lineas, m);
             _actualizarForma(forma, m);
-            _actualizarLesiones(lesiones, p, m, equipoDe, extremo: t.modoJuego == ModoJuego.extremo);
+            _actualizarLesiones(t, lesiones, p, m, equipoDe, extremo: t.modoJuego == ModoJuego.extremo);
             return p.conResultado(m.parcialesLocal, m.parcialesVisitante);
           }()
         else
@@ -457,7 +457,7 @@ class Liga {
     _actualizarForma(forma, m);
     final lesiones = Map.of(t.lesiones);
     if (partido.jornada > 0) {
-      _actualizarLesiones(lesiones, partido, m, equipos(t), extremo: t.modoJuego == ModoJuego.extremo);
+      _actualizarLesiones(t, lesiones, partido, m, equipos(t), extremo: t.modoJuego == ModoJuego.extremo);
     }
     final calendario = [
       for (final p in t.calendario) p.id == partido.id ? p.conResultado(m.parcialesLocal, m.parcialesVisitante) : p,
@@ -478,6 +478,7 @@ class Liga {
   /// jugó tiene una chance chica de lesionarse (casi siempre poco tiempo; a veces, semanas).
   /// En Extremo ([extremo]) son el doble de probables y duran 50 % más.
   void _actualizarLesiones(
+    Temporada t,
     Map<String, int> lesiones,
     Partido p,
     MotorPartido m,
@@ -496,13 +497,16 @@ class Liga {
       }
     }
     for (final e in [...m.boxLocal.entries, ...m.boxVisitante.entries]) {
-      final chance = probabilidadLesion * (extremo ? 2 : 1);
+      final chance = probabilidadLesion * (extremo ? 2 : 1) * (factorLesionJugador?.call(t, e.key) ?? 1.0);
       if (e.value.seg < 60 || lesiones.containsKey(e.key) || _azar.nextDouble() >= chance) continue;
       final r = _azar.nextDouble();
       final dias = r < 0.6 ? 1 + _azar.nextInt(3) : (r < 0.9 ? 4 + _azar.nextInt(7) : 11 + _azar.nextInt(15));
       lesiones[e.key] = extremo ? (dias * 1.5).ceil() : dias;
     }
   }
+
+  /// Multiplica la chance de lesión de un jugador concreto (Mi carrera: durabilidad, carga y rutina de tu jugador).
+  double Function(Temporada t, String jugadorId)? factorLesionJugador;
 
   /// Chance de lesionarse en cada partido que juega (≈ 2-3 lesiones por equipo por temporada).
   static const probabilidadLesion = 0.005;

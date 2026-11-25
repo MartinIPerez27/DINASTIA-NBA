@@ -714,6 +714,97 @@ class PanelControlPartido extends StatelessWidget {
   }
 }
 
+/// Carga de partidos, lesión actual por parte del cuerpo, rehabilitación e historial.
+class PanelCuerpo extends StatelessWidget {
+  const PanelCuerpo({
+    super.key,
+    required this.temporada,
+    required this.estado,
+    required this.alElegirRehab,
+    required this.alDescansar,
+  });
+
+  final Temporada temporada;
+  final EstadoCarrera estado;
+  final ValueChanged<Rehab> alElegirRehab;
+  final VoidCallback alDescansar;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final carga = CuerpoCarrera.carga(estado);
+    final parte = CuerpoCarrera.activa(estado);
+    final baja = temporada.lesiones[estado.jugadorId];
+    final rehab = CuerpoCarrera.rehabElegida(estado);
+    final cronicas = CuerpoCarrera.cronicas(estado);
+    final cansado = carga > CuerpoCarrera.cargaCansada;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('CUERPO Y SALUD', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 6),
+        Text('Carga de partidos: $carga / 100', style: tema.textTheme.bodyMedium),
+        const SizedBox(height: 4),
+        LinearProgressIndicator(
+          value: carga / 100,
+          minHeight: 6,
+          color: cansado ? tema.colorScheme.error : null,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          cansado
+              ? 'Venís muy cargado: te lesionás ×${CuerpoCarrera.factor(estado).toStringAsFixed(1).replaceAll('.', ',')} más seguido. Un partido de descanso baja la carga a la mitad.'
+              : 'Jugar muchos minutos suma carga; con descanso se recupera. Pasando los ${CuerpoCarrera.cargaCansada} sube el riesgo de lesión.',
+          style: tema.textTheme.bodySmall,
+        ),
+        if (parte != null && baja != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            'LESIÓN DE ${parte.etiqueta.toUpperCase()}: te quedan $baja partidos de baja',
+            style: tema.textTheme.labelLarge?.copyWith(color: tema.colorScheme.error),
+          ),
+          const SizedBox(height: 4),
+          if (rehab == null)
+            for (final r in Rehab.values)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: OutlinedButton(
+                  onPressed: () => alElegirRehab(r),
+                  child: Text('${r.etiqueta.toUpperCase()} · ${r.descripcion}', textAlign: TextAlign.center),
+                ),
+              )
+          else
+            Text('Rehabilitación ${rehab.etiqueta.toLowerCase()}: ${rehab.descripcion}', style: tema.textTheme.bodySmall),
+        ] else if (CuerpoCarrera.puedeDescansar(temporada, estado)) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: alDescansar,
+            icon: const Icon(Icons.hotel_outlined),
+            label: const Text('DESCANSAR EL PRÓXIMO PARTIDO'),
+          ),
+        ],
+        const SizedBox(height: 10),
+        Text('HISTORIAL (${CuerpoCarrera.total(estado)} lesiones)', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 2),
+        Text(
+          CuerpoCarrera.total(estado) == 0
+              ? 'Todavía no te lastimaste.'
+              : [
+                  for (final p in ParteCuerpo.values)
+                    if (CuerpoCarrera.veces(estado, p) > 0) '${p.etiqueta} ×${CuerpoCarrera.veces(estado, p)}',
+                ].join(' · '),
+          style: tema.textTheme.bodySmall,
+        ),
+        if (cronicas.isNotEmpty)
+          Text(
+            'Molestias crónicas: ${cronicas.map((p) => p.etiqueta.toLowerCase()).join(', ')} (se repiten y duran más).',
+            style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.error),
+          ),
+      ],
+    );
+  }
+}
+
 /// Tu personalidad, la química con el plantel y lo que los rivales saben de vos.
 class PanelMundo extends StatelessWidget {
   const PanelMundo({super.key, required this.estado});
@@ -1111,6 +1202,18 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
     widget.onCambiar(_t);
   }
 
+  void _elegirRehab(Rehab r) {
+    final (t, e) = CuerpoCarrera.elegirRehab(_t, _e, r);
+    setState(() => _t = widget.carrera.sincronizar(t, e));
+    widget.onCambiar(_t);
+  }
+
+  void _descansar() {
+    final (t, e) = CuerpoCarrera.descansar(_t, _e);
+    setState(() => _t = widget.carrera.sincronizar(t, e));
+    widget.onCambiar(_t);
+  }
+
   void _marcarLeidos() {
     final e = BandejaCarrera.marcarLeidos(_e);
     setState(() => _t = widget.carrera.sincronizar(_t, e));
@@ -1269,6 +1372,10 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
       ),
       const SizedBox(height: 12),
       _Panel(child: PanelMundo(estado: e)),
+      const SizedBox(height: 12),
+      _Panel(
+        child: PanelCuerpo(temporada: _t, estado: e, alElegirRehab: _elegirRehab, alDescansar: _descansar),
+      ),
       const SizedBox(height: 12),
       _Panel(child: PanelAvanzadas(estado: e)),
       const SizedBox(height: 12),

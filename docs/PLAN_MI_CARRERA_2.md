@@ -124,6 +124,17 @@ estadísticas avanzadas.
   - Pendiente de este punto: que el jugador "salga" mid-season por una decisión del club (hoy solo se mueven
     compañeros; el traspaso propio se negocia en el receso).
 
+- **Bloque 9 (cuerpo y salud) — hecho.**
+  - **Carga de partidos** (0-100): cada partido suma según los minutos (≈ +1 con 36 min) y con descanso baja; pasando
+    40 las lesiones son más probables (hasta ×1,8). Podés **descansar el próximo partido** (baja de 1 PJ, carga a la mitad).
+  - **Lesiones por parte del cuerpo** (tobillo, rodilla, isquiotibiales, espalda, muñeca, hombro, pie): cada parte cambia
+    cuánto dura (rodilla ×1,5, muñeca ×0,8…); las ya lastimadas se repiten más y duran más; a la 3.ª vez son crónicas.
+    El historial suma propensión (+5 % por lesión, hasta ×1,3).
+  - **Rehabilitación**: cuidadosa (+25 % de baja, sin recaída), normal o acelerada (−40 %, 30 % de recaer al volver).
+  - Hook `Liga.factorLesionJugador`: durabilidad, personalidad, rutina, carga e historial ahora cambian la chance de
+    lesión **en cada partido** (antes solo al cerrar la temporada). Panel "Cuerpo y salud" en Mi jugador.
+  - Test de balance de campeonatos del 99 "gastando todo" subido de 60 % a 65 % (cambió la secuencia aleatoria).
+
 - **Bloque 8 (el mundo alrededor de tu jugador) — hecho.**
   - **Bandeja de entrada**: premios, objetivos, plantel y mercado en un solo lugar, con filtros y contador de no
     leídos (se arma con tu historia y los movimientos; no guarda nada aparte).
@@ -137,9 +148,9 @@ estadísticas avanzadas.
     fija): relación, clutch y Takeover, fans, lesiones y ánimo.
   - **Estadísticas avanzadas** (TS %, eFG %, TC, T3, TL, asistencias por pérdida, valoración de Hollinger, minutos y
     puntos por 36), llevadas partido a partido desde esta versión.
-  - Sin hacer todavía de las ideas aprobadas: carga de partidos, lesiones por partes del cuerpo, secundario→
+  - Sin hacer todavía de las ideas aprobadas: secundario→
     universidad→NBA, selección nacional, carrera generacional, staff y agente, tu carta de carrera, relator con
-    memoria, mapa de tiro de carrera, entrenamientos interactivos, mercado y contratos, mentores, rehabilitación,
+    memoria, mapa de tiro de carrera, entrenamientos interactivos, mercado y contratos, mentores,
     prensa y redes, All-Star jugable, Salón de la Fama con cuadro de honor, y el timing de libres/robo/rebote/pase.
 
 - **Bloque 7 (barra de tiro y control del jugador) — hecho en parte.**

@@ -14,6 +14,7 @@ import '../liga.dart';
 import '../motor.dart';
 import '../playbook.dart';
 import '../premios.dart';
+import 'cuerpo_carrera.dart';
 import 'dinastia.dart';
 import 'habilidades.dart';
 import 'mundo_carrera.dart';
@@ -23,6 +24,7 @@ import 'premios_carrera.dart';
 import 'puntos_carrera.dart';
 import 'vida_carrera.dart';
 
+export 'cuerpo_carrera.dart';
 export 'mundo_carrera.dart';
 export 'objetivos_carrera.dart';
 export 'generacion_carrera.dart';
@@ -1362,6 +1364,11 @@ class CierreTemporada {
 class CarreraJugador {
   CarreraJugador(this.liga) {
     liga.alRegistrarPartido = (t, p, m) => t.modoJuego == ModoJuego.carreraJugador ? alPartido(t, p, m) : t;
+    liga.factorLesionJugador = (t, id) {
+      if (t.modoJuego != ModoJuego.carreraJugador) return 1.0;
+      final e = EstadoCarrera.de(t);
+      return e == null || e.retirado || e.jugadorId != id ? 1.0 : CuerpoCarrera.factor(e);
+    };
     liga.alCrearMotor = (t, p, m) {
       if (t.modoJuego != ModoJuego.carreraJugador) return;
       final e = EstadoCarrera.de(t);
@@ -1802,11 +1809,16 @@ class CarreraJugador {
   /// cambia en plena temporada: el DT lo revisa en el receso.
   /// Después de cada partido de tu equipo: la calificación (puntos de habilidad) y los hitos de la carrera.
   Temporada alPartido(Temporada t, Partido p, MotorPartido m) {
-    final e = EstadoCarrera.de(t);
-    if (e == null || e.retirado) return t;
+    final actual = EstadoCarrera.de(t);
+    if (actual == null || actual.retirado) return t;
+    var e = actual;
     if (p.localId != t.franquiciaUsuarioId && p.visitanteId != t.franquiciaUsuarioId) return t;
     final l = m.boxLocal[e.jugadorId] ?? m.boxVisitante[e.jugadorId];
-    if (l == null || (l.pj == 0 && l.seg <= 0)) return t;
+    // Cuerpo: carga acumulada, lesión nueva (parte y gravedad) o alta. Va antes de mirar si jugaste.
+    final cuerpo = CuerpoCarrera.alPartido(t, e, l?.seg ?? 0, e.uso['c:pj'] ?? 0);
+    t = cuerpo.$1;
+    e = cuerpo.$2;
+    if (l == null || (l.pj == 0 && l.seg <= 0)) return sincronizar(t, e);
     final local = p.localId == t.franquiciaUsuarioId;
     final gano = local ? m.puntosLocal > m.puntosVisitante : m.puntosVisitante > m.puntosLocal;
     final nota = PuntosCarrera.nota(PuntosCarrera.puntajePartido(l, gano: gano));
