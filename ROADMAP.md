@@ -109,3 +109,14 @@ final de cada una. Nada de esto está hecho todavía salvo que se marque ✅.
       habilidades e insignias (no las del DT).
 - [x] ✅ **Rutina de entrenamiento** por receso, **eventos fuera de la cancha** con elección, **marca personal**
       con patrocinios, y **legado**: récords, camisetas retiradas y qué pasa después del retiro.
+
+## 9. Mi carrera: tercera tanda (planificada, ver `docs/PLAN_MI_CARRERA_2.md`)
+- [ ] Puntos por calificación de partido y sin tope por edad; costos más suaves (techo por potencial).
+- [ ] Objetivos en 5 familias y 4 niveles, objetivos de carrera y mensuales.
+- [ ] Premios: semana, mes, novato del año/mes, quinteto de novatos, MVP de Finales, Clutch, All-Defensive, líderes.
+- [ ] ~36 habilidades estilo 2K y rasgos mentales, con efecto en el motor.
+- [ ] Año y edad de inicio a elección, pantalla "Mi equipo" y rotación con contratos.
+- [ ] Editor de personaje completo (rostro, cuerpo, estilo).
+- [ ] Récords históricos reales y camino a los récords.
+- [ ] Barra de tiro y timing (tiros, libres, robo, tapón, rebote); sin opciones de entrenador en Mi carrera.
+- [ ] Entrenamientos interactivos, mercado y contratos, rivales y mentores, scouting, rehabilitación, prensa, All-Star jugable.

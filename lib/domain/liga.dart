@@ -439,6 +439,9 @@ class Liga {
         : t;
   }
 
+  /// Lo que hace un modo con cada partido de tu equipo ya registrado (Mi carrera: calificación y récords).
+  Temporada Function(Temporada t, Partido partido, MotorPartido m)? alRegistrarPartido;
+
   /// Registra el partido del usuario ya jugado (en vivo o simulado) y suma las estadísticas.
   Temporada registrar(Temporada t, Partido partido, MotorPartido m) {
     final lineas = _copia(t.lineas);
@@ -452,7 +455,8 @@ class Liga {
     final calendario = [
       for (final p in t.calendario) p.id == partido.id ? p.conResultado(m.parcialesLocal, m.parcialesVisitante) : p,
     ];
-    return _conAllStar(t.copyWith(calendario: calendario, lineas: lineas, forma: forma, lesiones: lesiones));
+    final nueva = _conAllStar(t.copyWith(calendario: calendario, lineas: lineas, forma: forma, lesiones: lesiones));
+    return alRegistrarPartido?.call(nueva, partido, m) ?? nueva;
   }
 
   /// Al cruzar la mitad de la temporada se juega el All-Star y queda guardado en la partida: así es

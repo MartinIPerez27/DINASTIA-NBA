@@ -164,6 +164,22 @@ void main() {
     expect(alSeguir?.prensaHecha, 2);
   });
 
+  testWidgets('el desglose muestra de dónde salió cada punto y las notas de partido', (t) async {
+    telefono(t);
+    final e = carrera
+        .estadoCreado(raiz: 'w9', creado: creado, pick: 5, franquiciaId: 'CHI')
+        .copyWith(uso: {'dg:rend': 1250, 'dg:nota': 840, 'dg:obj': 400, 'gr:A+': 3, 'gr:B': 12});
+    await t.pumpWidget(app(Scaffold(body: PanelDesglose(estado: e))));
+    expect(find.text('PUNTOS DE ESTA TEMPORADA'), findsOneWidget);
+    expect(find.text('Rendimiento'), findsOneWidget);
+    expect(find.text('12,5'), findsOneWidget);
+    expect(find.text('Objetivos'), findsOneWidget);
+    expect(find.text('Premios'), findsNothing, reason: 'sin puntos de premios todavía');
+    expect(find.text('A+ ×3'), findsOneWidget);
+    expect(find.text('B ×12'), findsOneWidget);
+    expect(find.text('24,9'), findsOneWidget, reason: 'el total suma las fuentes');
+  });
+
   testWidgets('legado: totales, veredicto y línea de tiempo', (t) async {
     telefono(t);
     var e = carrera.estadoCreado(raiz: 'w3', creado: creado, pick: 5, franquiciaId: 'CHI');

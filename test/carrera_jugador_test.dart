@@ -199,7 +199,7 @@ void main() {
       final flojo = lineaDePrueba(pj: 60, pts: 300, reb: 150, ast: 60);
       final estrella = lineaDePrueba(pj: 80, pts: 2400, reb: 700, ast: 600);
       expect(CarreraJugador.phDeLinea(estrella), greaterThan(CarreraJugador.phDeLinea(flojo)));
-      expect(CarreraJugador.phDeLinea(estrella), lessThanOrEqualTo(24));
+      expect(CarreraJugador.phDeLinea(estrella), lessThanOrEqualTo(PuntosCarrera.topeRendimiento));
     });
   });
 
@@ -273,7 +273,10 @@ void main() {
       if (l != null) {
         expect(e.snapPj, l.pj);
         expect(e.phBanco, greaterThan(antes.phBanco), reason: 'jugó partidos: acredita puntos de habilidad');
-        expect(e.phAcreditados, e.phBanco);
+        // Los puntos del rendimiento están acreditados; encima se suman las notas de cada partido.
+        expect(e.phBanco, greaterThanOrEqualTo(e.phAcreditados));
+        expect(e.uso.keys.any((k) => k.startsWith('gr:')), isTrue, reason: 'cada partido tiene su nota');
+        expect(e.uso['c:pj'], greaterThan(0));
       }
       // Idempotente: guardar de nuevo sin partidos nuevos no cambia nada.
       final otra = EstadoCarrera.de(carrera.alGuardar(t))!;

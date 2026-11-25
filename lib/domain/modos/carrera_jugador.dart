@@ -3,6 +3,7 @@ import 'dart:math';
 import '../entities/avatar_creado.dart';
 import '../entities/jugador.dart';
 import '../entities/modo_juego.dart';
+import '../entities/partido.dart';
 import '../entities/plantel.dart';
 import '../entities/posicion.dart';
 import '../entities/rol_cancha.dart';
@@ -13,7 +14,10 @@ import '../playbook.dart';
 import '../premios.dart';
 import 'dinastia.dart';
 import 'habilidades.dart';
+import 'puntos_carrera.dart';
 import 'vida_carrera.dart';
+
+export 'puntos_carrera.dart';
 
 export 'habilidades.dart';
 import '../entities/enum_tolerante.dart';
@@ -265,7 +269,9 @@ class ModeloCarrera {
     final iq = base.iq + d(Atributo.iq).round();
     // Especializaciones: cada punto de una habilidad mueve un poco la estadística que le toca.
     var extra = const EfectoStats();
-    espec.forEach((h, n) => extra = extra.mas(Habilidad.efectoPorPunto(h).por(min(n, Habilidad.maxEspecializacion).toDouble())));
+    espec.forEach(
+      (h, n) => extra = extra.mas(Habilidad.efectoPorPunto(h).por(min(n, Habilidad.maxEspecializacion).toDouble())),
+    );
     // Insignias: cuenta el grado que ganaste desde que arrancaste (lo de arranque ya está en la base).
     final antes = ContextoInsignia(atributos: a0);
     final ahora = ctx ?? ContextoInsignia(atributos: a, espec: espec);
@@ -387,6 +393,16 @@ class ModeloCarrera {
       declive += declivePorEdad(x) * 0.8;
     }
     return max(55, (potencial - brechaPorEdad(edad) - declive).round());
+  }
+
+  /// El techo que se paga barato: el potencial, menos el desgaste del cuerpo desde los 29. Sin la brecha de
+  /// juventud: un joven con potencial 95 puede comprar hasta 95 a los 22 años.
+  static int techoBlando(int potencial, int edad) {
+    var declive = 0.0;
+    for (var x = 29; x <= edad; x++) {
+      declive += declivePorEdad(x) * 1.0;
+    }
+    return max(55, (potencial - declive).round());
   }
 
   /// Qué parte de lo que le falta para el techo recupera solo en un año (sin gastar puntos).
@@ -1314,6 +1330,7 @@ class CierreTemporada {
 
   /// Cambio natural de atributos por la edad (aplicado en [estado]).
   final Map<Atributo, int> desarrollo;
+
   /// Insignias que ganaste o subiste de grado este año.
   final List<Insignia> insigniasNuevas;
 
@@ -1326,7 +1343,9 @@ class CierreTemporada {
 // -------------------------------------------------------------------------------------------
 
 class CarreraJugador {
-  CarreraJugador(this.liga);
+  CarreraJugador(this.liga) {
+    liga.alRegistrarPartido = (t, p, m) => t.modoJuego == ModoJuego.carreraJugador ? alPartido(t, p, m) : t;
+  }
 
   final Liga liga;
 
@@ -1711,13 +1730,8 @@ class CarreraJugador {
 
   // ---------- Durante la temporada ----------
 
-  /// Puntos de habilidad que da una línea de temporada: 0,1 por partido y el rendimiento sobre 6, con un
-  /// tope que baja con la edad ([ModeloCarrera.topeLinea]).
-  static double phDeLinea(LineaEstadistica? l, {int edad = 24}) {
-    if (l == null || l.pj == 0) return 0;
-    final valor = (l.pts + 0.7 * l.reb + 0.7 * l.ast + l.rob + l.tap - l.per) / l.pj;
-    return min(ModeloCarrera.topeLinea(edad).toDouble(), l.pj * 0.1 + max(0.0, valor - 6) * 0.25);
-  }
+  /// Puntos de habilidad que da el rendimiento de una línea de temporada (sin tope por edad; ver [PuntosCarrera]).
+  static double phDeLinea(LineaEstadistica? l, {int edad = 24}) => PuntosCarrera.rendimiento(l, edad: edad);
 
   static double _valorTotal(LineaEstadistica l) => l.pts + 0.7 * l.reb + 0.7 * l.ast + l.rob + l.tap - l.per;
 
@@ -1751,6 +1765,42 @@ class CarreraJugador {
   /// Se llama en cada guardado de la temporada: acredita puntos y actualiza la confianza, el ánimo y
   /// los fans con lo acumulado del año (no depende de cada cuántos partidos se guarda). El rol no
   /// cambia en plena temporada: el DT lo revisa en el receso.
+  /// Después de cada partido de tu equipo: la calificación (puntos de habilidad) y los hitos de la carrera.
+  Temporada alPartido(Temporada t, Partido p, MotorPartido m) {
+    final e = EstadoCarrera.de(t);
+    if (e == null || e.retirado) return t;
+    if (p.localId != t.franquiciaUsuarioId && p.visitanteId != t.franquiciaUsuarioId) return t;
+    final l = m.boxLocal[e.jugadorId] ?? m.boxVisitante[e.jugadorId];
+    if (l == null || (l.pj == 0 && l.seg <= 0)) return t;
+    final local = p.localId == t.franquiciaUsuarioId;
+    final gano = local ? m.puntosLocal > m.puntosVisitante : m.puntosVisitante > m.puntosLocal;
+    final nota = PuntosCarrera.nota(PuntosCarrera.puntajePartido(l, gano: gano));
+    // Los puntos de la nota son fracciones: se juntan en centésimas y se pasan al banco cuando completan uno.
+    final centesimas = (e.uso['gc'] ?? 0) + (nota.puntos * 100).round();
+    final enteros = centesimas ~/ 100;
+    int mejor(String k, int v) => max(e.uso[k] ?? 0, v);
+    final dobles = PuntosCarrera.categoriasDobles(l);
+    final uso = {
+      ...e.uso,
+      'gc': centesimas % 100,
+      'gr:${nota.etiqueta}': (e.uso['gr:${nota.etiqueta}'] ?? 0) + 1,
+      'dg:nota': (e.uso['dg:nota'] ?? 0) + (nota.puntos * 100).round(),
+      'c:pj': (e.uso['c:pj'] ?? 0) + 1,
+      if (l.pts >= 30) 'c:p30': (e.uso['c:p30'] ?? 0) + 1,
+      if (l.pts >= 40) 'c:p40': (e.uso['c:p40'] ?? 0) + 1,
+      if (l.pts >= 50) 'c:p50': (e.uso['c:p50'] ?? 0) + 1,
+      if (dobles >= 2) 'c:dd': (e.uso['c:dd'] ?? 0) + 1,
+      if (dobles >= 3) 'c:td': (e.uso['c:td'] ?? 0) + 1,
+      'm:pts': mejor('m:pts', l.pts),
+      'm:reb': mejor('m:reb', l.reb),
+      'm:ast': mejor('m:ast', l.ast),
+      'm:rob': mejor('m:rob', l.rob),
+      'm:tap': mejor('m:tap', l.tap),
+      'm:t3': mejor('m:t3', l.t3I),
+    };
+    return sincronizar(t, e.copyWith(uso: uso, phBanco: e.phBanco + enteros));
+  }
+
   Temporada alGuardar(Temporada t) {
     final e = EstadoCarrera.de(t);
     if (e == null || e.retirado) return t;
@@ -1761,6 +1811,7 @@ class CarreraJugador {
       final (confianza, moral, fans) = animoDeLaTemporada(e, l, registro.victorias, registro.derrotas);
       final acreditar = max(0, phDeLinea(l, edad: e.edad).floor() - e.phAcreditados);
       ne = e.copyWith(
+        uso: acreditar == 0 ? null : EstadoCarrera.sumarUso(e.uso, {'dg:rend': acreditar * 100}),
         confianza: confianza,
         moral: moral,
         fans: fans,
@@ -1818,25 +1869,27 @@ class CarreraJugador {
 
   /// Se puede subir si no está al máximo (99) y alcanzan los puntos. No hay techo duro: pasarse del
   /// potencial o de lo que da la edad solo sale más caro ([costoMejora]).
-  bool puedeSubir(EstadoCarrera e, Atributo a) =>
-      e.atributos[a] < ModeloCarrera.tope && e.phBanco >= costoMejora(e, a);
+  bool puedeSubir(EstadoCarrera e, Atributo a) => e.atributos[a] < ModeloCarrera.tope && e.phBanco >= costoMejora(e, a);
 
-  /// Subir un punto de [a] dejaría la media por encima de lo que da el potencial a esta edad: se puede,
-  /// pero cuesta más (ver [costoMejora]).
+  /// Subir un punto de [a] dejaría la media por encima de tu potencial (descontado el desgaste del cuerpo
+  /// desde los 29): se puede, pero cuesta más (ver [costoMejora]). La juventud no te frena.
   bool enTecho(EstadoCarrera e, Atributo a) {
     if (e.atributos[a] >= ModeloCarrera.tope) return false;
     final tras = e.copyWith(atributos: e.atributos.con(a, e.atributos[a] + 1));
-    return tras.media > ModeloCarrera.techoPorEdad(e.potencial, e.edad);
+    return tras.media > ModeloCarrera.techoBlando(e.potencial, e.edad);
   }
 
-  /// Lo que cuesta hoy subir un punto de [a]: el costo del nivel, multiplicado si la media pasaría el
-  /// techo de la edad (x2 por 1 punto de media de más, x3 por 2… hasta x6). Dentro del techo, el costo base.
+  /// Recargo por cada punto de media sobre el techo blando y recargo máximo (×).
+  static const recargoPorExceso = 0.5, multiplicadorMaximo = 4.0;
+
+  /// Lo que cuesta hoy subir un punto de [a]: el costo del nivel, y si la media pasaría tu techo blando,
+  /// un 25 % más por cada punto de media de exceso (hasta ×2).
   int costoMejora(EstadoCarrera e, Atributo a) {
     final base = ModeloCarrera.costo(e.atributos[a]);
     if (e.atributos[a] >= ModeloCarrera.tope) return base;
     final tras = e.copyWith(atributos: e.atributos.con(a, e.atributos[a] + 1));
-    final exceso = tras.media - ModeloCarrera.techoPorEdad(e.potencial, e.edad);
-    return exceso <= 0 ? base : base * (1 + min(5, exceso));
+    final exceso = tras.media - ModeloCarrera.techoBlando(e.potencial, e.edad);
+    return exceso <= 0 ? base : (base * min(multiplicadorMaximo, 1 + recargoPorExceso * exceso)).ceil();
   }
 
   /// Puntos acumulados a partir de los cuales conviene gastar (la pantalla avisa).
@@ -1952,7 +2005,10 @@ class CarreraJugador {
     while (e.copyWith(atributos: atributosNuevos).media > techo) {
       final mayor = Atributo.values
           .where((a) => atributosNuevos[a] > e.atributos[a])
-          .fold<Atributo?>(null, (m, a) => m == null || pesos[a]! * atributosNuevos[a] > pesos[m]! * atributosNuevos[m] ? a : m);
+          .fold<Atributo?>(
+            null,
+            (m, a) => m == null || pesos[a]! * atributosNuevos[a] > pesos[m]! * atributosNuevos[m] ? a : m,
+          );
       if (mayor == null) break;
       atributosNuevos = atributosNuevos.con(mayor, atributosNuevos[mayor] - 1);
     }
@@ -1986,12 +2042,7 @@ class CarreraJugador {
       if (lesion) '${e.etiquetaTemporada}: una lesión grave le cuesta el físico. Le va a costar volver.',
     ];
     // El ánimo del año sale de lo acumulado (no de cuántas veces se guardó); lo del cierre suma poco.
-    final (confianzaAnio, moralAnio, fansAnio) = animoDeLaTemporada(
-      e,
-      l,
-      marcaFinal.victorias,
-      marcaFinal.derrotas,
-    );
+    final (confianzaAnio, moralAnio, fansAnio) = animoDeLaTemporada(e, l, marcaFinal.victorias, marcaFinal.derrotas);
     final sinJugar = (l?.pj ?? 0) == 0 ? 4 : 0;
     final dConfianza = (cumplidos - (resultados.length - cumplidos)) * 2 + (resumen.campeon ? 3 : 0) + sinJugar;
     final dMoral =
@@ -2012,7 +2063,7 @@ class CarreraJugador {
       phBanco: e.phBanco + phBase + phObjetivos + phPremios,
       phAcreditados: 0,
       historial: [...e.historial, temporada],
-      uso: {...e.uso}..remove('rutina'),
+      uso: {...e.uso, 'dg:obj': phObjetivos * 100, 'dg:prem': phPremios * 100}..remove('rutina'),
       hitos: hitos,
       confianza: (confianzaAnio + dConfianza).clamp(0, 98).toInt(),
       moral: (moralAnio + dMoral).clamp(0, 97).toInt(),
@@ -2304,7 +2355,10 @@ class CarreraJugador {
     // un poco; cada año trae su suerte en el armado.
     final objetivoEquipo = mudanza
         ? oferta.nivelEquipo.toDouble()
-        : (nivelPropio * 0.6 + nivelLiga * 0.4 + (e.media - 80) * 0.08 + (azar.nextDouble() - 0.5) * 5).clamp(68.0, 86.0);
+        : (nivelPropio * 0.6 + nivelLiga * 0.4 + (e.media - 80) * 0.08 + (azar.nextDouble() - 0.5) * 5).clamp(
+            68.0,
+            86.0,
+          );
     final era = EstadoCarrera.epocaDeCierre(e.anioBase + numero);
     if (mudanza) {
       companeros = armarCompaneros(
@@ -2345,7 +2399,13 @@ class CarreraJugador {
       snapDerrotas: 0,
       phAcreditados: 0,
     );
-    ne = ne.copyWith(objetivos: objetivosPara(ne, Random(_hash('${e.raiz}-obj-$numero'))));
+    ne = ne.copyWith(
+      objetivos: objetivosPara(ne, Random(_hash('${e.raiz}-obj-$numero'))),
+      uso: {
+        for (final x in ne.uso.entries)
+          if (!x.key.startsWith('dg:') && !x.key.startsWith('gr:')) x.key: x.value,
+      },
+    );
     return _armarTemporada(
       id: '${e.raiz}-t$numero',
       estado: ne,

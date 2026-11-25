@@ -296,7 +296,12 @@ class VidaCarrera {
       fans: e.fans + o.fans,
       relacion: e.relacion + o.relacion,
       phBanco: max(0, e.phBanco + o.ph),
-      uso: {...e.uso, 'evento': e.numero, 'e:${ev.id}': 1},
+      uso: {
+        ...e.uso,
+        'evento': e.numero,
+        'e:${ev.id}': 1,
+        if (o.ph > 0) 'dg:evento': (e.uso['dg:evento'] ?? 0) + o.ph * 100,
+      },
       hitos: [...e.hitos, '${e.etiquetaTemporada}: ${ev.titulo} — ${o.texto.toLowerCase()}.'],
     );
   }

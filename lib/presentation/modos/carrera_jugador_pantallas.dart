@@ -121,7 +121,7 @@ class PanelAtributos extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           'Los ganás jugando bien, cumpliendo los objetivos y con los premios. Cuanto más alto el atributo, más '
-          'cuesta subirlo. Cada jugador tiene un potencial que no se ve: pasarte se puede, pero sale mucho más caro.',
+          'cuesta subirlo. Cada jugador tiene un potencial que no se ve: pasarte se puede, pero sale más caro (se nota en el botón con ▲).',
           style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
         ),
         if (carrera.avisoPuntosSinUsar(estado) case final aviso?) ...[
@@ -358,6 +358,80 @@ class _PanelRutina extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(actual?.descripcion ?? 'Todavía no elegiste ninguna.', style: tema.textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
+/// De dónde salieron los puntos de habilidad de esta temporada: rendimiento, notas de partido, objetivos,
+/// premios y eventos. Los números salen de `EstadoCarrera.uso` (claves `dg:` y `gr:`).
+class PanelDesglose extends StatelessWidget {
+  const PanelDesglose({super.key, required this.estado});
+
+  final EstadoCarrera estado;
+
+  static String _n(num v) => (v / 100).toStringAsFixed(1).replaceAll('.', ',');
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final u = estado.uso;
+    final filas = <(String, String, int)>[
+      ('Rendimiento', 'Tus números de la temporada, sin tope por edad.', u['dg:rend'] ?? 0),
+      ('Notas de partido', 'Cada partido tiene una nota de D a A+.', u['dg:nota'] ?? 0),
+      ('Objetivos', 'Los que cumpliste al cerrar la temporada.', u['dg:obj'] ?? 0),
+      ('Premios', 'Título, premios individuales y All-Star.', u['dg:prem'] ?? 0),
+      ('Eventos', 'Decisiones fuera de la cancha.', u['dg:evento'] ?? 0),
+    ];
+    final total = filas.fold(0, (a, f) => a + f.$3);
+    final notas = [
+      for (final n in Nota.values)
+        if ((u['gr:${n.etiqueta}'] ?? 0) > 0) (n, u['gr:${n.etiqueta}']!),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text('PUNTOS DE ESTA TEMPORADA', style: tema.textTheme.labelLarge)),
+            TextoLed(_n(total), tamano: 20),
+          ],
+        ),
+        const SizedBox(height: 6),
+        for (final f in filas)
+          if (f.$3 > 0 || f.$1 == 'Rendimiento' || f.$1 == 'Notas de partido')
+            Tooltip(
+              message: f.$2,
+              triggerMode: TooltipTriggerMode.tap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(f.$1, style: tema.textTheme.bodyMedium)),
+                    Text(_n(f.$3), style: tema.textTheme.bodyMedium?.copyWith(color: esquema.primary)),
+                  ],
+                ),
+              ),
+            ),
+        if (notas.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text('Tus notas', style: tema.textTheme.labelMedium?.copyWith(color: esquema.onSurfaceVariant)),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              for (final n in notas) Chip(visualDensity: VisualDensity.compact, label: Text('${n.$1.etiqueta} ×${n.$2}')),
+            ],
+          ),
+        ],
+        const SizedBox(height: 6),
+        Text(
+          'Los puntos de rendimiento y de las notas se acreditan mientras jugás; los de objetivos y premios, '
+          'al cerrar el año. Las notas suman por partido y se juntan hasta completar un punto entero.',
+          style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+        ),
       ],
     );
   }
@@ -754,6 +828,8 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
       ),
     ];
     final derecha = <Widget>[
+      _Panel(child: PanelDesglose(estado: e)),
+      const SizedBox(height: 12),
       _Panel(child: PanelMarca(estado: e)),
       const SizedBox(height: 12),
       _Panel(
@@ -1104,6 +1180,8 @@ class _RecesoJugadorPantallaState extends State<RecesoJugadorPantalla> {
             onSubirHabilidad: (h) => _cambiar(widget.carrera.subirHabilidad(_e, h)),
           ),
         ),
+        const SizedBox(height: 12),
+        _Panel(child: PanelDesglose(estado: _e)),
         const SizedBox(height: 12),
         _Panel(
           child: _PanelRutina(estado: _e, onElegir: (r) => _cambiar(VidaCarrera.elegirRutina(_e, r))),

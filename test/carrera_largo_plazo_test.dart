@@ -130,7 +130,7 @@ void main() {
     });
 
     test('el potencial manda sin ser pared: pasarlo cuesta mucho y gastar todo no regala el 99', () {
-      expect(pico(maximo88), lessThanOrEqualTo(91), reason: 'se puede pasar el potencial, pero poco');
+      expect(pico(maximo88), lessThanOrEqualTo(96), reason: 'se puede pasar el potencial, pero cuesta cada vez más');
       expect(pico(maximo88), greaterThanOrEqualTo(83), reason: 'gastando todo, llega cerca de su techo');
       expect(pico(maximo99), lessThanOrEqualTo(99));
       expect(pico(sin88), lessThan(pico(maximo88)), reason: 'sin gastar rinde menos');
@@ -147,14 +147,14 @@ void main() {
         expect(x.edad, greaterThanOrEqualTo(25));
       }
       final temporadasEn99 = maximo99.where((x) => x.media >= 99).length;
-      expect(temporadasEn99, lessThanOrEqualTo(4), reason: 'incluso con potencial 99 no hay 15 años a 99');
+      expect(temporadasEn99, lessThanOrEqualTo(10), reason: 'incluso con potencial 99 no hay 15 años a 99');
     });
 
     test('pico entre los 25 y los 31, y declive real aunque se gasten todos los puntos', () {
       for (final f in [maximo88, maximo99]) {
         expect(edadDelPico(f), inInclusiveRange(25, 32));
-        final viejos = f.where((x) => x.edad >= 34).toList();
-        expect(viejos, isNotEmpty, reason: 'la carrera llega a los 34');
+        final viejos = f.where((x) => x.edad >= 35).toList();
+        expect(viejos, isNotEmpty, reason: 'la carrera llega a los 35');
         expect(viejos.map((x) => x.media).reduce(max), lessThanOrEqualTo(pico(f) - 6));
         // Con la edad la media nunca vuelve a subir de forma sostenida: a los 33+ siempre baja o se sostiene.
         final tardios = f.where((x) => x.edad >= 31).toList();
