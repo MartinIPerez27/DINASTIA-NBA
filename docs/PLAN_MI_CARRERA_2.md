@@ -110,6 +110,18 @@ estadísticas avanzadas.
   (×0,7 a ×1,3) y las acciones del partido en vivo (triple, aro, pelota, última jugada, marca, robo, energía) usan las
   habilidades nuevas y el rasgo Clutch. Las partidas viejas cargan sin migración (las nuevas arrancan en el valor del
   atributo).
+- **Bloque 4 (año, edad, plantilla, traspasos y generación) — hecho.**
+  - Creador: año del draft (1980–2026), edad de arranque (18–28) y número de camiseta; el año define la época de
+    compañeros y carta. El número se muestra al retirarse la camiseta.
+  - Plantilla: edad de los compañeros (por año de nacimiento), contrato de 1 a 4 años, retiro desde los 35 con
+    probabilidad creciente, traspasos y fin de contrato; las bajas se reemplazan (novatos del draft, agentes libres,
+    traspasos). Todo queda en "Mi equipo" (`movimientos`).
+  - Fecha límite de traspasos: rumor en el partido 35 y decisión en el 49 (quedarte, pedir el traspaso o extender el
+    contrato); un rumor sobre un compañero se concreta con 60 % y cambia el plantel en plena temporada.
+  - Mi generación: los primeros 8 elegidos de tu draft con números reales por época (hasta 2025) o una clase
+    ficticia determinística para años sin datos (2026); el #1 es tu rival.
+  - Pendiente de este punto: que el jugador "salga" mid-season por una decisión del club (hoy solo se mueven
+    compañeros; el traspaso propio se negocia en el receso).
 
 ## Orden sugerido
 1. Puntos y costos (1, 3) · 2. Objetivos y premios (2, 4) · 3. Habilidades 2K (5) · 4. Año, edad y plantilla (6)

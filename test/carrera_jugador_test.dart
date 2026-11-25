@@ -313,7 +313,8 @@ void main() {
         expect(c.contrato, e.contrato - 1);
         expect(cierre.temporada.pj, greaterThan(0));
         expect(cierre.objetivos, hasLength(ObjetivosCarrera.minAceptados));
-        expect(c.phBanco, e.phBanco + cierre.phBase + cierre.phObjetivos + cierre.phPremios);
+        final deCarrera = cierre.objetivosCarrera.fold(0, (x, o) => x + o.puntos);
+        expect(c.phBanco, e.phBanco + cierre.phBase + cierre.phObjetivos + cierre.phPremios + deCarrera);
         // Prensa.
         final preguntas = carrera.preguntasDelReceso(c);
         expect(preguntas, hasLength(2));

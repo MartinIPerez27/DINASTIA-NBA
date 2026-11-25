@@ -6,6 +6,7 @@ import '../../domain/entities/jugador.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/modos/carrera_jugador.dart';
 import '../../domain/modos/vida_carrera.dart';
+import 'carrera_equipo_pantallas.dart';
 import '../widgets/disposicion.dart';
 import '../widgets/escudo.dart';
 import '../widgets/jugador_avatar.dart';
@@ -803,6 +804,7 @@ class TarjetaMiJugador extends StatelessWidget {
     required this.marca,
     required this.onAbrir,
     this.onElegirObjetivos,
+    this.onFechaLimite,
   });
 
   final EstadoCarrera estado;
@@ -811,6 +813,9 @@ class TarjetaMiJugador extends StatelessWidget {
 
   /// Si se puede elegir los objetivos de la temporada (antes del primer partido).
   final VoidCallback? onElegirObjetivos;
+
+  /// Si hay una decisión pendiente en la fecha límite de traspasos.
+  final VoidCallback? onFechaLimite;
 
   @override
   Widget build(BuildContext context) {
@@ -867,6 +872,12 @@ class TarjetaMiJugador extends StatelessWidget {
             style: tema.textTheme.bodyMedium,
           ),
           const SizedBox(height: 6),
+          if (onFechaLimite != null)
+            FilledButton.tonalIcon(
+              onPressed: onFechaLimite,
+              icon: const Icon(Icons.swap_horiz),
+              label: const Text('FECHA LÍMITE DE TRASPASOS: DECIDÍ'),
+            ),
           if (onElegirObjetivos != null)
             OutlinedButton.icon(
               onPressed: onElegirObjetivos,
@@ -1045,6 +1056,30 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
       ),
     ];
     final derecha = <Widget>[
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => MiEquipoPantalla(estado: e))),
+              icon: const Icon(Icons.groups_outlined),
+              label: const Text('MI EQUIPO'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => GeneracionPantalla(estado: e, catalogo: widget.carrera.liga.catalogo),
+                ),
+              ),
+              icon: const Icon(Icons.school_outlined),
+              label: const Text('MI GENERACIÓN'),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
       _Panel(child: PanelObjetivosLargos(estado: e)),
       const SizedBox(height: 12),
       _Panel(child: PanelDesglose(estado: e)),
@@ -1887,7 +1922,8 @@ class LegadoCarreraPantalla extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '${_franq(c.franquiciaId).nombreCompleto} · ${c.temporadas} temporadas',
+                            '${_franq(c.franquiciaId).nombreCompleto} · ${c.temporadas} temporadas'
+                            '${estado.base.dorsal > 0 ? ' · número ${estado.base.dorsal} retirado' : ''}',
                             style: tema.textTheme.bodyMedium,
                           ),
                         ),

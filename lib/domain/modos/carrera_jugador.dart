@@ -15,11 +15,14 @@ import '../premios.dart';
 import 'dinastia.dart';
 import 'habilidades.dart';
 import 'objetivos_carrera.dart';
+import 'plantel_carrera.dart';
 import 'premios_carrera.dart';
 import 'puntos_carrera.dart';
 import 'vida_carrera.dart';
 
 export 'objetivos_carrera.dart';
+export 'generacion_carrera.dart';
+export 'plantel_carrera.dart';
 export 'premios_carrera.dart';
 export 'puntos_carrera.dart';
 
@@ -523,6 +526,8 @@ class JugadorCreado {
     this.pickFijo,
     this.edadInicial,
     this.avatar,
+    this.anioDraft,
+    this.dorsal = 0,
   });
 
   final String nombre;
@@ -543,6 +548,12 @@ class JugadorCreado {
   /// elección real del draft y su edad, en vez de arrancar de cero como uno recién creado.
   final Atributos? atributosFijos;
   final int? pickFijo, edadInicial;
+
+  /// Año del draft en el que arranca (null: 2026) y número de camiseta (0 a 99).
+  final int? anioDraft;
+  final int dorsal;
+
+  static const anioMin = 1980, anioMax = 2026, edadMin = 18, edadMax = 28;
 
   static const alturaMin = 170, alturaMax = 225, pesoMin = 70, pesoMax = 150;
 
@@ -598,7 +609,7 @@ class JugadorCreado {
         tier: Tier.b,
         posiciones: [posicion],
         rol: rol,
-        dorsal: 0,
+        dorsal: dorsal,
         stats: estadisticas,
         media: media,
         fotos: const [],
@@ -619,6 +630,8 @@ class JugadorCreado {
     if (atributosFijos != null) 'atrFijos': atributosFijos!.toJson(),
     if (pickFijo != null) 'pickFijo': pickFijo,
     if (edadInicial != null) 'edadInicial': edadInicial,
+    if (anioDraft != null) 'anioDraft': anioDraft,
+    if (dorsal != 0) 'dorsal': dorsal,
   };
 
   factory JugadorCreado.fromJson(Map<String, dynamic> j) => JugadorCreado(
@@ -633,6 +646,8 @@ class JugadorCreado {
     atributosFijos: j['atrFijos'] == null ? null : Atributos.fromJson(j['atrFijos'] as Map<String, dynamic>),
     pickFijo: j['pickFijo'] as int?,
     edadInicial: j['edadInicial'] as int?,
+    anioDraft: j['anioDraft'] as int?,
+    dorsal: j['dorsal'] as int? ?? 0,
   );
 }
 
@@ -876,6 +891,7 @@ class EstadoCarrera {
     this.companeros = const [],
     this.objetivos = const [],
     this.ofrecidos = const [],
+    this.movimientos = const [],
     this.historial = const [],
     this.hitos = const [],
     this.snapPj = 0,
@@ -932,6 +948,9 @@ class EstadoCarrera {
 
   /// Los 8 objetivos que el DT ofreció para la temporada (de ahí se aceptan entre 4 y 6).
   final List<ObjetivoTemporada> ofrecidos;
+
+  /// Cómo cambió el plantel año a año (retiros, traspasos, llegadas), para la pantalla "Mi equipo".
+  final List<String> movimientos;
   final List<TemporadaJugador> historial;
 
   /// Cosas que pasaron: draft, contratos, prensa, traspasos… (para la línea de tiempo).
@@ -1049,7 +1068,7 @@ class EstadoCarrera {
     tier: tier,
     posiciones: base.posiciones,
     rol: base.rol,
-    dorsal: 0,
+    dorsal: base.dorsal,
     stats: ModeloCarrera.estadisticasActuales(
       base: base.stats,
       a0: atributosBase,
@@ -1094,6 +1113,7 @@ class EstadoCarrera {
     List<Jugador>? companeros,
     List<ObjetivoTemporada>? objetivos,
     List<ObjetivoTemporada>? ofrecidos,
+    List<String>? movimientos,
     List<TemporadaJugador>? historial,
     List<String>? hitos,
     int? snapPj,
@@ -1133,6 +1153,7 @@ class EstadoCarrera {
     companeros: companeros ?? this.companeros,
     objetivos: objetivos ?? this.objetivos,
     ofrecidos: ofrecidos ?? this.ofrecidos,
+    movimientos: movimientos ?? this.movimientos,
     historial: historial ?? this.historial,
     hitos: hitos ?? this.hitos,
     snapPj: snapPj ?? this.snapPj,
@@ -1178,6 +1199,7 @@ class EstadoCarrera {
     'comp': [for (final j in companeros) j.toJson()],
     'objetivos': [for (final o in objetivos) o.toJson()],
     if (ofrecidos.isNotEmpty) 'ofrecidos': [for (final o in ofrecidos) o.toJson()],
+    if (movimientos.isNotEmpty) 'movs': movimientos,
     'historial': [for (final h in historial) h.toJson()],
     if (hitos.isNotEmpty) 'hitos': hitos,
     'snapPj': snapPj,
@@ -1226,6 +1248,7 @@ class EstadoCarrera {
     ofrecidos: [
       for (final x in j['ofrecidos'] as List? ?? const []) ObjetivoTemporada.fromJson(x as Map<String, dynamic>),
     ],
+    movimientos: [for (final x in j['movs'] as List? ?? const []) x as String],
     historial: [
       for (final x in j['historial'] as List? ?? const []) TemporadaJugador.fromJson(x as Map<String, dynamic>),
     ],
@@ -1465,10 +1488,11 @@ class CarreraJugador {
     required JugadorCreado creado,
     required int pick,
     required String franquiciaId,
-    int anioBase = 2026,
+    int? anioInicial,
     int? edad,
     int? potencial,
   }) {
+    final anioBase = anioInicial ?? creado.anioDraft ?? 2026;
     final a0 = creado.atributos;
     final carta = creado.comoCarta(id: 'mc-$raiz', franquiciaId: franquiciaId, anio: anioBase + 1);
     final confianza = confianzaInicial(pick, carta.media);
@@ -1517,6 +1541,10 @@ class CarreraJugador {
     );
     final ofrecidos1 = ObjetivosCarrera.ofrecer(estado, Random(_hash('${estado.raiz}-obj-1')));
     final e = estado.copyWith(
+      uso: PlantelCarrera.contratosIniciales(
+        estado.copyWith(companeros: companeros),
+        Random(_hash('${estado.raiz}-contratos')),
+      ),
       companeros: companeros,
       ofrecidos: ofrecidos1,
       objetivos: ObjetivosCarrera.porDefecto(ofrecidos1),
@@ -1781,9 +1809,95 @@ class CarreraJugador {
         ne = ne.copyWith(uso: {...ne.uso, 'sc:clutch': (ne.uso['sc:clutch'] ?? 0) + 1});
       }
       ne = PremiosCarrera.alPartido(ne, t, l, gano, n);
+      if (n == 35 || n == 49) ne = _traspasos(ne, n);
       if (n % MiniObjetivo.partidosPorMes == 0) ne = _cerrarMes(ne, t);
     }
     return sincronizar(t, ne);
+  }
+
+  /// Los partidos de temporada regular en que se mueve el mercado: rumores y la fecha límite de traspasos.
+  static const partidoRumor = 35, partidoFechaLimite = 49;
+
+  /// Rumores (partido 35) y fecha límite (partido 49): a veces un compañero cambia de equipo, y siempre te toca decidir.
+  EstadoCarrera _traspasos(EstadoCarrera e, int n) {
+    final azar = Random(_hash('${e.raiz}-fecha-${e.numero}'));
+    final sobreMi = (e.contrato <= 1 || e.confianza < 45) && azar.nextDouble() < 0.7;
+    final idx = e.companeros.isEmpty ? 0 : azar.nextInt(e.companeros.length);
+    final seConcreta = azar.nextDouble() < 0.6;
+    final etiqueta = e.etiquetaTemporada;
+    if (e.companeros.isEmpty) return e;
+    if (n == partidoRumor) {
+      final texto = sobreMi
+          ? 'Rumor: varios equipos preguntan por ${e.nombre}.'
+          : 'Rumor: ${e.companeros[idx].nombre} está en la mira de otros equipos.';
+      return e.copyWith(
+        uso: {...e.uso, 'tr:rumor': sobreMi ? 1 : 2, 'tr:idx': idx, 'tr:real': seConcreta ? 1 : 0},
+        movimientos: [...e.movimientos, '$etiqueta: $texto'],
+        hitos: sobreMi ? [...e.hitos, '$etiqueta: $texto'] : null,
+      );
+    }
+    // Fecha límite: el rumor sobre un compañero se concreta (o no) y te toca decidir a vos.
+    var ne = e;
+    final rumor = e.uso['tr:rumor'] ?? 0;
+    final iRumor = (e.uso['tr:idx'] ?? 0).clamp(0, e.companeros.length - 1);
+    if (rumor == 2) {
+      final saliente = e.companeros[iRumor];
+      if ((e.uso['tr:real'] ?? 0) == 1) {
+        final fijos = [
+          for (var i = 0; i < e.companeros.length; i++)
+            if (i != iRumor) e.companeros[i],
+        ];
+        final nuevos = armarCompaneros(
+          franquiciaId: e.franquiciaId,
+          epoca: e.epoca,
+          objetivo: _nivelPropio(e).toDouble(),
+          excluidos: {e.base.nbaPlayerId, saliente.nbaPlayerId},
+          azar: azar,
+          fijos: fijos,
+        );
+        final llega = nuevos.where((j) => !fijos.contains(j)).toList();
+        final destino = liga.franquicias.where((f) => f.id != e.franquiciaId).toList()[azar.nextInt(29)];
+        final uso = {...e.uso, for (final j in llega) 'ct:${j.id}': 1 + azar.nextInt(3)}..remove('ct:${saliente.id}');
+        ne = e.copyWith(
+          companeros: nuevos,
+          uso: uso,
+          movimientos: [
+            ...e.movimientos,
+            '$etiqueta: fecha límite: ${saliente.nombre} es traspasado a ${_nombre(destino.id)}'
+                '${llega.isEmpty ? '' : ' y llega ${llega.first.nombre}'}.',
+          ],
+        );
+      } else {
+        ne = e.copyWith(movimientos: [...e.movimientos, '$etiqueta: fecha límite: ${saliente.nombre} se queda, el rumor quedó en nada.']);
+      }
+    }
+    return ne.copyWith(uso: {...ne.uso, 'tr:pend': 1});
+  }
+
+  /// Lo que elegís en la fecha límite de traspasos. Cierra la decisión pendiente.
+  EstadoCarrera resolverFechaLimite(EstadoCarrera e, OpcionFechaLimite o) {
+    if ((e.uso['tr:pend'] ?? 0) == 0) return e;
+    final uso = {...e.uso}
+      ..remove('tr:pend')
+      ..['tr:hecho'] = 1;
+    final etiqueta = e.etiquetaTemporada;
+    return switch (o) {
+      OpcionFechaLimite.quedarme => e.copyWith(uso: uso, hitos: [...e.hitos, '$etiqueta: ${e.nombre} pasa la fecha límite de traspasos sin cambios.']),
+      OpcionFechaLimite.pedirTraspaso => e.copyWith(
+        uso: uso,
+        pidioTraspaso: true,
+        relacion: e.relacion - 5,
+        confianza: e.confianza - 4,
+        hitos: [...e.hitos, '$etiqueta: ${e.nombre} pide el traspaso en la fecha límite.'],
+      ),
+      OpcionFechaLimite.extender => e.copyWith(
+        uso: uso,
+        contrato: e.contrato + 1,
+        confianza: e.confianza + 3,
+        fans: e.fans + 1,
+        hitos: [...e.hitos, '$etiqueta: ${e.nombre} extiende su contrato un año más.'],
+      ),
+    };
   }
 
   /// Termina el "mes": cobra el mini-objetivo si se cumplió y deja listo el del mes siguiente.
@@ -2354,6 +2468,7 @@ class CarreraJugador {
             86.0,
           );
     final era = EstadoCarrera.epocaDeCierre(e.anioBase + numero);
+    var movs = [...e.movimientos];
     if (mudanza) {
       companeros = armarCompaneros(
         franquiciaId: franquicia,
@@ -2365,10 +2480,15 @@ class CarreraJugador {
       ne = ne.copyWith(relacion: 50, hitos: hitos);
     } else {
       // Se quedan los que no cambian de equipo; algunos se van y llegan caras nuevas.
-      final fijos = [
-        for (final j in companeros)
-          if (azar.nextDouble() < 0.7) j,
-      ];
+      final rot = PlantelCarrera.rotar(
+        e,
+        azar,
+        anio: e.anioBase + numero,
+        nombreDe: _nombre,
+        franquicias: [for (final f in liga.franquicias) if (f.id != franquicia) f.id],
+      );
+      final fijos = rot.quedan;
+      movs = [...movs, ...rot.movimientos];
       companeros = armarCompaneros(
         franquiciaId: franquicia,
         epoca: era,
@@ -2378,7 +2498,20 @@ class CarreraJugador {
         fijos: fijos,
       );
     }
+    final (usoContratos, llegadas) = PlantelCarrera.contratos(
+      e,
+      mudanza ? const [] : e.companeros,
+      companeros,
+      azar,
+      anio: e.anioBase + numero,
+    );
+    movs = [
+      ...movs,
+      if (mudanza) '${e.etiquetaDe(numero)}: nuevo equipo, nuevo plantel en ${_nombre(franquicia)}.' else ...llegadas,
+    ];
     ne = ne.copyWith(
+      uso: usoContratos,
+      movimientos: movs,
       franquiciaId: franquicia,
       companeros: companeros,
       numero: numero,
@@ -2399,7 +2532,7 @@ class CarreraJugador {
       objetivos: ObjetivosCarrera.porDefecto(nuevosOfrecidos),
       uso: {
         for (final x in ne.uso.entries)
-          if (!const ['dg:', 'gr:', 'sc:', 'mes:', 'mo:', 'sem:'].any(x.key.startsWith)) x.key: x.value,
+          if (!const ['dg:', 'gr:', 'sc:', 'mes:', 'mo:', 'sem:', 'tr:'].any(x.key.startsWith)) x.key: x.value,
       },
     );
     return _armarTemporada(

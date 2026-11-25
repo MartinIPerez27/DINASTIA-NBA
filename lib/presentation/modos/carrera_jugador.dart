@@ -9,6 +9,7 @@ import '../../domain/modos/carrera_jugador.dart';
 import '../pantallas/playoffs_pantalla.dart';
 import '../pantallas/temporada_pantalla.dart';
 import '../widgets/elegir_modo.dart';
+import 'carrera_equipo_pantallas.dart';
 import 'carrera_jugador_pantallas.dart';
 import 'creador_jugador.dart';
 import 'modos.dart';
@@ -93,7 +94,11 @@ Future<void> iniciarCarreraJugador(ContextoModos c, {JugadorCreado? creadoInicia
   }
   final creado = creadoInicial ?? await nav.push(
     MaterialPageRoute<JugadorCreado>(
-      builder: (_) => const CreadorJugadorPantalla(titulo: 'Creá tu jugador', textoBoton: 'IR AL COMBINE'),
+      builder: (_) => const CreadorJugadorPantalla(
+        titulo: 'Creá tu jugador',
+        textoBoton: 'IR AL COMBINE',
+        conArranque: true,
+      ),
     ),
   );
   if (creado == null || !c.context.mounted) return;
@@ -115,7 +120,7 @@ Future<void> iniciarCarreraJugador(ContextoModos c, {JugadorCreado? creadoInicia
         nombre: creado.nombre,
         pick: combine.pick,
         franquiciaId: propio,
-        anio: 2026,
+        anio: creado.anioDraft ?? 2026,
         opciones: opciones,
       ),
     ),
@@ -192,6 +197,13 @@ Future<Widget?> pantallaCarreraJugador(Temporada t, ContextoModos c) async {
                 builder: (_) => MiJugadorPantalla(temporada: temp, carrera: carrera, onCambiar: cambiar),
               ),
             ),
+            onFechaLimite: (e.uso['tr:pend'] ?? 0) == 1
+                ? () => mostrarFechaLimite(
+                    context,
+                    (o) => cambiar(carrera.sincronizar(temp, carrera.resolverFechaLimite(e, o))),
+                    rumor: e.movimientos.isEmpty ? null : e.movimientos.lastWhere((m) => m.contains('fecha límite') || m.contains('Rumor'), orElse: () => ''),
+                  )
+                : null,
             onElegirObjetivos: ObjetivosCarrera.puedeElegir(e)
                 ? () => Navigator.of(context).push(
                     MaterialPageRoute<void>(

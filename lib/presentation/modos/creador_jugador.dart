@@ -21,6 +21,7 @@ class CreadorJugadorPantalla extends StatefulWidget {
     this.nombreInicial = '',
     this.nacimiento,
     this.posicionInicial = Posicion.escolta,
+    this.conArranque = false,
   });
 
   final String titulo, textoBoton, nombreInicial;
@@ -28,6 +29,9 @@ class CreadorJugadorPantalla extends StatefulWidget {
   /// Año de nacimiento que se le pone al jugador (opcional).
   final int? nacimiento;
   final Posicion posicionInicial;
+
+  /// Pide también el año del draft, la edad de arranque y el número de camiseta (Mi carrera).
+  final bool conArranque;
 
   @override
   State<CreadorJugadorPantalla> createState() => _CreadorJugadorPantallaState();
@@ -40,6 +44,7 @@ class _CreadorJugadorPantallaState extends State<CreadorJugadorPantalla> {
   late double _altura = JugadorCreado.alturaSugerida(_posicion).toDouble();
   var _peso = 92.0;
   var _avatar = const AvatarCreado();
+  var _anio = 2026, _edad = 20, _dorsal = 7;
   final _fuertes = <Atributo>[Atributo.tiro, Atributo.iq, Atributo.defensa];
 
   @override
@@ -55,8 +60,11 @@ class _CreadorJugadorPantallaState extends State<CreadorJugadorPantalla> {
     fuertes: List.of(_fuertes),
     alturaCm: _altura.round(),
     pesoKg: _peso.round(),
-    nacimiento: widget.nacimiento,
+    nacimiento: widget.conArranque ? _anio - _edad : widget.nacimiento,
     avatar: _avatar,
+    anioDraft: widget.conArranque ? _anio : null,
+    edadInicial: widget.conArranque ? _edad : null,
+    dorsal: widget.conArranque ? _dorsal : 0,
   );
 
   void _elegirPosicion(Posicion p) => setState(() {
@@ -162,6 +170,56 @@ class _CreadorJugadorPantallaState extends State<CreadorJugadorPantalla> {
               ),
           ],
         ),
+        if (widget.conArranque) ...[
+          const SizedBox(height: 16),
+          Text('TU ARRANQUE', style: tema.textTheme.labelLarge),
+          const SizedBox(height: 2),
+          Text(
+            'El año del draft define la época: de ahí salen tus compañeros y tu camiseta. Podés empezar de pibe o llegar más grande.',
+            style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final a in const [2026, 2015, 2005, 1995, 1985])
+                ChoiceChip(label: Text('$a'), selected: _anio == a, onSelected: (_) => setState(() => _anio = a)),
+            ],
+          ),
+          _Deslizador(
+            etiqueta: 'AÑO',
+            valor: '$_anio',
+            slider: Slider(
+              value: _anio.toDouble(),
+              min: JugadorCreado.anioMin.toDouble(),
+              max: JugadorCreado.anioMax.toDouble(),
+              divisions: JugadorCreado.anioMax - JugadorCreado.anioMin,
+              onChanged: (v) => setState(() => _anio = v.round()),
+            ),
+          ),
+          _Deslizador(
+            etiqueta: 'EDAD',
+            valor: '$_edad años',
+            slider: Slider(
+              value: _edad.toDouble(),
+              min: JugadorCreado.edadMin.toDouble(),
+              max: JugadorCreado.edadMax.toDouble(),
+              divisions: JugadorCreado.edadMax - JugadorCreado.edadMin,
+              onChanged: (v) => setState(() => _edad = v.round()),
+            ),
+          ),
+          _Deslizador(
+            etiqueta: 'NÚMERO',
+            valor: '#$_dorsal',
+            slider: Slider(
+              value: _dorsal.toDouble(),
+              max: 99,
+              divisions: 99,
+              onChanged: (v) => setState(() => _dorsal = v.round()),
+            ),
+          ),
+        ],
       ],
     );
     final vista = _VistaPrevia(jugador: jugador, error: error);

@@ -9,6 +9,7 @@ import 'package:dinastia_nba/domain/entities/temporada.dart';
 import 'package:dinastia_nba/domain/liga.dart';
 import 'package:dinastia_nba/domain/modos/carrera_jugador.dart';
 import 'package:dinastia_nba/domain/modos/vida_carrera.dart';
+import 'package:dinastia_nba/presentation/modos/carrera_equipo_pantallas.dart';
 import 'package:dinastia_nba/presentation/modos/carrera_jugador_pantallas.dart';
 import 'package:dinastia_nba/presentation/modos/creador_jugador.dart';
 import 'package:dinastia_nba/presentation/tema/tema_franquicia.dart';
@@ -216,6 +217,93 @@ void main() {
     expect(find.textContaining('22,0 puntos'), findsOneWidget);
     expect(find.text('OBJETIVOS DE CARRERA'), findsOneWidget);
     expect(find.text('0/${ObjetivoCarrera.values.length}'), findsOneWidget);
+  });
+
+  testWidgets('Mi equipo muestra el plantel con edad y contrato, y los movimientos', (t) async {
+    telefono(t);
+    final base = carrera.estadoCreado(raiz: 'w12', creado: creado, pick: 5, franquiciaId: 'CHI');
+    final t0 = carrera.nuevaCarrera(estado: base, dificultad: Dificultad.normal);
+    final e = EstadoCarrera.de(t0)!.copyWith(movimientos: ['2027–28: Fulano se retira a los 37 años.']);
+    await t.pumpWidget(app(MiEquipoPantalla(estado: e)));
+    expect(find.text('Mi equipo'), findsOneWidget);
+    expect(find.textContaining('años'), findsWidgets);
+    expect(find.text('MOVIMIENTOS DEL PLANTEL'), findsOneWidget);
+    expect(find.textContaining('Fulano se retira'), findsOneWidget);
+  });
+
+  testWidgets('Mi generación lista la clase del draft con vos y tu rival', (t) async {
+    telefono(t);
+    final e = carrera.estadoCreado(raiz: 'w13', creado: creado, pick: 5, franquiciaId: 'CHI');
+    await t.pumpWidget(app(GeneracionPantalla(estado: e, catalogo: liga.catalogo)));
+    expect(find.text('Clase del draft ${e.anioBase}'), findsOneWidget);
+    expect(find.textContaining('TU RIVAL DE GENERACIÓN'), findsOneWidget);
+  });
+
+  testWidgets('la fecha límite de traspasos ofrece las tres opciones', (t) async {
+    telefono(t);
+    OpcionFechaLimite? elegida;
+    await t.pumpWidget(
+      app(
+        Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: FilledButton(
+                onPressed: () => mostrarFechaLimite(context, (o) => elegida = o, rumor: 'Rumor: varios equipos preguntan por vos.'),
+                child: const Text('abrir'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.text('abrir'));
+    await t.pumpAndSettle();
+    expect(find.text('Fecha límite de traspasos'), findsOneWidget);
+    expect(find.textContaining('Rumor'), findsOneWidget);
+    for (final o in OpcionFechaLimite.values) {
+      expect(find.text(o.etiqueta), findsOneWidget);
+    }
+    await t.tap(find.text('Pedir el traspaso'));
+    await t.pumpAndSettle();
+    expect(elegida, OpcionFechaLimite.pedirTraspaso);
+  });
+
+  testWidgets('el creador de Mi carrera pide año, edad y número y los devuelve', (t) async {
+    telefono(t);
+    t.view.physicalSize = const Size(412, 3600) * 2.5;
+    JugadorCreado? salida;
+    await t.pumpWidget(
+      app(
+        Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: FilledButton(
+                onPressed: () async {
+                  salida = await Navigator.of(context).push<JugadorCreado>(
+                    MaterialPageRoute(builder: (_) => const CreadorJugadorPantalla(textoBoton: 'LISTO', conArranque: true)),
+                  );
+                },
+                child: const Text('abrir'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.text('abrir'));
+    await t.pumpAndSettle();
+    expect(find.text('TU ARRANQUE'), findsOneWidget);
+    await t.enterText(find.byType(TextField), 'Lucía Gómez');
+    await t.pump();
+    await t.ensureVisible(find.text('1995'));
+    await t.tap(find.text('1995'));
+    await t.pump();
+    await t.ensureVisible(find.widgetWithText(FilledButton, 'LISTO'));
+    await t.tap(find.widgetWithText(FilledButton, 'LISTO'));
+    await t.pumpAndSettle();
+    expect(salida?.anioDraft, 1995);
+    expect(salida?.edadInicial, 20);
+    expect(salida?.nacimiento, 1975);
   });
 
   testWidgets('legado: totales, veredicto y línea de tiempo', (t) async {

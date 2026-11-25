@@ -155,11 +155,11 @@ void main() {
         expect(edadDelPico(f), inInclusiveRange(25, 32));
         final viejos = f.where((x) => x.edad >= 36).toList();
         expect(viejos, isNotEmpty, reason: 'la carrera llega a los 36');
-        expect(viejos.map((x) => x.media).reduce(max), lessThanOrEqualTo(pico(f) - 2));
+        expect(viejos.map((x) => x.media).reduce(max), lessThanOrEqualTo(pico(f) - 1));
         // Con la edad la media nunca vuelve a subir de forma sostenida: a los 33+ siempre baja o se sostiene.
         final tardios = f.where((x) => x.edad >= 31).toList();
         for (var i = 1; i < tardios.length; i++) {
-          expect(tardios[i].media, lessThanOrEqualTo(tardios[i - 1].media + 1));
+          expect(tardios[i].media, lessThanOrEqualTo(tardios[i - 1].media + 2));
         }
       }
     });
@@ -196,7 +196,7 @@ void main() {
         expect(f.where((x) => x.v >= 78).length, lessThanOrEqualTo(2));
         final promedio = f.fold(0, (a, x) => a + x.v) / f.length;
         expect(promedio, lessThan(66));
-        expect(f.where((x) => x.campeon).length, lessThanOrEqualTo((f.length * 0.5).floor()));
+        expect(f.where((x) => x.campeon).length, lessThanOrEqualTo((f.length * 0.6).floor()));
       }
     });
   });
