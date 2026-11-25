@@ -22,6 +22,7 @@ import 'objetivos_carrera.dart';
 import 'plantel_carrera.dart';
 import 'premios_carrera.dart';
 import 'puntos_carrera.dart';
+import 'seleccion_carrera.dart';
 import 'vida_carrera.dart';
 
 export 'cuerpo_carrera.dart';
@@ -31,6 +32,7 @@ export 'generacion_carrera.dart';
 export 'plantel_carrera.dart';
 export 'premios_carrera.dart';
 export 'puntos_carrera.dart';
+export 'seleccion_carrera.dart';
 export 'records_carrera.dart';
 
 export 'habilidades.dart';
@@ -2268,8 +2270,10 @@ class CarreraJugador {
       relacion: e.relacion + (VidaCarrera.personalidad(e) == Personalidad.lider ? 2 : 0),
     );
     // Objetivos de carrera que se cumplieron con esta temporada sumada.
-    final logradosCarrera = ObjetivosCarrera.nuevosDeCarrera(cerrado);
-    final estado = ObjetivosCarrera.cobrarCarrera(cerrado, logradosCarrera);
+    final torneo = SeleccionCarrera.jugar(e, media: e.media, ppg: marcaFinal.ppg);
+    final conSeleccion = torneo == null ? cerrado : SeleccionCarrera.aplicar(cerrado, torneo, e.etiquetaTemporada);
+    final logradosCarrera = ObjetivosCarrera.nuevosDeCarrera(conSeleccion);
+    final estado = ObjetivosCarrera.cobrarCarrera(conSeleccion, logradosCarrera);
     // Insignias que ganaste o subiste de grado este año (con la carrera ya sumada).
     final antesG = e.grados;
     final gradosNuevos = estado.grados;

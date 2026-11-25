@@ -668,6 +668,14 @@ class _EditorAvatar extends StatelessWidget {
               alElegir: (v) => alCambiarEstilo(estilo.copyWith(origen: OrigenJugador.values[v])),
             ),
             Text(estilo.origen.descripcion, style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 10),
+            _Opciones(
+              titulo: 'Selección nacional',
+              nombres: [for (final p in SeleccionCarrera.paises) p.nombre],
+              valor: estilo.pais.clamp(0, SeleccionCarrera.paises.length - 1),
+              alElegir: (v) => alCambiarEstilo(estilo.copyWith(pais: v)),
+            ),
+            Text('Mundial y Juegos Olímpicos cada 4 años: si tu nivel alcanza, te convocan.', style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.onSurfaceVariant)),
           ],
         ),
         _Grupo(

@@ -714,6 +714,43 @@ class PanelControlPartido extends StatelessWidget {
   }
 }
 
+/// Tu selección nacional: país, convocatorias y medallas.
+class PanelSeleccion extends StatelessWidget {
+  const PanelSeleccion({super.key, required this.estado});
+
+  final EstadoCarrera estado;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final pais = SeleccionCarrera.paisDe(estado);
+    if (pais == null) {
+      return Text('SELECCIÓN NACIONAL: solo los jugadores creados juegan con su país.', style: tema.textTheme.bodySmall);
+    }
+    final faltan = SeleccionCarrera.faltan(estado.numero);
+    final proximo = SeleccionCarrera.nombreTorneo(estado.numero + faltan);
+    int n(String k) => estado.uso[k] ?? 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('SELECCIÓN: ${pais.nombre.toUpperCase()}', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        Text(
+          'Convocatorias: ${SeleccionCarrera.convocatorias(estado)} · Oro ${n('sn:oro')} · Plata ${n('sn:plata')} · Bronce ${n('sn:bronce')}',
+          style: tema.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          faltan == 0
+              ? 'Este año hay $proximo: se juega al cerrar la temporada.'
+              : 'Próximo torneo: $proximo, en $faltan ${faltan == 1 ? 'temporada' : 'temporadas'}. Te convocan con media ${pais.fuerza - 14} o más (titular desde ${pais.fuerza - 4}).',
+          style: tema.textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
 /// Carga de partidos, lesión actual por parte del cuerpo, rehabilitación e historial.
 class PanelCuerpo extends StatelessWidget {
   const PanelCuerpo({
@@ -1372,6 +1409,8 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
       ),
       const SizedBox(height: 12),
       _Panel(child: PanelMundo(estado: e)),
+      const SizedBox(height: 12),
+      _Panel(child: PanelSeleccion(estado: e)),
       const SizedBox(height: 12),
       _Panel(
         child: PanelCuerpo(temporada: _t, estado: e, alElegirRehab: _elegirRehab, alDescansar: _descansar),

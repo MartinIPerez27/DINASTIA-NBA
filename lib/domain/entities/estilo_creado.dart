@@ -29,6 +29,7 @@ class EstiloCreado {
     this.formaDeTiro = 0,
     this.festejo = 0,
     this.personalidad = Personalidad.profesional,
+    this.pais = 0,
   });
 
   /// Centímetros de brazos de más (o de menos) respecto de tu altura: de −10 a +15.
@@ -39,6 +40,9 @@ class EstiloCreado {
   final OrigenJugador origen;
   final int formaDeTiro, festejo;
   final Personalidad personalidad;
+
+  /// Índice del país de tu selección nacional (ver `SeleccionCarrera.paises`).
+  final int pais;
 
   static const envergaduraMin = -10, envergaduraMax = 15;
   static const manos = ['Derecho', 'Zurdo', 'Ambidiestro'];
@@ -52,6 +56,7 @@ class EstiloCreado {
     int? formaDeTiro,
     int? festejo,
     Personalidad? personalidad,
+    int? pais,
   }) => EstiloCreado(
     envergadura: (envergadura ?? this.envergadura).clamp(envergaduraMin, envergaduraMax),
     mano: mano ?? this.mano,
@@ -59,9 +64,10 @@ class EstiloCreado {
     formaDeTiro: formaDeTiro ?? this.formaDeTiro,
     festejo: festejo ?? this.festejo,
     personalidad: personalidad ?? this.personalidad,
+    pais: pais ?? this.pais,
   );
 
-  String get codigo => '$envergadura.$mano.${origen.index}.$formaDeTiro.$festejo.${personalidad.index}';
+  String get codigo => '$envergadura.$mano.${origen.index}.$formaDeTiro.$festejo.${personalidad.index}.$pais';
 
   static EstiloCreado? deCodigo(String? codigo) {
     if (codigo == null) return null;
@@ -74,6 +80,7 @@ class EstiloCreado {
       formaDeTiro: v(3, 0, formas.length - 1, 0),
       festejo: v(4, 0, festejos.length - 1, 0),
       personalidad: Personalidad.values[v(5, 0, Personalidad.values.length - 1, Personalidad.profesional.index)],
+      pais: v(6, 0, 99, 0),
     );
   }
 }
