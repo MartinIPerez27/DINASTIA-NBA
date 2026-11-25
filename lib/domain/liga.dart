@@ -578,6 +578,19 @@ class Liga {
   /// forma y All-Star lo buscan por id. Tiene que tener un id que no sea de ninguna carta del catálogo.
   void registrarCarta(Jugador j) => _porId[j.id] = j;
 
+  /// Suma al catálogo una carta propia (tu carta de carrera) para que la usen los demás modos.
+  /// Si ya estaba, no hace nada. Devuelve si quedó agregada.
+  bool agregarCartaPropia(Jugador j) {
+    if (catalogo.any((x) => x.id == j.id)) return false;
+    try {
+      catalogo.add(j);
+    } catch (_) {
+      return false; // catálogo de solo lectura (tests)
+    }
+    _porId[j.id] = j;
+    return true;
+  }
+
   /// Franquicia de cada carta en esta temporada (tu plantel y los 29 rivales).
   Map<String, String> equipos(Temporada t) => {
     for (final j in t.plantel.jugadores) j.id: t.franquiciaUsuarioId,

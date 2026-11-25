@@ -87,4 +87,49 @@ void main() {
     expect(CuerpoCarrera.factor(e), lessThan(base));
     expect(CuerpoCarrera.nuevaCarga(50, 36 * 60, extra: 1.5), lessThan(CuerpoCarrera.nuevaCarga(50, 36 * 60)));
   });
+
+  group('ofertas con tope salarial y cláusulas', () {
+    test('cada oferta trae sueldo y cláusula, y nunca pasa el espacio salarial del equipo', () {
+      var e = nuevo(pick: 2).copyWith(numero: 6);
+      e = e.copyWith(atributos: e.atributos.sumar({for (final a in Atributo.values) a: 20}));
+      final t = carrera.nuevaCarrera(estado: e, dificultad: Dificultad.normal);
+      final ofertas = carrera.ofertas(t, EstadoCarrera.de(t)!, traspaso: true);
+      expect(ofertas, isNotEmpty);
+      for (final o in ofertas) {
+        expect(o.salario, greaterThan(0));
+        expect(o.salario, lessThanOrEqualTo(CarreraJugador.espacioSalarial(o.nivelEquipo) + 0.05));
+      }
+      expect(CarreraJugador.espacioSalarial(70), greaterThan(CarreraJugador.espacioSalarial(86)));
+    });
+
+    test('un crack choca con el tope de los equipos armados', () {
+      expect(CarreraJugador.espacioSalarial(86), lessThan(30));
+      expect(CarreraJugador.espacioSalarial(60), 70);
+    });
+
+    test('firmar guarda el sueldo y la cláusula, y el bono por título paga si salís campeón', () {
+      final e0 = nuevo();
+      final t = carrera.nuevaCarrera(estado: e0, dificultad: Dificultad.normal);
+      final e = EstadoCarrera.de(t)!;
+      final oferta = OfertaContrato(
+        franquiciaId: 'CHI',
+        rol: RolOferta.titular,
+        anios: 3,
+        nivelEquipo: 78,
+        renovacion: true,
+        salario: 21.5,
+        clausula: ClausulaContrato.bonoTitulo,
+      );
+      final sig = carrera.siguiente(t, e.copyWith(cerrada: true), oferta: oferta);
+      final ne = EstadoCarrera.de(sig)!;
+      expect(ne.uso['ec:sal'], 215);
+      expect(EconomiaCarrera.clausula(ne), ClausulaContrato.bonoTitulo);
+      expect(EconomiaCarrera.sueldoBase(ne.copyWith(numero: 9)), 21.5);
+      final campeon = ne.copyWith(historial: [
+        TemporadaJugador(numero: 1, etiqueta: 'x', franquiciaId: 'CHI', edad: 22, media: 80, pj: 70, pts: 20, reb: 5, ast: 5, victorias: 60, derrotas: 22, resultado: '', campeon: true, allStar: false),
+      ]);
+      expect(EconomiaCarrera.bono(campeon), 4.0);
+      expect(EconomiaCarrera.bono(ne), 0.0);
+    });
+  });
 }

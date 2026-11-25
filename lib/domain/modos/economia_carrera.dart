@@ -32,10 +32,21 @@ class EconomiaCarrera {
   static double sueldoBase(EstadoCarrera e) {
     final novato = e.numero <= CarreraJugador.contratoNovato(e.pick);
     if (novato) return max(1.5, 11 - e.pick * 0.28);
+    final pactado = e.uso['ec:sal'] ?? 0;
+    if (pactado > 0) return pactado / 10;
     return max(2.0, 4 + (e.media - 68) * 1.7);
   }
 
   static double sueldo(EstadoCarrera e) => sueldoBase(e) * (1 + 0.05 * nivel(e, Personal.agente));
+
+  static ClausulaContrato clausula(EstadoCarrera e) {
+    final n = e.uso['ec:cl'] ?? 0;
+    return n <= 0 || n > ClausulaContrato.values.length ? ClausulaContrato.ninguna : ClausulaContrato.values[n - 1];
+  }
+
+  /// Bono por título de la cláusula (millones) si la última temporada cerrada fue campeona.
+  static double bono(EstadoCarrera e) =>
+      clausula(e) == ClausulaContrato.bonoTitulo && e.historial.isNotEmpty && e.historial.last.campeon ? 4.0 : 0.0;
 
   static double comision(EstadoCarrera e) => sueldo(e) * 0.03 * nivel(e, Personal.agente);
 
@@ -76,7 +87,7 @@ class EconomiaCarrera {
   /// Cierra el año: cobra sueldo y marcas, paga el equipo personal y suma los puntos del entrenador.
   /// Si no alcanza la caja, el personal más caro se va (baja un nivel cada vez).
   static EstadoCarrera alCerrar(EstadoCarrera e) {
-    final ingreso = sueldo(e) - comision(e) + patrocinios(e);
+    final ingreso = sueldo(e) - comision(e) + patrocinios(e) + bono(e);
     var ne = e;
     var caja10 = (e.uso['ec:caja'] ?? 0) + (ingreso * 10).round();
     final avisos = <String>[];

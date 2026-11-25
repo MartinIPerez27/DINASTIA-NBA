@@ -2336,6 +2336,11 @@ class _TarjetaOferta extends StatelessWidget {
                       '${oferta.rol.etiqueta} · ${oferta.anios} ${oferta.anios == 1 ? 'año' : 'años'}',
                       style: tema.textTheme.bodyMedium,
                     ),
+                    if (oferta.salario > 0)
+                      Text(
+                        '${oferta.salario.toStringAsFixed(1).replaceAll('.', ',')} M por año · ${oferta.clausula.etiqueta}${oferta.limitadoPorTope ? ' · recortado por el tope salarial' : ''}',
+                        style: tema.textTheme.bodySmall,
+                      ),
                     Text(
                       oferta.rival == null
                           ? 'Plantel de media ${oferta.nivelEquipo}'
@@ -2360,13 +2365,16 @@ class _TarjetaOferta extends StatelessWidget {
 
 /// La carrera completa: totales, anillos, premios, veredicto del Salón y la línea de tiempo.
 class LegadoCarreraPantalla extends StatelessWidget {
-  const LegadoCarreraPantalla({super.key, required this.estado, required this.carrera, this.alInicio});
+  const LegadoCarreraPantalla({super.key, required this.estado, required this.carrera, this.alInicio, this.alHeredar});
 
   final EstadoCarrera estado;
   final CarreraJugador carrera;
 
   /// Al terminar la carrera (retirado): volver al inicio.
   final VoidCallback? alInicio;
+
+  /// Carrera generacional: empezar la carrera de tu hijo o hija (solo si hay una carrera completa).
+  final VoidCallback? alHeredar;
 
   @override
   Widget build(BuildContext context) {
@@ -2504,6 +2512,14 @@ class LegadoCarreraPantalla extends StatelessWidget {
                   const SizedBox(height: 12),
                   if (huella != null) ...[huella, const SizedBox(height: 12)],
                   historia,
+                  if (alHeredar != null) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: alHeredar,
+                      icon: const Icon(Icons.family_restroom_outlined),
+                      label: const Text('EMPEZAR LA CARRERA DE TU HIJO/A'),
+                    ),
+                  ],
                   if (alInicio != null) ...[
                     const SizedBox(height: 16),
                     FilledButton(onPressed: alInicio, child: const Text('VOLVER AL INICIO')),

@@ -1,3 +1,5 @@
+import '../../data/estado_app.dart';
+import '../../domain/liga.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -132,6 +134,22 @@ Future<void> iniciarCarreraJugador(ContextoModos c, {JugadorCreado? creadoInicia
   await c.abrirTemporada(t);
 }
 
+/// Al retirarte, tu carta queda en el álbum del perfil y se suma a la liga para usarla en los otros modos.
+Future<void> _guardarCartaDeCarrera(ContextoModos c, Liga liga, EstadoCarrera retirado) async {
+  final carta = CartaCarrera.deRetiro(retirado);
+  final perfil = perfilApp.value;
+  if (perfil.cartasCarrera.any((x) => x['id'] == carta.id)) return;
+  final nuevo = perfil.copyWith(
+    cartasCarrera: [...perfil.cartasCarrera, carta.toJson()],
+    coleccion: {...perfil.coleccion, carta.id},
+  );
+  perfilApp.value = nuevo;
+  liga.agregarCartaPropia(carta);
+  try {
+    await c.db?.escribir('perfil', nuevo.toJson());
+  } catch (_) {}
+}
+
 String _nombreDe(String id) => franquiciaPorId(id).nombreCompleto;
 
 /// Pantalla de la partida de Mi carrera según dónde esté: temporada, playoffs, receso o retiro.
@@ -153,6 +171,17 @@ Future<Widget?> pantallaCarreraJugador(Temporada t, ContextoModos c) async {
       estado: estado,
       carrera: carrera,
       alInicio: () => c.navegador.currentState?.popUntil((r) => r.isFirst),
+      alHeredar: HerederoCarrera.puede(estado)
+          ? () async {
+              final dificultad = await elegirDificultad(c.context);
+              if (dificultad == null) return;
+              final h = HerederoCarrera.de(estado);
+              final e = h.estado(carrera, '${DateTime.now().microsecondsSinceEpoch}', estado.nombre);
+              final nueva = carrera.nuevaCarrera(estado: e, dificultad: dificultad);
+              await c.guardar(nueva);
+              await c.abrirTemporada(nueva);
+            }
+          : null,
     );
   }
   if (estado.cerrada) return _receso(t, estado, null, carrera, c, apilado: false);
@@ -282,6 +311,7 @@ Widget _receso(
         final retirado = carrera.retirar(e);
         actual = actual.copyWith(datosModo: retirado.aDatos());
         await c.guardar(actual);
+        await _guardarCartaDeCarrera(c, carrera.liga, retirado);
         if (apilado && contexto.mounted) Navigator.of(contexto).pop();
         await c.abrirTemporada(actual, reemplazar: true);
       },

@@ -207,6 +207,7 @@ class PerfilEntrenador {
     this.evoluciones = const {},
     this.perfilPerfecto = const {},
     this.momentosClutch = const {},
+    this.cartasCarrera = const [],
   });
 
   final int xp;
@@ -247,6 +248,9 @@ class PerfilEntrenador {
 
   /// Progreso de Perfil perfecto: estrellas por nivel y pistas (ver domain/modos/perfil_perfecto.dart).
   final Map<String, dynamic> perfilPerfecto;
+
+  /// Cartas de tus carreras retiradas de Mi carrera (JSON de la carta): entran en el álbum y en los otros modos.
+  final List<Map<String, dynamic>> cartasCarrera;
 
   /// Momentos clutch ya superados alguna vez (ids): borrar la partida no los reinicia ni vuelve a pagarlos.
   final Set<String> momentosClutch;
@@ -290,6 +294,7 @@ class PerfilEntrenador {
     Map<String, dynamic>? evoluciones,
     Map<String, dynamic>? perfilPerfecto,
     Set<String>? momentosClutch,
+    List<Map<String, dynamic>>? cartasCarrera,
   }) => PerfilEntrenador(
     xp: xp ?? this.xp,
     monedas: monedas ?? this.monedas,
@@ -307,6 +312,7 @@ class PerfilEntrenador {
     evoluciones: evoluciones ?? this.evoluciones,
     perfilPerfecto: perfilPerfecto ?? this.perfilPerfecto,
     momentosClutch: momentosClutch ?? this.momentosClutch,
+    cartasCarrera: cartasCarrera ?? this.cartasCarrera,
   );
 
   factory PerfilEntrenador.fromJson(Map<String, dynamic> j) => PerfilEntrenador(
@@ -337,6 +343,7 @@ class PerfilEntrenador {
     evoluciones: j['evoluciones'] as Map<String, dynamic>? ?? const {},
     perfilPerfecto: j['perfilPerfecto'] as Map<String, dynamic>? ?? const {},
     momentosClutch: {...(j['momentosClutch'] as List? ?? const []).cast<String>()},
+    cartasCarrera: [for (final c in j['cartasCarrera'] as List? ?? const []) (c as Map).cast<String, dynamic>()],
   );
 
   Map<String, dynamic> toJson() => {
@@ -358,5 +365,6 @@ class PerfilEntrenador {
     if (evoluciones.isNotEmpty) 'evoluciones': evoluciones,
     if (perfilPerfecto.isNotEmpty) 'perfilPerfecto': perfilPerfecto,
     if (momentosClutch.isNotEmpty) 'momentosClutch': momentosClutch.toList()..sort(),
+    if (cartasCarrera.isNotEmpty) 'cartasCarrera': cartasCarrera,
   };
 }

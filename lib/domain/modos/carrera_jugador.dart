@@ -29,6 +29,7 @@ import 'vida_carrera.dart';
 
 export 'cuerpo_carrera.dart';
 export 'economia_carrera.dart';
+export 'legado_carrera.dart';
 export 'mapa_tiro.dart';
 export 'narrativa_carrera.dart';
 export 'mundo_carrera.dart';
@@ -769,6 +770,17 @@ enum RolOferta {
 }
 
 /// Oferta de un equipo en la agencia libre (o al pedir el traspaso).
+/// Cláusula extra de un contrato.
+enum ClausulaContrato {
+  ninguna('Sin cláusulas', ''),
+  opcionJugador('Opción del jugador', 'El último año podés renegociar: la renovación te paga 12 % más.'),
+  noTraspaso('No traspasable', 'El club no puede traspasarte en la fecha límite.'),
+  bonoTitulo('Bono por título', 'Cobrás 4 M extra si salís campeón.');
+
+  const ClausulaContrato(this.etiqueta, this.descripcion);
+  final String etiqueta, descripcion;
+}
+
 class OfertaContrato {
   const OfertaContrato({
     required this.franquiciaId,
@@ -777,6 +789,9 @@ class OfertaContrato {
     required this.nivelEquipo,
     this.rival,
     this.renovacion = false,
+    this.salario = 0,
+    this.clausula = ClausulaContrato.ninguna,
+    this.limitadoPorTope = false,
   });
 
   final String franquiciaId;
@@ -791,6 +806,11 @@ class OfertaContrato {
 
   /// Es tu propio equipo renovando.
   final bool renovacion;
+
+  /// Sueldo anual en millones (0 = no calculado), cláusula, y si el tope salarial del equipo lo recortó.
+  final double salario;
+  final ClausulaContrato clausula;
+  final bool limitadoPorTope;
 }
 
 // -------------------------------------------------------------------------------------------
@@ -1963,7 +1983,7 @@ class CarreraJugador {
       }
     }
     // El rumor era sobre vos y se concreta: si no tenés la confianza del club, te traspasan sin preguntarte.
-    if (rumor == 1 && (e.uso['tr:real'] ?? 0) == 1 && e.confianza < 60) {
+    if (rumor == 1 && (e.uso['tr:real'] ?? 0) == 1 && e.confianza < 60 && e.uso['ec:cl'] != ClausulaContrato.noTraspaso.index + 1) {
       return ne.copyWith(
         pidioTraspaso: true,
         confianza: ne.confianza - 3,
@@ -2461,31 +2481,71 @@ class CarreraJugador {
     final lista = <OfertaContrato>[];
     if (!traspaso) {
       final rival = _titularDe(e.companeros, e.posicion);
+      final rol = _rolOferta(e.media, rival?.$2, e.confianza);
+      final nivel = _nivelPropio(e);
+      final cond = _condiciones(e, rol, nivel, azar, renovando: true);
       lista.add(
         OfertaContrato(
           franquiciaId: e.franquiciaId,
-          rol: _rolOferta(e.media, rival?.$2, e.confianza),
+          rol: rol,
           anios: 2 + azar.nextInt(3),
-          nivelEquipo: _nivelPropio(e),
+          nivelEquipo: nivel,
           rival: rival,
           renovacion: true,
+          salario: cond.$1,
+          clausula: cond.$2,
+          limitadoPorTope: cond.$3,
         ),
       );
     }
     for (final id in otros.take((traspaso ? 4 : 3) + EconomiaCarrera.ofertasExtra(e))) {
       final plantel = _plantelRival(t, id);
       final rival = plantel == null ? null : _titularDe(plantel.jugadores.toList(), e.posicion);
+      final rol = _rolOferta(e.media, rival?.$2, e.confianza + 10);
+      final nivel = _nivelDe(plantel);
+      final cond = _condiciones(e, rol, nivel, azar, renovando: false);
       lista.add(
         OfertaContrato(
           franquiciaId: id,
-          rol: _rolOferta(e.media, rival?.$2, e.confianza + 10),
+          rol: rol,
           anios: 1 + azar.nextInt(4),
-          nivelEquipo: _nivelDe(plantel),
+          nivelEquipo: nivel,
           rival: rival,
+          salario: cond.$1,
+          clausula: cond.$2,
+          limitadoPorTope: cond.$3,
         ),
       );
     }
     return lista;
+  }
+
+  /// Espacio salarial de un equipo (millones): los más armados ya gastaron casi todo el tope.
+  static double espacioSalarial(int nivelEquipo) => (75 - (nivelEquipo - 70) * 3.0).clamp(8.0, 70.0).toDouble();
+
+  /// Sueldo, cláusula y si el tope lo recortó: lo que quiere pagar el equipo según tu rol, con el tope salarial por encima.
+  (double, ClausulaContrato, bool) _condiciones(EstadoCarrera e, RolOferta rol, int nivelEquipo, Random azar, {required bool renovando}) {
+    final factorRol = switch (rol) {
+      RolOferta.estrella => 1.15,
+      RolOferta.titular => 1.0,
+      RolOferta.rotacion => 0.8,
+    };
+    final opcion = e.uso['ec:cl'] == ClausulaContrato.opcionJugador.index + 1 && e.contrato <= 1;
+    final deseado = EconomiaCarrera.sueldoBase(e.copyWith(numero: max(e.numero, 20))) *
+        factorRol *
+        (1 + 0.05 * EconomiaCarrera.nivel(e, Personal.agente)) *
+        (renovando && opcion ? 1.12 : 1.0);
+    final tope = espacioSalarial(nivelEquipo);
+    final r = azar.nextDouble();
+    final clausula = r < 0.35
+        ? ClausulaContrato.opcionJugador
+        : r < 0.6
+        ? ClausulaContrato.noTraspaso
+        : r < 0.8
+        ? ClausulaContrato.bonoTitulo
+        : ClausulaContrato.ninguna;
+    final salario = min(deseado, tope) * (clausula == ClausulaContrato.noTraspaso ? 0.95 : 1.0);
+    return (double.parse(salario.toStringAsFixed(1)), clausula, deseado > tope);
   }
 
   /// El mejor de [jugadores] en [posicion] (nombre y media): con quién competirías por el puesto.
@@ -2570,6 +2630,11 @@ class CarreraJugador {
       ne = ne.copyWith(
         contrato: oferta.anios,
         confianza: mudanza ? oferta.rol.confianza : max(e.confianza, oferta.rol.confianza - 10),
+        uso: {
+          ...ne.uso,
+          if (oferta.salario > 0) 'ec:sal': (oferta.salario * 10).round(),
+          'ec:cl': oferta.clausula.index + 1,
+        },
       );
     } else if (e.contrato <= 0) {
       ne = ne.copyWith(contrato: 1);
@@ -2614,7 +2679,7 @@ class CarreraJugador {
       );
     }
     final (usoContratos, llegadas) = PlantelCarrera.contratos(
-      e,
+      ne,
       mudanza ? const [] : e.companeros,
       companeros,
       azar,
