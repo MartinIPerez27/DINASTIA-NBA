@@ -89,7 +89,7 @@ void main() {
 
   testWidgets('Mi jugador: gastar un punto sube el atributo y avisa', (t) async {
     telefono(t);
-    t.view.physicalSize = const Size(412, 2600) * 2.5;
+    t.view.physicalSize = const Size(412, 4200) * 2.5;
     final e0 = carrera.estadoCreado(raiz: 'w1', creado: creado, pick: 9, franquiciaId: 'CHI').copyWith(phBanco: 6);
     final temporada = carrera.nuevaCarrera(estado: e0, dificultad: Dificultad.normal);
     Temporada? ultima;

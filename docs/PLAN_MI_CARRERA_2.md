@@ -124,6 +124,20 @@ estadísticas avanzadas.
   - Pendiente de este punto: que el jugador "salga" mid-season por una decisión del club (hoy solo se mueven
     compañeros; el traspaso propio se negocia en el receso).
 
+- **Bloque 7 (barra de tiro y control del jugador) — hecho en parte.**
+  - Motor: el tiro se parte en dos pasos sin tocar el azar (`siguienteInteractivo` / `resolverMomento`): con timing
+    neutro el partido sale idéntico al de siempre (probado). Simular, saltar jugadas y los demás modos nunca se frenan.
+  - Barra de tiro para **tus tiros de campo** y para **tu defensa directa** (si marcás al que tira, la barra decide
+    cuánto le cerrás el tiro y la chance de tapón). Perfecto +15 % de acierto, Bien +5 %, Temprano −9 %, Tarde −12 %.
+  - La zona verde crece con tus habilidades (triple, media distancia, bandejas, defensa…), con lo abierto del tiro y
+    con tu forma de tirar; hay modos "Solo lo importante" (por defecto: final apretado, Takeover y chicharras),
+    "Todos mis tiros" y "Automático", tamaño de zona y "mantener y soltar".
+  - Sin controles de entrenador en Mi carrera (tiempo muerto, ritmo, presión, rotación, minutos y cambios); queda
+    "Mis decisiones" con las del jugador.
+  - **No incluido todavía:** tiros libres, robo, rebote y pase con timing. Los tiros libres y el rebote se resuelven
+    en el motor dentro de la misma jugada (varios intentos seguidos), y requieren partir esa resolución en más pasos.
+    Concursos de volcadas y de triples del All-Star: dependen de esto.
+
 - **Bloque 6 (récords históricos de la NBA) — hecho.**
   - Datos reales en `assets/database/records_nba.json`, generados por `tools/records_nba.py` (con tests) desde
     Basketball-Reference (totales de carrera, promedios por temporada y triples en un partido) y Wikipedia (marcas de

@@ -153,6 +153,40 @@ enum JugadaClave {
   final String descripcion;
 }
 
+/// Cuándo se frena el partido para que juegues vos el tiro (barra de tiro) o la defensa.
+enum ModoMedidor {
+  importantes('Solo lo importante', 'Final apretado, Takeover y chicharras.'),
+  todos('Todos mis tiros', 'La barra aparece en cada tiro tuyo y en cada defensa directa.'),
+  automatico('Automático', 'El partido resuelve todo solo, como siempre.');
+
+  const ModoMedidor(this.etiqueta, this.descripcion);
+  final String etiqueta, descripcion;
+}
+
+/// Qué está en juego cuando el partido se frena por vos.
+enum TipoMomento { tiro, defensa }
+
+/// Un tiro (tuyo, o de tu marca) que espera tu timing antes de resolverse.
+class MomentoPendiente {
+  const MomentoPendiente({
+    required this.tipo,
+    required this.jugadorId,
+    required this.probabilidad,
+    required this.triple,
+    required this.clutch,
+    required this.nombre,
+  });
+
+  final TipoMomento tipo;
+
+  /// Quien tira (tu jugador en [TipoMomento.tiro]; el rival al que marcás en [TipoMomento.defensa]).
+  final String jugadorId, nombre;
+
+  /// Acierto base de ese tiro (ya con defensa, cansancio y todo lo demás).
+  final double probabilidad;
+  final bool triple, clutch;
+}
+
 /// Lo que pasó en una posesión (o una pausa), con el marcador después de la jugada.
 class EventoPartido {
   const EventoPartido({
@@ -559,6 +593,47 @@ class MotorPartido {
   bool get ataqueDelUsuario => usuarioLocal != null && _ataqueLocal == usuarioLocal;
 
   /// Pide una jugada para la próxima posesión del usuario.
+  // ── Control del jugador (Mi carrera): el partido se frena en tus tiros y en tu defensa ──
+
+  /// Tu jugador (null: nada se frena y el partido es idéntico al de siempre).
+  String? medidorId;
+  ModoMedidor modoMedidor = ModoMedidor.automatico;
+
+  /// Momentos que cuentan como importantes además del final apretado (Takeover activo…).
+  bool Function()? medidorImportante;
+
+  MomentoPendiente? _momento;
+  EventoPartido Function(double delta, double bonusTapon)? _resolverMomento;
+
+  /// El momento en que el partido está frenado esperando tu timing (null si no hay).
+  MomentoPendiente? get momentoPendiente => _momento;
+
+  bool _medidorAplica(bool clutch, bool chicharra) =>
+      medidorId != null &&
+      switch (modoMedidor) {
+        ModoMedidor.automatico => false,
+        ModoMedidor.todos => true,
+        ModoMedidor.importantes => clutch || chicharra || (medidorImportante?.call() ?? false),
+      };
+
+  /// Como [siguiente], pero si el próximo tiro es tuyo (o de tu marca) y toca jugarlo, devuelve null y deja el
+  /// momento en [momentoPendiente]: resolvelo con [resolverMomento].
+  EventoPartido? siguienteInteractivo() {
+    if (_momento != null) throw StateError('Hay un momento pendiente: resolvelo con resolverMomento.');
+    final e = _siguiente();
+    return _momento != null ? null : e;
+  }
+
+  /// Resuelve el momento pendiente con tu timing: [delta] suma (o resta) al acierto del tiro y [bonusTapon] a la
+  /// chance de tapón. Con 0 y 0 el resultado es exactamente el que habría salido sin frenar el partido.
+  EventoPartido resolverMomento(double delta, {double bonusTapon = 0}) {
+    final r = _resolverMomento;
+    if (r == null) throw StateError('No hay un momento pendiente.');
+    _momento = null;
+    _resolverMomento = null;
+    return r(delta, bonusTapon);
+  }
+
   void pedirJugada(JugadaClave jugada, {String? tiradorId, String? evitarId}) {
     _jugadaClave = jugada;
     _tiradorPedido = tiradorId;
@@ -717,6 +792,7 @@ class MotorPartido {
 
   /// Juega todo lo que falta sin eventos visibles.
   void simularTodo() {
+    if (_momento != null) resolverMomento(0); // salir en medio de un tiro: se resuelve sin timing
     _simulando = true;
     while (!terminado) {
       siguiente();
@@ -724,6 +800,12 @@ class MotorPartido {
   }
 
   EventoPartido siguiente() {
+    final e = _siguiente();
+    // Quien no usa el control de tiro (simular, saltar jugadas, otros modos) no se frena nunca.
+    return _momento != null ? resolverMomento(0) : e;
+  }
+
+  EventoPartido _siguiente() {
     if (terminado) throw StateError('El partido terminó.');
     if (_pausaPendiente) {
       _pausaPendiente = false;
@@ -733,7 +815,7 @@ class MotorPartido {
     // La máquina pide tiempo muerto para cortar una racha de 10 puntos.
     for (final local in [true, false]) {
       final rival = local ? _v : _l;
-      if (_manejaLaMaquina(local) && rival.racha >= 10 && pedirTiempoMuerto(local)) return siguiente();
+      if (_manejaLaMaquina(local) && rival.racha >= 10 && pedirTiempoMuerto(local)) return _siguiente();
     }
     final pedido = _cambioPedido(_l, true) ?? _cambioPedido(_v, false);
     if (pedido != null) return pedido;
@@ -1420,147 +1502,173 @@ class MotorPartido {
       return '$texto ¡Sexta falta de ${j.nombre}: se va a las duchas!';
     }
 
-    var convertido = _azar.nextDouble() < p;
-    final caja = ataque.box[tirador.id]!;
-    // Tapón (también algún triple) e interferencia (el defensor la toca bajando: vale igual).
-    Jugador? taponador, interfiere;
-    if (!convertido && !falta && !desdeLejos) {
-      final pTapon =
-          (_media(defensa.enCancha, (j) => j.stats.tapP) / 3.5 * defensa.defensivo.tapones).clamp(0.045, 0.28) *
-          (triple ? 0.18 : 1);
-      if (_azar.nextDouble() < pTapon) {
-        taponador = _elegir(defensa.enCancha, (j) => j.stats.tapP + 0.1);
-        defensa.box[taponador.id]!.tap++;
-      } else if (!triple && _azar.nextDouble() < 0.0085) {
-        interfiere = _elegir(defensa.enCancha, (j) => j.stats.tapP + 0.05);
-        convertido = true;
+    EventoPartido resolver(double delta, double bonusTapon) {
+      final pFinal = (p + delta).clamp(0.02, 0.95);
+      var convertido = _azar.nextDouble() < pFinal;
+      final caja = ataque.box[tirador.id]!;
+      // Tapón (también algún triple) e interferencia (el defensor la toca bajando: vale igual).
+      Jugador? taponador, interfiere;
+      if (!convertido && !falta && !desdeLejos) {
+        final pTapon =
+            ((_media(defensa.enCancha, (j) => j.stats.tapP) / 3.5 * defensa.defensivo.tapones).clamp(0.045, 0.28) *
+                        (triple ? 0.18 : 1) +
+                    bonusTapon)
+                .clamp(0.0, 0.6);
+        if (_azar.nextDouble() < pTapon) {
+          taponador = _elegir(defensa.enCancha, (j) => j.stats.tapP + 0.1);
+          defensa.box[taponador.id]!.tap++;
+        } else if (!triple && _azar.nextDouble() < 0.0085) {
+          interfiere = _elegir(defensa.enCancha, (j) => j.stats.tapP + 0.05);
+          convertido = true;
+        }
       }
-    }
-    // La falta en un tiro errado no cuenta como tiro de campo.
-    if (convertido || !falta) {
-      caja.tcA++;
-      if (triple) caja.t3A++;
-    }
-    _restoPosesion = 24;
+      // La falta en un tiro errado no cuenta como tiro de campo.
+      if (convertido || !falta) {
+        caja.tcA++;
+        if (triple) caja.t3A++;
+      }
+      _restoPosesion = 24;
 
-    if (convertido) {
-      final puntos = triple ? 3 : 2;
-      caja.tcI++;
-      if (triple) caja.t3I++;
-      if (asistente != null) ataque.box[asistente.id]!.ast++;
-      final extra = falta ? _libres(ataque, tirador, 1) : 0;
-      caja.pts += puntos + extra;
-      _anotar(ataque, defensa, puntos + extra);
-      _cambiarPosesion();
-      // Volcadas: más en contraataque y para los grandes y los atléticos; con pase alto, alley-oop.
-      final atletico = interior(tirador) || tirador.posiciones.contains(Posicion.alero);
-      final volcada =
-          interfiere == null &&
-          !triple &&
-          _azar.nextDouble() < (contraataque ? 0.55 : (atletico ? 0.24 : 0.07)) * (0.8 + s.tapP / 2.5);
-      final alleyOop = volcada && asistente != null && _azar.nextDouble() < 0.4;
+      if (convertido) {
+        final puntos = triple ? 3 : 2;
+        caja.tcI++;
+        if (triple) caja.t3I++;
+        if (asistente != null) ataque.box[asistente.id]!.ast++;
+        final extra = falta ? _libres(ataque, tirador, 1) : 0;
+        caja.pts += puntos + extra;
+        _anotar(ataque, defensa, puntos + extra);
+        _cambiarPosesion();
+        // Volcadas: más en contraataque y para los grandes y los atléticos; con pase alto, alley-oop.
+        final atletico = interior(tirador) || tirador.posiciones.contains(Posicion.alero);
+        final volcada =
+            interfiere == null &&
+            !triple &&
+            _azar.nextDouble() < (contraataque ? 0.55 : (atletico ? 0.24 : 0.07)) * (0.8 + s.tapP / 2.5);
+        final alleyOop = volcada && asistente != null && _azar.nextDouble() < 0.4;
+        final texto = StringBuffer(
+          desdeLejos
+              ? '¡DESDE SU CASA, ${tirador.nombre}, SOBRE LA CHICHARRA!'
+              : triple
+              ? '¡Triple de ${tirador.nombre}!'
+              : alleyOop
+              ? '¡Alley-oop de ${asistente.nombre} para ${tirador.nombre}!'
+              : volcada
+              ? '¡Volcada de ${tirador.nombre}!'
+              : 'Doble de ${tirador.nombre}.',
+        );
+        if (interfiere != null) texto.write(' Interferencia de ${interfiere.nombre}: vale igual.');
+        if (asistente != null && !alleyOop) texto.write(' Asistencia de ${asistente.nombre}.');
+        if (falta) texto.write(extra > 0 ? ' ¡Y la falta!' : ' Falla el adicional.');
+        if (chicharra && !desdeLejos) texto.write(' ¡Sobre la chicharra!');
+        if (clutch && MotorPartido.clutch(tirador) >= 1) texto.write(' ¡Sangre fría!');
+        return _evento(
+          TipoEvento.tiro,
+          ataque == _l,
+          conExpulsion(texto.toString()),
+          jugadorId: tirador.id,
+          asistenteId: asistente?.id,
+          defensorId: interfiere?.id,
+          puntos: puntos + extra,
+          convertido: true,
+          triple: triple,
+          contraataque: contraataque,
+          volcada: volcada,
+          alleyOop: alleyOop,
+          jugadaClave: jugada,
+          expulsadoId: expulsado,
+          libres: falta ? 1 : 0,
+          interferencia: interfiere != null,
+          chicharra: chicharra,
+          desdeLejos: desdeLejos,
+        );
+      }
+
+      // Falla: falta en el tiro, tapón o rebote.
+      if (falta) {
+        final anotados = _libres(ataque, tirador, triple ? 3 : 2);
+        caja.pts += anotados;
+        _anotar(ataque, defensa, anotados);
+        _cambiarPosesion();
+        return _evento(
+          TipoEvento.libres,
+          ataque == _l,
+          conExpulsion('Falta sobre ${tirador.nombre}: $anotados/${triple ? 3 : 2} libres.'),
+          jugadorId: tirador.id,
+          puntos: anotados,
+          convertido: anotados > 0,
+          triple: triple,
+          jugadaClave: jugada,
+          expulsadoId: expulsado,
+          libres: triple ? 3 : 2,
+        );
+      }
+      // Rebote (con el reloj del cuarto en cero no hay rebote: termina el cuarto).
+      final rebOf = taponador != null
+          ? 0.42
+          : (ataque.enCancha.fold(0.0, (a, j) => a + _rebote(j, ataque) * efectoDeRol(j).reboteOfensivo) /
+                    max(1.0, defensa.enCancha.fold(0.0, (a, j) => a + _rebote(j, defensa))) *
+                    0.26 *
+                    ataque.ofensivo.reboteOf /
+                    defensa.defensivo.reboteDef)
+                .clamp(0.15, 0.38);
+      final ofensivo = _azar.nextDouble() < rebOf * ataque.mods.reboteOfensivoFactor;
+      final reboteador = _elegir(ofensivo ? ataque.enCancha : defensa.enCancha, (j) => j.stats.rpp + 0.5);
+      (ofensivo ? ataque : defensa).box[reboteador.id]!.reb++;
+      if (ofensivo) {
+        _restoPosesion = 14;
+      } else {
+        _cambiarPosesion();
+        _contraataque =
+            _azar.nextDouble() <
+            0.12 * defensa.ofensivo.contraataque * defensa.mods.contraataqueFactor + (defensa.acelerar ? 0.08 : 0);
+      }
       final texto = StringBuffer(
         desdeLejos
-            ? '¡DESDE SU CASA, ${tirador.nombre}, SOBRE LA CHICHARRA!'
-            : triple
-            ? '¡Triple de ${tirador.nombre}!'
-            : alleyOop
-            ? '¡Alley-oop de ${asistente.nombre} para ${tirador.nombre}!'
-            : volcada
-            ? '¡Volcada de ${tirador.nombre}!'
-            : 'Doble de ${tirador.nombre}.',
+            ? 'Lanzamiento desde la otra mitad de ${tirador.nombre}: no entra.'
+            : taponado(taponador, tirador) ??
+                  (triple ? 'Falla el triple ${tirador.nombre}.' : 'Falla ${tirador.nombre}.'),
       );
-      if (interfiere != null) texto.write(' Interferencia de ${interfiere.nombre}: vale igual.');
-      if (asistente != null && !alleyOop) texto.write(' Asistencia de ${asistente.nombre}.');
-      if (falta) texto.write(extra > 0 ? ' ¡Y la falta!' : ' Falla el adicional.');
-      if (chicharra && !desdeLejos) texto.write(' ¡Sobre la chicharra!');
-      if (clutch && MotorPartido.clutch(tirador) >= 1) texto.write(' ¡Sangre fría!');
+      if (taponador != null && ofensivo) {
+        texto.write(' La recupera ${reboteador.nombre}.');
+      } else {
+        texto.write(ofensivo ? ' Rebote ofensivo de ${reboteador.nombre}.' : ' Rebote de ${reboteador.nombre}.');
+      }
       return _evento(
         TipoEvento.tiro,
         ataque == _l,
-        conExpulsion(texto.toString()),
+        texto.toString(),
         jugadorId: tirador.id,
-        asistenteId: asistente?.id,
-        defensorId: interfiere?.id,
-        puntos: puntos + extra,
-        convertido: true,
+        defensorId: taponador?.id,
+        reboteId: reboteador.id,
+        reboteOfensivo: ofensivo,
         triple: triple,
         contraataque: contraataque,
-        volcada: volcada,
-        alleyOop: alleyOop,
-        jugadaClave: jugada,
-        expulsadoId: expulsado,
-        libres: falta ? 1 : 0,
-        interferencia: interfiere != null,
+        taponado: taponador != null,
         chicharra: chicharra,
         desdeLejos: desdeLejos,
       );
     }
 
-    // Falla: falta en el tiro, tapón o rebote.
-    if (falta) {
-      final anotados = _libres(ataque, tirador, triple ? 3 : 2);
-      caja.pts += anotados;
-      _anotar(ataque, defensa, anotados);
-      _cambiarPosesion();
-      return _evento(
-        TipoEvento.libres,
-        ataque == _l,
-        conExpulsion('Falta sobre ${tirador.nombre}: $anotados/${triple ? 3 : 2} libres.'),
-        jugadorId: tirador.id,
-        puntos: anotados,
-        convertido: anotados > 0,
-        triple: triple,
-        jugadaClave: jugada,
-        expulsadoId: expulsado,
-        libres: triple ? 3 : 2,
-      );
+    // Control del jugador: si el tiro es tuyo (o lo tira el rival al que marcás), el partido se frena acá.
+    final id = medidorId;
+    if (id != null && !desdeLejos && _medidorAplica(clutch, chicharra)) {
+      final propio = tirador.id == id;
+      final marca = !propio && _defensorDirecto(ataque, defensa, tirador).id == id;
+      if (propio || marca) {
+        _momento = MomentoPendiente(
+          tipo: propio ? TipoMomento.tiro : TipoMomento.defensa,
+          jugadorId: tirador.id,
+          nombre: tirador.nombre,
+          probabilidad: p,
+          triple: triple,
+          clutch: clutch,
+        );
+        _resolverMomento = resolver;
+        // Evento de relleno: quien usa el control lo descarta y pide el verdadero con [resolverMomento].
+        return _evento(TipoEvento.tiro, ataque == _l, 'Tira ${tirador.nombre}…', jugadorId: tirador.id, triple: triple);
+      }
     }
-    // Rebote (con el reloj del cuarto en cero no hay rebote: termina el cuarto).
-    final rebOf = taponador != null
-        ? 0.42
-        : (ataque.enCancha.fold(0.0, (a, j) => a + _rebote(j, ataque) * efectoDeRol(j).reboteOfensivo) /
-                  max(1.0, defensa.enCancha.fold(0.0, (a, j) => a + _rebote(j, defensa))) *
-                  0.26 *
-                  ataque.ofensivo.reboteOf /
-                  defensa.defensivo.reboteDef)
-              .clamp(0.15, 0.38);
-    final ofensivo = _azar.nextDouble() < rebOf * ataque.mods.reboteOfensivoFactor;
-    final reboteador = _elegir(ofensivo ? ataque.enCancha : defensa.enCancha, (j) => j.stats.rpp + 0.5);
-    (ofensivo ? ataque : defensa).box[reboteador.id]!.reb++;
-    if (ofensivo) {
-      _restoPosesion = 14;
-    } else {
-      _cambiarPosesion();
-      _contraataque =
-          _azar.nextDouble() <
-          0.12 * defensa.ofensivo.contraataque * defensa.mods.contraataqueFactor + (defensa.acelerar ? 0.08 : 0);
-    }
-    final texto = StringBuffer(
-      desdeLejos
-          ? 'Lanzamiento desde la otra mitad de ${tirador.nombre}: no entra.'
-          : taponado(taponador, tirador) ??
-                (triple ? 'Falla el triple ${tirador.nombre}.' : 'Falla ${tirador.nombre}.'),
-    );
-    if (taponador != null && ofensivo) {
-      texto.write(' La recupera ${reboteador.nombre}.');
-    } else {
-      texto.write(ofensivo ? ' Rebote ofensivo de ${reboteador.nombre}.' : ' Rebote de ${reboteador.nombre}.');
-    }
-    return _evento(
-      TipoEvento.tiro,
-      ataque == _l,
-      texto.toString(),
-      jugadorId: tirador.id,
-      defensorId: taponador?.id,
-      reboteId: reboteador.id,
-      reboteOfensivo: ofensivo,
-      triple: triple,
-      contraataque: contraataque,
-      taponado: taponador != null,
-      chicharra: chicharra,
-      desdeLejos: desdeLejos,
-    );
+    return resolver(0, 0);
   }
 
   String? taponado(Jugador? taponador, Jugador tirador) =>

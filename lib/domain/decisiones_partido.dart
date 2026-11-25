@@ -6,6 +6,7 @@ import 'entities/posicion.dart';
 import 'entities/tactica.dart';
 import 'modificadores.dart';
 import 'modos/carrera_jugador.dart' show Atributo, Atributos, EstadoCarrera, GradoInsignia, Habilidad, Insignia;
+import 'modos/medidor_tiro.dart' show AjustesMedidor;
 import 'motor.dart';
 import 'premios.dart' show apellido;
 
@@ -325,6 +326,8 @@ class PerfilVivo {
     this.espec = const {},
     this.grados = const {},
     this.moral = 60,
+    this.ajustes = const AjustesMedidor(),
+    this.formaDeTiro = 0,
   });
 
   factory PerfilVivo.de(EstadoCarrera e) => PerfilVivo(
@@ -334,6 +337,8 @@ class PerfilVivo {
     espec: e.espec,
     grados: e.grados,
     moral: e.moral,
+    ajustes: AjustesMedidor.de(e),
+    formaDeTiro: e.creado?.estilo?.formaDeTiro ?? 0,
   );
 
   final String id, nombre;
@@ -341,6 +346,10 @@ class PerfilVivo {
   final Map<Habilidad, int> espec;
   final Map<Insignia, GradoInsignia> grados;
   final int moral;
+
+  /// Cómo jugás el control del partido (barra de tiro) y tu forma de tirar.
+  final AjustesMedidor ajustes;
+  final int formaDeTiro;
 
   int a(Atributo x) => atributos[x];
   int h(Habilidad x) => Habilidad.valor(x, atributos, espec);
@@ -375,6 +384,9 @@ class DirectorDecisiones {
 
   /// Jugadas decisivas que resolviste bien como jugador y veces que activaste el Takeover (van a Mi carrera).
   int clutchLogrados = 0, takeoversUsados = 0;
+
+  /// El Takeover está en marcha (cuenta como momento importante para la barra de tiro).
+  bool get takeoverActivo => activos.any((x) => x.opcion.accion == AccionTactica.takeover);
 
   /// Lo que se suma a los contadores de la carrera al terminar el partido.
   Map<String, int> get usoCarrera => {

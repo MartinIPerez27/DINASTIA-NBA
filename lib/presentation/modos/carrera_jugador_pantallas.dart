@@ -5,6 +5,8 @@ import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/modos/carrera_jugador.dart';
+import '../../domain/modos/medidor_tiro.dart';
+import '../../domain/motor.dart' show ModoMedidor;
 import '../../domain/modos/vida_carrera.dart';
 import 'carrera_equipo_pantallas.dart';
 import '../widgets/disposicion.dart';
@@ -646,6 +648,69 @@ class PanelDesglose extends StatelessWidget {
   }
 }
 
+/// Cómo jugás el control del partido: cuándo aparece la barra de tiro, el tamaño de la zona verde y cómo se suelta.
+class PanelControlPartido extends StatelessWidget {
+  const PanelControlPartido({super.key, required this.estado, required this.alCambiar});
+
+  final EstadoCarrera estado;
+  final ValueChanged<AjustesMedidor> alCambiar;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final a = AjustesMedidor.de(estado);
+    final u = estado.uso;
+    final perfectos = u['q:perfecto'] ?? 0;
+    final total = perfectos + (u['q:bueno'] ?? 0) + (u['q:temprano'] ?? 0) + (u['q:tarde'] ?? 0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('CONTROL DEL PARTIDO', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 2),
+        Text(
+          'Jugando en vivo, tus tiros y tu defensa directa se resuelven con la barra: tu timing decide. Al simular, '
+          'todo sigue automático.',
+          style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        SegmentedButton<ModoMedidor>(
+          segments: [for (final m in ModoMedidor.values) ButtonSegment(value: m, label: Text(m.etiqueta, textAlign: TextAlign.center))],
+          selected: {a.modo},
+          showSelectedIcon: false,
+          onSelectionChanged: (s) => alCambiar(a.copyWith(modo: s.first)),
+          style: const ButtonStyle(visualDensity: VisualDensity.compact),
+        ),
+        const SizedBox(height: 4),
+        Text(a.modo.descripcion, style: tema.textTheme.bodySmall),
+        const SizedBox(height: 8),
+        Text('Zona verde', style: tema.textTheme.bodySmall),
+        const SizedBox(height: 4),
+        SegmentedButton<int>(
+          segments: [for (var i = 0; i < 3; i++) ButtonSegment(value: i, label: Text(AjustesMedidor.nombresZona[i]))],
+          selected: {a.zona},
+          showSelectedIcon: false,
+          onSelectionChanged: (s) => alCambiar(a.copyWith(zona: s.first)),
+          style: const ButtonStyle(visualDensity: VisualDensity.compact),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          title: const Text('Mantener y soltar'),
+          subtitle: const Text('En vez de tocar una vez: mantenés apretado mientras se llena y soltás.'),
+          value: a.mantener,
+          onChanged: (v) => alCambiar(a.copyWith(mantener: v)),
+        ),
+        if (total > 0)
+          Text(
+            'Tus timings: $perfectos perfectos de $total (${(100 * perfectos / total).round()} %).',
+            style: tema.textTheme.bodySmall?.copyWith(color: esquema.primary),
+          ),
+      ],
+    );
+  }
+}
+
 /// Tu marca personal: fama, patrocinios y camisetas retiradas.
 class PanelMarca extends StatelessWidget {
   const PanelMarca({super.key, required this.estado});
@@ -951,6 +1016,12 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
     widget.onCambiar(_t);
   }
 
+  void _ajustarMedidor(AjustesMedidor a) {
+    final e = _e.copyWith(uso: {..._e.uso, ...a.aUso});
+    setState(() => _t = widget.carrera.sincronizar(_t, e));
+    widget.onCambiar(_t);
+  }
+
   void _subirHabilidad(Habilidad h) {
     final e = widget.carrera.subirHabilidad(_e, h);
     setState(() => _t = widget.carrera.sincronizar(_t, e));
@@ -1087,6 +1158,10 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
       ),
       const SizedBox(height: 12),
       _Panel(child: PanelObjetivosLargos(estado: e)),
+      const SizedBox(height: 12),
+      _Panel(
+        child: PanelControlPartido(estado: e, alCambiar: _ajustarMedidor),
+      ),
       const SizedBox(height: 12),
       _Panel(child: PanelDesglose(estado: e)),
       const SizedBox(height: 12),
