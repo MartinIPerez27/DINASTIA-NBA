@@ -161,6 +161,33 @@ void main() {
       expect(GeneracionCarrera.lineaEn(clase.first, 1996, anioDraft: 1996), isNull, reason: 'todavía no juega');
     });
 
+    test('draft 2026: el año de novato mezcla las estadísticas reales según los partidos jugados', () {
+      final lista = GeneracionCarrera.deJson2026(File('assets/database/draft_2026.json').readAsStringSync());
+      final con = lista.where((c) => c.real != null).toList();
+      expect(con.length, greaterThan(30), reason: 'la mayoría ya debutó');
+      final c = con.first;
+      final l1 = GeneracionCarrera.lineaEn(c, 2027, anioDraft: 2026)!;
+      final pocos = CompaneroGeneracion(
+        nombre: c.nombre,
+        pick: c.pick,
+        cartas: const [],
+        semilla: c.semilla,
+        real: (g: 3, pts: c.real!.pts + 10, reb: c.real!.reb, ast: c.real!.ast),
+      );
+      final muchos = CompaneroGeneracion(
+        nombre: c.nombre,
+        pick: c.pick,
+        cartas: const [],
+        semilla: c.semilla,
+        real: (g: 40, pts: c.real!.pts + 10, reb: c.real!.reb, ast: c.real!.ast),
+      );
+      expect(GeneracionCarrera.lineaEn(muchos, 2027, anioDraft: 2026)!.pts, closeTo(c.real!.pts + 10, 0.001), reason: 'con 30+ partidos, solo los reales');
+      expect(GeneracionCarrera.lineaEn(pocos, 2027, anioDraft: 2026)!.pts, lessThan(GeneracionCarrera.lineaEn(muchos, 2027, anioDraft: 2026)!.pts));
+      expect(l1.pts, greaterThan(0));
+      // Los años siguientes siguen proyectados (no dependen de lo real).
+      expect(GeneracionCarrera.lineaEn(c, 2029, anioDraft: 2026)!.pts, GeneracionCarrera.lineaEn(pocos, 2029, anioDraft: 2026)!.pts);
+    });
+
     test('draft 2026: los elegidos reales (ya se jugó el draft) con números proyectados y determinísticos', () {
       final real = GeneracionCarrera.deJson2026(File('assets/database/draft_2026.json').readAsStringSync());
       expect(real.length, 60);

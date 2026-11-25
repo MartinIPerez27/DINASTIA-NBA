@@ -140,7 +140,7 @@ class _GeneracionPantallaState extends State<GeneracionPantalla> {
               clase.any((c) => c.ficticio)
                   ? 'Esta clase se inventa para tu carrera: sus carreras evolucionan sola, año a año.'
                   : (clase.any((c) => c.proyectado)
-                        ? 'Los elegidos reales del draft ${estado.anioBase}. Todavía no tienen carrera: sus números son una proyección.'
+                        ? 'Los elegidos reales del draft ${estado.anioBase}. Su año de novato usa las estadísticas reales de la temporada en curso (pesan según los partidos jugados); los años que siguen son una proyección.'
                         : 'Los primeros elegidos de tu draft, con sus números reales de cada época.'),
               style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
             ),

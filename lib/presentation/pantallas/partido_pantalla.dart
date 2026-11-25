@@ -229,6 +229,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     if (widget.jugadorCarrera case final y?) {
       _m.medidorId = y.id;
       _m.modoMedidor = y.ajustes.modo;
+      _m.momentosActivos = y.ajustes.momentos;
       _m.medidorImportante = () => _dir.takeoverActivo;
     }
     _box = _copiaBox();
@@ -462,20 +463,36 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     final momento = _momento;
     if (momento == null) return;
     final EventoPartido e;
+    final double efecto;
     if (momento.tipo == TipoMomento.tiro) {
-      e = _m.resolverMomento(MedidorTiro.deltaTiro(calidad));
-    } else {
+      efecto = MedidorTiro.deltaTiro(calidad);
+      e = _m.resolverMomento(efecto);
+    } else if (momento.tipo == TipoMomento.defensa) {
       final (delta, tapon) = MedidorTiro.efectoDefensa(calidad);
+      efecto = delta;
       e = _m.resolverMomento(delta, bonusTapon: tapon);
+    } else {
+      efecto = MedidorTiro.efectoExtra(momento.tipo, calidad);
+      e = _m.resolverMomento(efecto);
     }
     _usoMedidor['q:${calidad.name}'] = (_usoMedidor['q:${calidad.name}'] ?? 0) + 1;
     calidad == CalidadTiro.perfecto ? Haptica.fuerte() : Haptica.ligera();
-    setState(() => _momento = null);
-    _mostrarAviso(
-      momento.tipo == TipoMomento.tiro
-          ? '${calidad.etiqueta} · ${(MedidorTiro.deltaTiro(calidad) * 100).round() >= 0 ? '+' : ''}${(MedidorTiro.deltaTiro(calidad) * 100).round()} % de acierto'
-          : '${calidad.etiqueta} en defensa',
-    );
+    // A veces la resolución abre otro momento (los libres tras la falta de un tiro, el tiro tras tu pase): se sigue con la barra.
+    final siguienteMomento = _m.momentoPendiente;
+    setState(() => _momento = siguienteMomento);
+    _mostrarAviso(switch (momento.tipo) {
+      TipoMomento.tiro =>
+        '${calidad.etiqueta} · ${(efecto * 100).round() >= 0 ? '+' : ''}${(efecto * 100).round()} % de acierto',
+      TipoMomento.defensa => '${calidad.etiqueta} en defensa',
+      TipoMomento.libres => '${calidad.etiqueta} en los libres',
+      TipoMomento.rebote => '${calidad.etiqueta} en el rebote',
+      TipoMomento.robo => '${calidad.etiqueta} presionando la pelota',
+      TipoMomento.pase => '${calidad.etiqueta} con la pelota',
+    });
+    if (siguienteMomento != null) {
+      Haptica.media();
+      return;
+    }
     _mostrarEvento(e);
   }
 

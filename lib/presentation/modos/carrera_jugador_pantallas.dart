@@ -1,3 +1,4 @@
+import '../../domain/motor.dart' show TipoMomento;
 import 'minijuego_timing.dart';
 import 'package:flutter/material.dart';
 
@@ -704,6 +705,25 @@ class PanelControlPartido extends StatelessWidget {
             value: a.mantener,
             onChanged: (v) => alCambiar(a.copyWith(mantener: v)),
           ),
+        ),
+        const SizedBox(height: 4),
+        Text('También con la barra (opcional)', style: tema.textTheme.bodySmall),
+        Wrap(
+          spacing: 6,
+          children: [
+            for (final t in AjustesMedidor.posiblesExtras)
+              FilterChip(
+                label: Text(switch (t) {
+                  TipoMomento.libres => 'Tiros libres',
+                  TipoMomento.rebote => 'Rebote',
+                  TipoMomento.robo => 'Robo',
+                  _ => 'Pase',
+                }),
+                selected: a.extras.contains(t),
+                visualDensity: VisualDensity.compact,
+                onSelected: (v) => alCambiar(a.copyWith(extras: v ? {...a.extras, t} : ({...a.extras}..remove(t)))),
+              ),
+          ],
         ),
         if (total > 0)
           Text(

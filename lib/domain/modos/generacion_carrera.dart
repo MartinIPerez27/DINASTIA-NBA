@@ -6,7 +6,7 @@ import 'carrera_jugador.dart';
 
 // Tu generación: los mejores elegidos del draft de tu año, con quienes competís toda la carrera. Hasta 2025 salen
 // del catálogo con sus números reales; el draft 2026 (ya jugado) usa los elegidos reales y proyecta sus números
-// (todavía no tienen carrera). Si un año no tuviera datos, se arma una clase ficticia que evoluciona sola.
+// (su año de novato pesa con las estadísticas reales de la temporada en curso, a medida que juegan). Si un año no tuviera datos, se arma una clase ficticia que evoluciona sola.
 
 /// Un integrante de tu clase del draft.
 class CompaneroGeneracion {
@@ -18,6 +18,7 @@ class CompaneroGeneracion {
     this.semilla = 0,
     this.equipo,
     this.posicion,
+    this.real,
   });
 
   final String nombre;
@@ -31,6 +32,9 @@ class CompaneroGeneracion {
 
   /// Equipo y puesto con que fue elegido (solo la clase 2026 los trae).
   final String? equipo, posicion;
+
+  /// Estadísticas reales de su temporada de novato hasta hoy (partidos, puntos, rebotes y asistencias por partido), si ya debutó.
+  final ({int g, double pts, double reb, double ast})? real;
 
   /// Sus números salen de un modelo y no de cartas reales.
   bool get proyectado => cartas.isEmpty;
@@ -65,6 +69,15 @@ class GeneracionCarrera {
           semilla: ((x['nombre'] as String).hashCode ^ (x['pick'] as int) * 7919) & 0xfffff,
           equipo: x['equipo'] as String?,
           posicion: x['pos'] as String?,
+          real: switch (x['real']) {
+            final Map<String, dynamic> r => (
+              g: (r['g'] as num).toInt(),
+              pts: (r['pts'] as num).toDouble(),
+              reb: (r['reb'] as num).toDouble(),
+              ast: (r['ast'] as num).toDouble(),
+            ),
+            _ => null,
+          },
         ),
     ]..sort((a, b) => a.pick.compareTo(b.pick));
   }
@@ -115,7 +128,16 @@ class GeneracionCarrera {
       final curva = k <= 6 ? 0.55 + 0.45 * (k / 6) : max(0.4, 1 - (k - 9) * 0.06);
       if (k > 15) return const LineaGeneracion(0, 0, 0, 0, retirado: true);
       final pts = max(3.0, techo * curva + (azar.nextDouble() - 0.5) * 3);
-      return LineaGeneracion(pts, max(1.0, pts * 0.28), max(0.8, pts * 0.2), (62 + pts * 1.2).round().clamp(55, 97));
+      final modelo = LineaGeneracion(pts, max(1.0, pts * 0.28), max(0.8, pts * 0.2), (62 + pts * 1.2).round().clamp(55, 97));
+      // El año de novato ya se está jugando: pesan sus números reales según los partidos que lleva (30 o más: solo los reales).
+      final r = c.real;
+      if (k == 1 && r != null && r.g >= 3) {
+        final w = (r.g / 30).clamp(0.0, 1.0);
+        double mezcla(double real, double proy) => real * w + proy * (1 - w);
+        final p = mezcla(r.pts, modelo.pts);
+        return LineaGeneracion(p, mezcla(r.reb, modelo.reb), mezcla(r.ast, modelo.ast), (62 + p * 1.2).round().clamp(55, 97));
+      }
+      return modelo;
     }
     Jugador? mejor;
     var dist = 999;

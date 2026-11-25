@@ -124,6 +124,31 @@ estadísticas avanzadas.
   - Pendiente de este punto: que el jugador "salga" mid-season por una decisión del club (hoy solo se mueven
     compañeros; el traspaso propio se negocia en el receso).
 
+- **Bloque 13 (todo lo pendiente, en una tirada) — hecho.**
+  - **Lesiones largas**: una baja de 11+ partidos le cuesta físico al volver (20+, también finalización); un fisio de nivel 2 lo
+    amortigua. **Traspaso del club**: si el rumor era sobre vos, se concreta y no tenés la confianza (menos de 60), el club te
+    traspasa en la fecha límite sin preguntarte (salvo cláusula de no traspaso) y elegís destino en el receso. *No se ejecuta
+    a mitad de temporada*: el calendario y los récords están atados a la franquicia del año; el cambio vale desde el receso.
+  - **Mapa de tiro** (pintura, media distancia, triples) contra la liga. Las zonas se estiman por el tipo de tiro (contraataque y
+    tiros de los grandes = pintura): el motor no guarda coordenadas.
+  - **Rival de época y mentor** (duelo de temporada contra una carta real de tu puesto y época; el mentor da 1 punto de habilidad si la
+    relación es 60+), **redes sociales** (seguidores, una publicación por temporada, suman marcas) y **relator con memoria**
+    (frases con tus puntos, tus 40, tu mejor año, tu rodilla crónica…). **Cuadro de honor** del Salón de la Fama (pestaña HONOR en récords).
+  - **Mercado**: cada oferta trae sueldo, cláusula (opción del jugador, no traspasable, bono por título) y tope salarial del equipo
+    (los más armados tienen menos espacio).
+  - **Tu carta de carrera**: al retirarte queda en el álbum del perfil y en el catálogo para los otros modos (desde que se carga la liga).
+    **Carrera generacional**: con 5+ temporadas retirado, empezás la carrera de tu hijo/a (mismo apellido y país, fama de la familia).
+  - **Entrenamiento interactivo** (una sesión por temporada con la barra) y **concursos del All-Star** (triples y volcadas contra 4 rivales;
+    campeón da premio). El partido del All-Star sigue siendo simulado.
+  - **Secundario → universidad → NBA**: después de crear el jugador podés vivir 3 años de secundario (ranking de reclutas,
+    McDonald's) y 0-3 de universidad (March Madness, premios); sale el pick, la edad y los atributos del draft.
+  - **Timing en libres, rebote, robo y pase** (opcionales en Control del partido): con timing neutro el partido es idéntico (probado).
+    Los libres de un "y uno" siguen automáticos.
+  - **Datos**: los novatos 2026 usan sus estadísticas reales de la temporada en curso (`tools/novatos_2026.py`, pesan según los partidos
+    jugados, 30+ = solo reales). Para los partidos de 40 y 50 puntos no hay una fuente pública confiable (Basketball-Reference y
+    Wikipedia no publican ese ranking): quedan solo como marcas personales.
+  - Balance: sin cambios; el 99 que gasta todo sigue acotado por los tests.
+
 - **Bloque 12 (staff, agente y finanzas) — hecho.**
   - Economía simple en millones: sueldo anual (escala de novato por pick, después por media), marcas (patrocinios + fama) y
     una **caja** que se cobra al cerrar cada temporada.

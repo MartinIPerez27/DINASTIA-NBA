@@ -171,7 +171,22 @@ enum ModoMedidor {
 }
 
 /// Qué está en juego cuando el partido se frena por vos.
-enum TipoMomento { tiro, defensa }
+enum TipoMomento {
+  tiro,
+  defensa,
+
+  /// Tus tiros libres (una barra para toda la serie).
+  libres,
+
+  /// Pelea por el rebote de un tiro errado.
+  rebote,
+
+  /// Tu defensa sobre el que lleva la pelota: robo.
+  robo,
+
+  /// Tu manejo de la pelota como organizador: cuidarla o pasarla.
+  pase,
+}
 
 /// Un tiro (tuyo, o de tu marca) que espera tu timing antes de resolverse.
 class MomentoPendiente {
@@ -182,9 +197,13 @@ class MomentoPendiente {
     required this.triple,
     required this.clutch,
     required this.nombre,
+    this.cantidad = 1,
   });
 
   final TipoMomento tipo;
+
+  /// Tiros libres de la serie (solo en [TipoMomento.libres]).
+  final int cantidad;
 
   /// Quien tira (tu jugador en [TipoMomento.tiro]; el rival al que marcás en [TipoMomento.defensa]).
   final String jugadorId, nombre;
@@ -609,6 +628,12 @@ class MotorPartido {
   /// Momentos que cuentan como importantes además del final apretado (Takeover activo…).
   bool Function()? medidorImportante;
 
+  /// Qué momentos frenan el partido por vos (el tiro y la defensa directa siempre; el resto lo elegís).
+  Set<TipoMomento> momentosActivos = {TipoMomento.tiro, TipoMomento.defensa};
+
+  bool _pide(TipoMomento t, bool clutch, {bool chicharra = false}) =>
+      momentosActivos.contains(t) && _medidorAplica(clutch, chicharra);
+
   MomentoPendiente? _momento;
   EventoPartido Function(double delta, double bonusTapon)? _resolverMomento;
 
@@ -799,7 +824,9 @@ class MotorPartido {
 
   /// Juega todo lo que falta sin eventos visibles.
   void simularTodo() {
-    if (_momento != null) resolverMomento(0); // salir en medio de un tiro: se resuelve sin timing
+    while (_momento != null) {
+      resolverMomento(0); // salir en medio de un tiro: se resuelve sin timing
+    }
     _simulando = true;
     while (!terminado) {
       siguiente();
@@ -809,7 +836,11 @@ class MotorPartido {
   EventoPartido siguiente() {
     final e = _siguiente();
     // Quien no usa el control de tiro (simular, saltar jugadas, otros modos) no se frena nunca.
-    return _momento != null ? resolverMomento(0) : e;
+    var r = e;
+    while (_momento != null) {
+      r = resolverMomento(0);
+    }
+    return r;
   }
 
   EventoPartido _siguiente() {
@@ -1119,14 +1150,38 @@ class MotorPartido {
                 (1 + 1.5 * _cansancioEquipo(ataque)) *
                 (1 - (ataque.enCancha.map((j) => j.stats.iq).reduce(max) - 75) / 400))
             .clamp(0.08, 0.3);
-    if (inicio > 3 && _azar.nextDouble() < pPerdida) return _perdida(ataque, defensa, segundos, robos);
+    // Tu timing en la pelota ([d] > 0 favorece a tu equipo): robo si defendés, cuidar la pelota si organizás.
+    EventoPartido sigueLaPosesion(double d, double _) {
+      final nuestroAtaque = ataque.enCancha.any((j) => j.id == medidorId);
+      final chance = (pPerdida + (nuestroAtaque ? -d : d)).clamp(0.02, 0.5);
+      if (inicio > 3 && _azar.nextDouble() < chance) return _perdida(ataque, defensa, segundos, robos);
+      // El tiro se va con el reloj del cuarto: si queda poco, se tira lo que salga (y si queda casi
+      // nada, desde donde esté, más allá de la mitad de la cancha).
+      final chicharra = segundos >= inicio;
+      final desdeLejos = inicio <= 2.6 && !contraataque;
+      _consumir(ataque, defensa, desdeLejos ? inicio : segundos);
+      return _tiro(ataque, defensa, contraataque: contraataque, chicharra: chicharra, desdeLejos: desdeLejos);
+    }
 
-    // El tiro se va con el reloj del cuarto: si queda poco, se tira lo que salga (y si queda casi
-    // nada, desde donde esté, más allá de la mitad de la cancha).
-    final chicharra = segundos >= inicio;
-    final desdeLejos = inicio <= 2.6 && !contraataque;
-    _consumir(ataque, defensa, desdeLejos ? inicio : segundos);
-    return _tiro(ataque, defensa, contraataque: contraataque, chicharra: chicharra, desdeLejos: desdeLejos);
+    if (inicio > 3 && medidorId != null && !contraataque) {
+      final defiende = defensa.enCancha.any((j) => j.id == medidorId);
+      final organiza = ataque.enCancha.isNotEmpty &&
+          ataque.enCancha.reduce((a, b) => a.stats.app >= b.stats.app ? a : b).id == medidorId;
+      final tipo = defiende ? TipoMomento.robo : (organiza ? TipoMomento.pase : null);
+      if (tipo != null && _pide(tipo, finalPartido)) {
+        _momento = MomentoPendiente(
+          tipo: tipo,
+          jugadorId: medidorId!,
+          nombre: defiende ? 'la pelota' : 'tu pase',
+          probabilidad: pPerdida,
+          triple: false,
+          clutch: finalPartido,
+        );
+        _resolverMomento = sigueLaPosesion;
+        return _evento(TipoEvento.tiro, ataque == _l, defiende ? 'Presión sobre la pelota…' : 'Tu equipo mueve la pelota…');
+      }
+    }
+    return sigueLaPosesion(0, 0);
   }
 
   EventoPartido _faltaIntencional(_Lado ataque, _Lado defensa) {
@@ -1594,22 +1649,39 @@ class MotorPartido {
 
       // Falla: falta en el tiro, tapón o rebote.
       if (falta) {
-        final anotados = _libres(ataque, tirador, triple ? 3 : 2);
-        caja.pts += anotados;
-        _anotar(ataque, defensa, anotados);
-        _cambiarPosesion();
-        return _evento(
-          TipoEvento.libres,
-          ataque == _l,
-          conExpulsion('Falta sobre ${tirador.nombre}: $anotados/${triple ? 3 : 2} libres.'),
-          jugadorId: tirador.id,
-          puntos: anotados,
-          convertido: anotados > 0,
-          triple: triple,
-          jugadaClave: jugada,
-          expulsadoId: expulsado,
-          libres: triple ? 3 : 2,
-        );
+        EventoPartido tirarLibres(double d, double _) {
+          final anotados = _libres(ataque, tirador, triple ? 3 : 2, delta: d);
+          caja.pts += anotados;
+          _anotar(ataque, defensa, anotados);
+          _cambiarPosesion();
+          return _evento(
+            TipoEvento.libres,
+            ataque == _l,
+            conExpulsion('Falta sobre ${tirador.nombre}: $anotados/${triple ? 3 : 2} libres.'),
+            jugadorId: tirador.id,
+            puntos: anotados,
+            convertido: anotados > 0,
+            triple: triple,
+            jugadaClave: jugada,
+            expulsadoId: expulsado,
+            libres: triple ? 3 : 2,
+          );
+        }
+
+        if (medidorId == tirador.id && !desdeLejos && _pide(TipoMomento.libres, clutch)) {
+          _momento = MomentoPendiente(
+            tipo: TipoMomento.libres,
+            jugadorId: tirador.id,
+            nombre: tirador.nombre,
+            probabilidad: _pctTl(tirador),
+            triple: false,
+            clutch: clutch,
+            cantidad: triple ? 3 : 2,
+          );
+          _resolverMomento = tirarLibres;
+          return _evento(TipoEvento.tiro, ataque == _l, 'Falta sobre ${tirador.nombre}: va a la línea…', jugadorId: tirador.id);
+        }
+        return tirarLibres(0, 0);
       }
       // Rebote (con el reloj del cuarto en cero no hay rebote: termina el cuarto).
       final rebOf = taponador != null
@@ -1620,42 +1692,66 @@ class MotorPartido {
                     ataque.ofensivo.reboteOf /
                     defensa.defensivo.reboteDef)
                 .clamp(0.15, 0.38);
-      final ofensivo = _azar.nextDouble() < rebOf * ataque.mods.reboteOfensivoFactor;
-      final reboteador = _elegir(ofensivo ? ataque.enCancha : defensa.enCancha, (j) => j.stats.rpp + 0.5);
-      (ofensivo ? ataque : defensa).box[reboteador.id]!.reb++;
-      if (ofensivo) {
-        _restoPosesion = 14;
-      } else {
-        _cambiarPosesion();
-        _contraataque =
-            _azar.nextDouble() <
-            0.12 * defensa.ofensivo.contraataque * defensa.mods.contraataqueFactor + (defensa.acelerar ? 0.08 : 0);
+      // Tu timing en el rebote ([d] > 0 favorece a tu equipo): cambia la chance de rebote ofensivo y quién se la lleva.
+      EventoPartido pelearRebote(double d, double _) {
+        final nuestroAtaque = ataque.enCancha.any((j) => j.id == medidorId);
+        final ajuste = nuestroAtaque ? d : -d;
+        final ofensivo = _azar.nextDouble() < (rebOf * ataque.mods.reboteOfensivoFactor + ajuste).clamp(0.02, 0.9);
+        final favorecido = d > 0 && (ofensivo == nuestroAtaque);
+        final reboteador = _elegir(
+          ofensivo ? ataque.enCancha : defensa.enCancha,
+          (j) => (j.stats.rpp + 0.5) * (favorecido && j.id == medidorId ? 1 + d * 6 : 1),
+        );
+        (ofensivo ? ataque : defensa).box[reboteador.id]!.reb++;
+        if (ofensivo) {
+          _restoPosesion = 14;
+        } else {
+          _cambiarPosesion();
+          _contraataque =
+              _azar.nextDouble() <
+              0.12 * defensa.ofensivo.contraataque * defensa.mods.contraataqueFactor + (defensa.acelerar ? 0.08 : 0);
+        }
+        final texto = StringBuffer(
+          desdeLejos
+              ? 'Lanzamiento desde la otra mitad de ${tirador.nombre}: no entra.'
+              : taponado(taponador, tirador) ??
+                    (triple ? 'Falla el triple ${tirador.nombre}.' : 'Falla ${tirador.nombre}.'),
+        );
+        if (taponador != null && ofensivo) {
+          texto.write(' La recupera ${reboteador.nombre}.');
+        } else {
+          texto.write(ofensivo ? ' Rebote ofensivo de ${reboteador.nombre}.' : ' Rebote de ${reboteador.nombre}.');
+        }
+        return _evento(
+          TipoEvento.tiro,
+          ataque == _l,
+          texto.toString(),
+          jugadorId: tirador.id,
+          defensorId: taponador?.id,
+          reboteId: reboteador.id,
+          reboteOfensivo: ofensivo,
+          triple: triple,
+          contraataque: contraataque,
+          taponado: taponador != null,
+          chicharra: chicharra,
+          desdeLejos: desdeLejos,
+        );
       }
-      final texto = StringBuffer(
-        desdeLejos
-            ? 'Lanzamiento desde la otra mitad de ${tirador.nombre}: no entra.'
-            : taponado(taponador, tirador) ??
-                  (triple ? 'Falla el triple ${tirador.nombre}.' : 'Falla ${tirador.nombre}.'),
-      );
-      if (taponador != null && ofensivo) {
-        texto.write(' La recupera ${reboteador.nombre}.');
-      } else {
-        texto.write(ofensivo ? ' Rebote ofensivo de ${reboteador.nombre}.' : ' Rebote de ${reboteador.nombre}.');
+
+      final miJugadorEnJuego = medidorId != null && [...ataque.enCancha, ...defensa.enCancha].any((j) => j.id == medidorId);
+      if (miJugadorEnJuego && !desdeLejos && _pide(TipoMomento.rebote, clutch)) {
+        _momento = MomentoPendiente(
+          tipo: TipoMomento.rebote,
+          jugadorId: medidorId!,
+          nombre: tirador.nombre,
+          probabilidad: rebOf,
+          triple: triple,
+          clutch: clutch,
+        );
+        _resolverMomento = pelearRebote;
+        return _evento(TipoEvento.tiro, ataque == _l, 'Falla ${tirador.nombre}: a pelear el rebote…', jugadorId: tirador.id, triple: triple);
       }
-      return _evento(
-        TipoEvento.tiro,
-        ataque == _l,
-        texto.toString(),
-        jugadorId: tirador.id,
-        defensorId: taponador?.id,
-        reboteId: reboteador.id,
-        reboteOfensivo: ofensivo,
-        triple: triple,
-        contraataque: contraataque,
-        taponado: taponador != null,
-        chicharra: chicharra,
-        desdeLejos: desdeLejos,
-      );
+      return pelearRebote(0, 0);
     }
 
     // Control del jugador: si el tiro es tuyo (o lo tira el rival al que marcás), el partido se frena acá.
@@ -1737,13 +1833,13 @@ class MotorPartido {
   double _proteccionAro(_Lado defensa) =>
       defensa.enCancha.fold(0.0, (a, j) => a + efectoDeRol(j).proteccionAro).clamp(0.0, 0.024);
 
-  int _libres(_Lado lado, Jugador tirador, int cantidad) {
+  int _libres(_Lado lado, Jugador tirador, int cantidad, {double delta = 0}) {
     var anotados = 0;
     final caja = lado.box[tirador.id]!;
     for (var i = 0; i < cantidad; i++) {
       caja.tlA++;
       final presion = momentoClutch ? MotorPartido.clutch(tirador) * 0.03 - 0.02 : 0;
-      if (_azar.nextDouble() < (_pctTl(tirador) + presion).clamp(0.4, 0.95)) {
+      if (_azar.nextDouble() < (_pctTl(tirador) + presion + delta).clamp(0.4, 0.95)) {
         caja.tlI++;
         anotados++;
       }

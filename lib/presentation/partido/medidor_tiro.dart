@@ -71,13 +71,24 @@ class _HojaMedidorState extends State<HojaMedidor> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     final esquema = tema.colorScheme;
-    final defensa = widget.momento.tipo == TipoMomento.defensa;
-    final titulo = defensa
-        ? 'DEFENDÉ A ${widget.momento.nombre.toUpperCase()}'
-        : (widget.momento.triple ? '¡TIRÁ DE TRES!' : '¡TIRÁ!');
-    final ayuda = defensa
-        ? 'Soltá en la zona verde para taparle el tiro.'
-        : (widget.mantener ? 'Mantené apretado y soltá en la zona verde.' : 'Tocá en la zona verde.');
+    final tipo = widget.momento.tipo;
+    final titulo = switch (tipo) {
+      TipoMomento.defensa => 'DEFENDÉ A ${widget.momento.nombre.toUpperCase()}',
+      TipoMomento.libres => widget.momento.cantidad == 1 ? '¡TIRO LIBRE!' : '¡${widget.momento.cantidad} TIROS LIBRES!',
+      TipoMomento.rebote => '¡A PELEAR EL REBOTE!',
+      TipoMomento.robo => '¡PRESIONÁ LA PELOTA!',
+      TipoMomento.pase => 'CUIDÁ LA PELOTA',
+      TipoMomento.tiro => widget.momento.triple ? '¡TIRÁ DE TRES!' : '¡TIRÁ!',
+    };
+    final accion = widget.mantener ? 'Mantené apretado y soltá en la zona verde' : 'Tocá en la zona verde';
+    final ayuda = switch (tipo) {
+      TipoMomento.defensa => 'Soltá en la zona verde para taparle el tiro.',
+      TipoMomento.libres => '$accion: una sola barra para toda la serie.',
+      TipoMomento.rebote => '$accion para ganar la posición.',
+      TipoMomento.robo => '$accion para cortar el pase o robar.',
+      TipoMomento.pase => '$accion para que el pase salga limpio.',
+      TipoMomento.tiro => '$accion.',
+    };
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -185,7 +196,7 @@ class _HojaMedidorState extends State<HojaMedidor> with SingleTickerProviderStat
                     : FilledButton(
                         onPressed: _soltar,
                         style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(64)),
-                        child: Text(defensa ? 'TAPAR' : 'SOLTAR'),
+                        child: Text(tipo == TipoMomento.defensa ? 'TAPAR' : 'SOLTAR'),
                       ),
               ],
             ),
