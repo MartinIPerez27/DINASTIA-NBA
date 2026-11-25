@@ -118,8 +118,9 @@ estadísticas avanzadas.
     traspasos). Todo queda en "Mi equipo" (`movimientos`).
   - Fecha límite de traspasos: rumor en el partido 35 y decisión en el 49 (quedarte, pedir el traspaso o extender el
     contrato); un rumor sobre un compañero se concreta con 60 % y cambia el plantel en plena temporada.
-  - Mi generación: los primeros 8 elegidos de tu draft con números reales por época (hasta 2025) o una clase
-    ficticia determinística para años sin datos (2026); el #1 es tu rival.
+  - Mi generación: los primeros 8 elegidos de tu draft con números reales por época (hasta 2025). El draft 2026,
+    que ya se jugó, usa los 60 elegidos reales (`assets/database/draft_2026.json`, de Wikipedia) con sus equipos y
+    números proyectados; el #1 es tu rival. Solo si faltaran datos cae en una clase ficticia.
   - Pendiente de este punto: que el jugador "salga" mid-season por una decisión del club (hoy solo se mueven
     compañeros; el traspaso propio se negocia en el receso).
 

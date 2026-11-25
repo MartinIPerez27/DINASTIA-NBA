@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/draft_2026.dart';
 import '../../data/franquicias.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/modos/carrera_jugador.dart';
@@ -88,19 +89,40 @@ class MiEquipoPantalla extends StatelessWidget {
 }
 
 /// "Mi generación": los mejores elegidos de tu draft y qué hacen este año contra vos.
-class GeneracionPantalla extends StatelessWidget {
-  const GeneracionPantalla({super.key, required this.estado, required this.catalogo});
+class GeneracionPantalla extends StatefulWidget {
+  const GeneracionPantalla({super.key, required this.estado, required this.catalogo, this.clase2026});
 
   final EstadoCarrera estado;
   final List<Jugador> catalogo;
 
+  /// La clase real de 2026 (si no se pasa, se carga del asset cuando hace falta).
+  final List<CompaneroGeneracion>? clase2026;
+
+  @override
+  State<GeneracionPantalla> createState() => _GeneracionPantallaState();
+}
+
+class _GeneracionPantallaState extends State<GeneracionPantalla> {
+  late final Future<List<CompaneroGeneracion>?> _real = widget.clase2026 != null
+      ? Future.value(widget.clase2026)
+      : (widget.estado.anioBase == 2026 ? cargarClase2026() : Future.value(null));
+
+  EstadoCarrera get estado => widget.estado;
+
   static String _n(double v) => v.toStringAsFixed(1).replaceAll('.', ',');
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => FutureBuilder<List<CompaneroGeneracion>?>(
+    future: _real,
+    builder: (context, snap) => snap.connectionState != ConnectionState.done
+        ? Scaffold(appBar: AppBar(title: Text('Clase del draft ${estado.anioBase}')), body: const Center(child: CircularProgressIndicator()))
+        : _vista(context, snap.data),
+  );
+
+  Widget _vista(BuildContext context, List<CompaneroGeneracion>? real) {
     final tema = Theme.of(context);
     final esquema = tema.colorScheme;
-    final clase = GeneracionCarrera.clase(catalogo, estado);
+    final clase = GeneracionCarrera.clase(widget.catalogo, estado, clase2026: real);
     final anio = estado.anioCierre;
     final yo = estado.historial.isEmpty ? null : estado.historial.last;
     final filas = [
@@ -116,7 +138,9 @@ class GeneracionPantalla extends StatelessWidget {
             Text(
               clase.any((c) => c.ficticio)
                   ? 'Esta clase se inventa para tu carrera: sus carreras evolucionan sola, año a año.'
-                  : 'Los primeros elegidos de tu draft, con sus números reales de cada época.',
+                  : (clase.any((c) => c.proyectado)
+                        ? 'Los elegidos reales del draft ${estado.anioBase}. Todavía no tienen carrera: sus números son una proyección.'
+                        : 'Los primeros elegidos de tu draft, con sus números reales de cada época.'),
               style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
             ),
             if (rival != null) ...[
@@ -146,7 +170,7 @@ class GeneracionPantalla extends StatelessWidget {
                 tema,
                 esquema,
                 '${c.pick}',
-                c.nombre,
+                c.equipo == null ? c.nombre : '${c.nombre} (${c.equipo})',
                 l == null
                     ? 'todavía no juega'
                     : (l.retirado ? 'retirado' : '${_n(l.pts)} · ${_n(l.reb)} · ${_n(l.ast)}'),

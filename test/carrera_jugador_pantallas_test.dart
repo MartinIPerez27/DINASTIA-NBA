@@ -234,9 +234,12 @@ void main() {
   testWidgets('Mi generación lista la clase del draft con vos y tu rival', (t) async {
     telefono(t);
     final e = carrera.estadoCreado(raiz: 'w13', creado: creado, pick: 5, franquiciaId: 'CHI');
-    await t.pumpWidget(app(GeneracionPantalla(estado: e, catalogo: liga.catalogo)));
+    final real = GeneracionCarrera.deJson2026(File('assets/database/draft_2026.json').readAsStringSync());
+    await t.pumpWidget(app(GeneracionPantalla(estado: e, catalogo: liga.catalogo, clase2026: real)));
+    await t.pumpAndSettle();
     expect(find.text('Clase del draft ${e.anioBase}'), findsOneWidget);
-    expect(find.textContaining('TU RIVAL DE GENERACIÓN'), findsOneWidget);
+    expect(find.textContaining('TU RIVAL DE GENERACIÓN: AJ DYBANTSA'), findsOneWidget);
+    expect(find.textContaining('Washington Wizards'), findsOneWidget);
   });
 
   testWidgets('la fecha límite de traspasos ofrece las tres opciones', (t) async {

@@ -1,0 +1,422 @@
+[
+ {
+  "pick": 1,
+  "nombre": "AJ Dybantsa",
+  "pos": "SF",
+  "pais": "United States",
+  "equipo": "Washington Wizards"
+ },
+ {
+  "pick": 2,
+  "nombre": "Darryn Peterson",
+  "pos": "SG",
+  "pais": "United States",
+  "equipo": "Utah Jazz"
+ },
+ {
+  "pick": 3,
+  "nombre": "Cameron Boozer",
+  "pos": "PF",
+  "pais": "United States",
+  "equipo": "Memphis Grizzlies"
+ },
+ {
+  "pick": 4,
+  "nombre": "Caleb Wilson",
+  "pos": "SF",
+  "pais": "United States",
+  "equipo": "Chicago Bulls"
+ },
+ {
+  "pick": 5,
+  "nombre": "Keaton Wagler",
+  "pos": "SG",
+  "pais": "United States",
+  "equipo": "Los Angeles Clippers"
+ },
+ {
+  "pick": 6,
+  "nombre": "Mikel Brown Jr.",
+  "pos": "PG",
+  "pais": "United States",
+  "equipo": "Brooklyn Nets"
+ },
+ {
+  "pick": 7,
+  "nombre": "Darius Acuff Jr.",
+  "pos": "PG",
+  "pais": "United States",
+  "equipo": "Sacramento Kings"
+ },
+ {
+  "pick": 8,
+  "nombre": "Kingston Flemings",
+  "pos": "PG",
+  "pais": "United States",
+  "equipo": "Atlanta Hawks"
+ },
+ {
+  "pick": 9,
+  "nombre": "Morez Johnson Jr.",
+  "pos": "PF",
+  "pais": "United States",
+  "equipo": "Dallas Mavericks"
+ },
+ {
+  "pick": 10,
+  "nombre": "Brayden Burries",
+  "pos": "SG",
+  "pais": "United States",
+  "equipo": "Milwaukee Bucks"
+ },
+ {
+  "pick": 11,
+  "nombre": "Yaxel Lendeborg",
+  "pos": "PF",
+  "pais": "Dominican Republic",
+  "equipo": "Golden State Warriors"
+ },
+ {
+  "pick": 12,
+  "nombre": "Aday Mara",
+  "pos": "C",
+  "pais": "Spain",
+  "equipo": "Oklahoma City Thunder"
+ },
+ {
+  "pick": 13,
+  "nombre": "Nate Ament",
+  "pos": "SF",
+  "pais": "United States",
+  "equipo": "Miami Heat"
+ },
+ {
+  "pick": 14,
+  "nombre": "Hannes Steinbach",
+  "pos": "PF",
+  "pais": "Germany",
+  "equipo": "Charlotte Hornets"
+ },
+ {
+  "pick": 15,
+  "nombre": "Dailyn Swain",
+  "pos": "SG",
+  "pais": "United States",
+  "equipo": "Chicago Bulls"
+ },
+ {
+  "pick": 16,
+  "nombre": "Bennett Stirtz",
+  "pos": "PG",
+  "pais": "United States",
+  "equipo": "Memphis Grizzlies"
+ },
+ {
+  "pick": 17,
+  "nombre": "Ebuka Okorie",
+  "pos": "PG",
+  "pais": "United States",
+  "equipo": "Oklahoma City Thunder"
+ },
+ {
+  "pick": 18,
+  "nombre": "Christian Anderson Jr.",
+  "pos": "PG",
+  "pais": "Germany",
+  "equipo": "Charlotte Hornets"
+ },
+ {
+  "pick": 19,
+  "nombre": "Allen Graves",
+  "pos": "PF",
+  "pais": "United States",
+  "equipo": "Toronto Raptors"
+ },
+ {
+  "pick": 20,
+  "nombre": "Jayden Quaintance",
+  "pos": "PF",
+  "pais": "United States",
+  "equipo": "San Antonio Spurs"
+ },
+ {
+  "pick": 21,
+  "nombre": "Karim López",
+  "pos": "SF",
+  "pais": "Mexico",
+  "equipo": "Detroit Pistons"
+ },
+ {
+  "pick": 22,
+  "nombre": "Labaron Philon Jr.",
+  "pos": "PG",
+  "pais": "United States",
+  "equipo": "Philadelphia 76ers"
+ },
+ {
+  "pick": 23,
+  "nombre": "Zuby Ejiofor",
+  "pos": "PF",
+  "pais": "United States",
+  "equipo": "Atlanta Hawks"
+ },
+ {
+  "pick": 24,
+  "nombre": "Cameron Carr",
+  "pos": "SG",
+  "pais": "United States",
+  "equipo": "New York Knicks"
+ },
+ {
+  "pick": 25,
+  "nombre": "Sergio de Larrea",
+  "pos": "PG",
+  "pais": "Spain",
+  "equipo": "Los Angeles Lakers"
+ },
+ {
+  "pick": 26,
+  "nombre": "Tarris Reed Jr.",
+  "pos": "C",
+  "pais": "United States",
+  "equipo": "Denver Nuggets"
+ },
+ {
+  "pick": 27,
+  "nombre": "Chris Cenac Jr.",
+  "pos": "PF",
+  "pais": "United States",
+  "equipo": "Boston Celtics"
+ },
+ {
+  "pick": 28,
+  "nombre": "Joshua Jefferson",
+  "pos": "PF",
+  "pais": "United States",
+  "equipo": "Minnesota Timberwolves"
+ },
+ {
+  "pick": 29,
+  "nombre": "Alex Karaban",
+  "pos": "SF",
+  "pais": "United States",
+  "equipo": "Cleveland Cavaliers"
+ },
+ {
+  "pick": 30,
+  "nombre": "Koa Peat",
+  "pos": "PF",
+  "pais": "United States",
+  "equipo": "Dallas Mavericks"
+ },
+ {
+  "pick": 31,
+  "nombre": "Bruce Thornton",
+  "pos": "PG",
+  "pais": "United States",
+  "equipo": "New York Knicks"
+ },
+ {
+  "pick": 32,
+  "nombre": "Richie Saunders",
+  "pos": "SG",
+  "pais": "United States",
+  "equipo": "Memphis Grizzlies"
+ },
+ {
+  "pick": 33,
+  "nombre": "Isaiah Evans",
+  "pos": "SF",
+  "pais": "United States",
+  "equipo": "Brooklyn Nets"
+ },
+ {
+  "pick": 34,
+  "nombre": "Meleek Thomas",
+  "pos": "SG",
+  "pais": "United States",
+  "equipo": "Sacramento Kings"
+ },
+ {
+  "pick": 35,
+  "nombre": "Trevon Brazile",
+  "pos": "PF",
+  "pais": "United States",
+  "equipo": "San Antonio Spurs"
+ },
+ {
+  "pick": 36,
+  "nombre": "Baba Miller",
+  "pos": "SF",
+  "pais": "Spain",
+  "equipo": "Los Angeles Clippers"
+ },
+ {
+  "pick": 37,
+  "nombre": "Ryan Conwell",
+  "pos": "SG",
+  "pais": "United States",
+  "equipo": "Oklahoma City Thunder"
+ },
+ {
+  "pick": 38,
+  "nombre": "Braden Smith",
+  "pos": "PG",
+  "pais": "United States",
+  "equipo": "Chicago Bulls"
+ },
+ {
+  "pick": 39,
+  "nombre": "Jack Kayil",
+  "pos": "PG",
+  "pais": "Germany",
+  "equipo": "Houston Rockets"
+ },
+ {
+  "pick": 40,
+  "nombre": "Dillon Mitchell",
+  "pos": "SF",
+  "pais": "United States",
+  "equipo": "Boston Celtics"
+ },
+ {
+  "pick": 41,
+  "nombre": "Otega Oweh",
+  "pos": "SG",
+  "pais": "United States",
+  "equipo": "Miami Heat"
+ },
+ {
+  "pick": 42,
+  "nombre": "Ja'Kobi Gillespie",
+  "pos": "PG",
+  "pais": "United States",
+  "equipo": "San Antonio Spurs"
+ },
+ {
+  "pick": 43,
+  "nombre": "Tyler Bilodeau",
+  "pos": "PF",
+  "pais": "United States",
+  "equipo": "Brooklyn Nets"
+ },
+ {
+  "pick": 44,
+  "nombre": "Maliq Brown",
+  "pos": "PF",
+  "pais": "United States",
+  "equipo": "San Antonio Spurs"
+ },
+ {
+  "pick": 45,
+  "nombre": "Emanuel Sharp",
+  "pos": "SG",
+  "pais": "Israel",
+  "equipo": "Sacramento Kings"
+ },
+ {
+  "pick": 46,
+  "nombre": "Felix Okpara",
+  "pos": "C",
+  "pais": "Nigeria",
+  "equipo": "Orlando Magic"
+ },
+ {
+  "pick": 47,
+  "nombre": "Tyler Nickel",
+  "pos": "SG",
+  "pais": "United States",
+  "equipo": "Phoenix Suns"
+ },
+ {
+  "pick": 48,
+  "nombre": "Tobi Lawal",
+  "pos": "PF",
+  "pais": "United Kingdom",
+  "equipo": "Dallas Mavericks"
+ },
+ {
+  "pick": 49,
+  "nombre": "Bryce Hopkins",
+  "pos": "SF",
+  "pais": "United States",
+  "equipo": "Denver Nuggets"
+ },
+ {
+  "pick": 50,
+  "nombre": "Jaden Bradley",
+  "pos": "PG",
+  "pais": "United States",
+  "equipo": "Toronto Raptors"
+ },
+ {
+  "pick": 51,
+  "nombre": "Izaiyah Nelson",
+  "pos": "PF",
+  "pais": "United States",
+  "equipo": "Washington Wizards"
+ },
+ {
+  "pick": 52,
+  "nombre": "Henri Veesaar",
+  "pos": "C",
+  "pais": "Estonia",
+  "equipo": "Los Angeles Clippers"
+ },
+ {
+  "pick": 53,
+  "nombre": "Ugonna Onyenso",
+  "pos": "C",
+  "pais": "Nigeria",
+  "equipo": "Houston Rockets"
+ },
+ {
+  "pick": 54,
+  "nombre": "Lajae Jones",
+  "pos": "SG",
+  "pais": "United States",
+  "equipo": "Golden State Warriors"
+ },
+ {
+  "pick": 55,
+  "nombre": "Nick Martinelli",
+  "pos": "SF",
+  "pais": "United States",
+  "equipo": "New York Knicks"
+ },
+ {
+  "pick": 56,
+  "nombre": "Vsevolod Ishchenko",
+  "pos": "SF",
+  "pais": "Russia",
+  "equipo": "Chicago Bulls"
+ },
+ {
+  "pick": 57,
+  "nombre": "Narcisse Ngoy",
+  "pos": "C",
+  "pais": "France",
+  "equipo": "Atlanta Hawks"
+ },
+ {
+  "pick": 58,
+  "nombre": "Jaron Pierre Jr.",
+  "pos": "SG",
+  "pais": "United States",
+  "equipo": "New Orleans Pelicans"
+ },
+ {
+  "pick": 59,
+  "nombre": "Trey Kaufman-Renn",
+  "pos": "PF",
+  "pais": "United States",
+  "equipo": "Minnesota Timberwolves"
+ },
+ {
+  "pick": 60,
+  "nombre": "Malique Lewis",
+  "pos": "SF",
+  "pais": "Trinidad and Tobago",
+  "equipo": "Washington Wizards"
+ }
+]

@@ -161,17 +161,28 @@ void main() {
       expect(GeneracionCarrera.lineaEn(clase.first, 1996, anioDraft: 1996), isNull, reason: 'todavía no juega');
     });
 
-    test('sin datos reales (2026): clase ficticia determinística que evoluciona y se retira', () {
+    test('draft 2026: los elegidos reales (ya se jugó el draft) con números proyectados y determinísticos', () {
+      final real = GeneracionCarrera.deJson2026(File('assets/database/draft_2026.json').readAsStringSync());
+      expect(real.length, 60);
+      expect([for (final c in real) c.pick], List.generate(60, (i) => i + 1));
       final e = estado(2026);
-      final a = GeneracionCarrera.clase(catalogo, e), b = GeneracionCarrera.clase(catalogo, e);
-      expect(a.length, GeneracionCarrera.tamano);
-      expect(a.any((c) => c.ficticio), isTrue);
-      expect([for (final c in a) c.nombre], [for (final c in b) c.nombre]);
-      final c = a.first;
+      final clase = GeneracionCarrera.clase(catalogo, e, clase2026: real);
+      expect(clase.length, GeneracionCarrera.tamano);
+      expect(clase.first.nombre, 'AJ Dybantsa');
+      expect(clase.every((c) => !c.ficticio && c.proyectado && c.equipo != null), isTrue);
+      final c = clase.first;
       final l3 = GeneracionCarrera.lineaEn(c, 2029, anioDraft: 2026)!;
       expect(l3.pts, greaterThan(2));
-      expect(GeneracionCarrera.lineaEn(c, 2045, anioDraft: 2026)!.retirado, isTrue);
       expect(GeneracionCarrera.lineaEn(c, 2029, anioDraft: 2026)!.pts, l3.pts, reason: 'determinístico');
+      expect(GeneracionCarrera.lineaEn(c, 2045, anioDraft: 2026)!.retirado, isTrue);
+      expect(GeneracionCarrera.lineaEn(c, 2026, anioDraft: 2026), isNull);
+    });
+
+    test('un año sin datos de nadie cae en una clase ficticia (por si acaso)', () {
+      final e = estado(2026);
+      final a = GeneracionCarrera.clase(catalogo, e), b = GeneracionCarrera.clase(catalogo, e);
+      expect(a.any((c) => c.ficticio), isTrue, reason: 'sin la clase real cargada');
+      expect([for (final c in a) c.nombre], [for (final c in b) c.nombre]);
     });
   });
 }

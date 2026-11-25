@@ -1,22 +1,39 @@
+import 'dart:convert';
 import 'dart:math';
 
 import '../entities/jugador.dart';
 import 'carrera_jugador.dart';
 
-// Tu generación: los mejores elegidos del draft de tu año, con quienes competís toda la carrera. Si el año tiene
-// datos reales (hasta 2025) salen del catálogo; si no, se arma una clase ficticia que evoluciona sola.
+// Tu generación: los mejores elegidos del draft de tu año, con quienes competís toda la carrera. Hasta 2025 salen
+// del catálogo con sus números reales; el draft 2026 (ya jugado) usa los elegidos reales y proyecta sus números
+// (todavía no tienen carrera). Si un año no tuviera datos, se arma una clase ficticia que evoluciona sola.
 
 /// Un integrante de tu clase del draft.
 class CompaneroGeneracion {
-  const CompaneroGeneracion({required this.nombre, required this.pick, required this.cartas, this.ficticio = false, this.semilla = 0});
+  const CompaneroGeneracion({
+    required this.nombre,
+    required this.pick,
+    required this.cartas,
+    this.ficticio = false,
+    this.semilla = 0,
+    this.equipo,
+    this.posicion,
+  });
 
   final String nombre;
   final int pick;
 
   /// Las cartas reales de su carrera (vacío si es ficticio).
   final List<Jugador> cartas;
+  /// Nombre inventado (si es false con [cartas] vacías, es un elegido real cuyos números se proyectan).
   final bool ficticio;
   final int semilla;
+
+  /// Equipo y puesto con que fue elegido (solo la clase 2026 los trae).
+  final String? equipo, posicion;
+
+  /// Sus números salen de un modelo y no de cartas reales.
+  bool get proyectado => cartas.isEmpty;
 }
 
 /// Lo que hizo un compañero de generación en un año.
@@ -36,9 +53,26 @@ class GeneracionCarrera {
   static const _nombres = ['Mateo', 'Julián', 'Tomás', 'Bruno', 'Lucas', 'Gael', 'Thiago', 'Nahuel', 'Dante', 'Iván'];
   static const _apellidos = ['Ferrari', 'Duarte', 'Salas', 'Brandt', 'Okafor', 'Lindqvist', 'Moreau', 'Castaño', 'Vidal', 'Kovač'];
 
-  /// Los primeros [tamano] elegidos de tu draft (sin vos), por número de elección.
-  static List<CompaneroGeneracion> clase(List<Jugador> catalogo, EstadoCarrera e) {
+  /// Los elegidos reales del draft 2026 a partir de `assets/database/draft_2026.json` (pick, nombre, pos, equipo).
+  static List<CompaneroGeneracion> deJson2026(String json) {
+    final lista = jsonDecode(json) as List;
+    return [
+      for (final x in lista.cast<Map<String, dynamic>>())
+        CompaneroGeneracion(
+          nombre: x['nombre'] as String,
+          pick: x['pick'] as int,
+          cartas: const [],
+          semilla: ((x['nombre'] as String).hashCode ^ (x['pick'] as int) * 7919) & 0xfffff,
+          equipo: x['equipo'] as String?,
+          posicion: x['pos'] as String?,
+        ),
+    ]..sort((a, b) => a.pick.compareTo(b.pick));
+  }
+
+  /// Los primeros [tamano] elegidos de tu draft (sin vos), por número de elección. [clase2026] son los reales de 2026.
+  static List<CompaneroGeneracion> clase(List<Jugador> catalogo, EstadoCarrera e, {List<CompaneroGeneracion>? clase2026}) {
     final anio = e.anioBase;
+    if (anio == 2026 && clase2026 != null && clase2026.length >= tamano) return clase2026.take(tamano).toList();
     final porPersona = <int, List<Jugador>>{};
     for (final j in catalogo) {
       if (j.nbaPlayerId > 0 && j.draft?.$1 == anio && j.nbaPlayerId != e.base.nbaPlayerId) {
@@ -74,7 +108,7 @@ class GeneracionCarrera {
   /// Su línea en el año [anio] (la carta real que cubre ese año, o la modelada si es ficticio). Null si todavía no jugaba.
   static LineaGeneracion? lineaEn(CompaneroGeneracion c, int anio, {required int anioDraft}) {
     if (anio <= anioDraft) return null;
-    if (c.ficticio) {
+    if (c.proyectado) {
       final k = anio - anioDraft;
       final azar = Random(c.semilla ^ k);
       final techo = 24 - c.pick * 0.9 + (c.semilla % 5);
