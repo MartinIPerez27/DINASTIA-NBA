@@ -94,6 +94,16 @@ estadísticas avanzadas.
   (`uso`: `c:p30/p40/p50/td/dd`, `m:pts/reb/ast/rob/tap/t3`) que alimentan los récords.
   - Balance medido: un jugador de potencial 88 que gasta todo llega a ~94; con potencial 99 se mantiene en 99
     entre los 26 y los 34 años (antes 4 temporadas).
+- **Bloque 2 (objetivos y premios) — hecho.**
+  - Objetivos: 23 tipos en 4 familias (estadística, equipo, personal, vestuario) y 4 niveles (1/2/4/6 puntos).
+    El DT ofrece 8 por temporada y aceptás de 4 a 6 hasta el primer partido (pantalla "Elegir objetivos").
+    16 objetivos de carrera (10.000 puntos, anillos, All-Star, triples-dobles…) y un mini-objetivo cada 14 partidos.
+  - Premios nuevos: Jugador de la semana (4 partidos) y del mes (14), Novato del año / del mes, Quinteto de novatos,
+    MVP de las Finales, Clutch Player, All-Defensive y líderes de la liga. Se calculan contra la liga "hasta ahora"
+    (aproximación honesta: no hay un registro semanal de toda la liga) y cada uno da puntos de habilidad.
+  - Balance: recargo del techo blando ×(1+0,75·exceso), máx. ×5. Con potencial 88 y gasto óptimo se llega a ~96;
+    con potencial 99 se mantiene en 99 hasta los ~35 años.
+  - Faltan del punto 4: concurso de volcadas y de triples (dependen de la barra de tiro).
 
 ## Orden sugerido
 1. Puntos y costos (1, 3) · 2. Objetivos y premios (2, 4) · 3. Habilidades 2K (5) · 4. Año, edad y plantilla (6)

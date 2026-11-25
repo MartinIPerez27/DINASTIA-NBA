@@ -180,6 +180,44 @@ void main() {
     expect(find.text('24,9'), findsOneWidget, reason: 'el total suma las fuentes');
   });
 
+  testWidgets('elegir objetivos: de 4 a 6 de los 8 ofrecidos, con su nivel y puntos', (t) async {
+    telefono(t);
+    t.view.physicalSize = const Size(412, 2200) * 2.5;
+    final base = carrera.estadoCreado(raiz: 'w10', creado: creado, pick: 5, franquiciaId: 'CHI');
+    final ofrecidos = ObjetivosCarrera.ofrecer(base, Random(2));
+    final e = base.copyWith(ofrecidos: ofrecidos, objetivos: ObjetivosCarrera.porDefecto(ofrecidos));
+    EstadoCarrera? salida;
+    await t.pumpWidget(app(ElegirObjetivosPantalla(estado: e, onConfirmar: (x) => salida = x)));
+    expect(find.text('Objetivos de la temporada'), findsOneWidget);
+    expect(find.byType(CheckboxListTile), findsNWidgets(8));
+    expect(find.textContaining('Elegiste 4'), findsOneWidget);
+    // Sumar dos más y confirmar.
+    final sinElegir = [
+      for (var i = 0; i < 8; i++)
+        if (!e.objetivos.contains(ofrecidos[i])) i,
+    ];
+    for (final i in sinElegir.take(2)) {
+      await t.tap(find.byType(CheckboxListTile).at(i));
+      await t.pump();
+    }
+    expect(find.textContaining('Elegiste 6'), findsOneWidget);
+    await t.tap(find.text('CONFIRMAR OBJETIVOS'));
+    await t.pumpAndSettle();
+    expect(salida?.objetivos.length, 6);
+  });
+
+  testWidgets('el panel de objetivos largos muestra el mini-objetivo del mes y la carrera', (t) async {
+    telefono(t);
+    final e = carrera
+        .estadoCreado(raiz: 'w11', creado: creado, pick: 5, franquiciaId: 'CHI')
+        .copyWith(uso: {'mo:tipo': MiniObjetivo.puntos.index, 'mo:meta': 220, 'mes:n': 6, 'mes:pts': 150, 'c:td': 4});
+    await t.pumpWidget(app(Scaffold(body: SingleChildScrollView(child: PanelObjetivosLargos(estado: e)))));
+    expect(find.textContaining('MINI-OBJETIVO DEL MES'), findsOneWidget);
+    expect(find.textContaining('22,0 puntos'), findsOneWidget);
+    expect(find.text('OBJETIVOS DE CARRERA'), findsOneWidget);
+    expect(find.text('0/${ObjetivoCarrera.values.length}'), findsOneWidget);
+  });
+
   testWidgets('legado: totales, veredicto y línea de tiempo', (t) async {
     telefono(t);
     var e = carrera.estadoCreado(raiz: 'w3', creado: creado, pick: 5, franquiciaId: 'CHI');

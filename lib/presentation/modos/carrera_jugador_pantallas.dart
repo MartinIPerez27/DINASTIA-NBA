@@ -363,6 +363,189 @@ class _PanelRutina extends StatelessWidget {
   }
 }
 
+String _avanceCorto(ObjetivoTemporada o, double v) => o.tipo.entero ? '${v.round()}' : _n1(v);
+
+/// Elegí entre 4 y 6 de los 8 objetivos que te ofrece el DT para la temporada (hasta jugar el primer partido).
+class ElegirObjetivosPantalla extends StatefulWidget {
+  const ElegirObjetivosPantalla({super.key, required this.estado, required this.onConfirmar});
+
+  final EstadoCarrera estado;
+  final ValueChanged<EstadoCarrera> onConfirmar;
+
+  @override
+  State<ElegirObjetivosPantalla> createState() => _ElegirObjetivosPantallaState();
+}
+
+class _ElegirObjetivosPantallaState extends State<ElegirObjetivosPantalla> {
+  late final Set<int> _elegidos = {
+    for (var i = 0; i < widget.estado.ofrecidos.length; i++)
+      if (widget.estado.objetivos.contains(widget.estado.ofrecidos[i])) i,
+  };
+
+  bool get _valido =>
+      _elegidos.length >= ObjetivosCarrera.minAceptados && _elegidos.length <= ObjetivosCarrera.maxAceptados;
+
+  int get _puntos => _elegidos.fold(0, (a, i) => a + widget.estado.ofrecidos[i].nivel.puntos);
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final o = widget.estado.ofrecidos;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Objetivos de la temporada')),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                children: [
+                  Text(
+                    'El DT te ofrece ${o.length}. Elegí entre ${ObjetivosCarrera.minAceptados} y '
+                    '${ObjetivosCarrera.maxAceptados}: lo difícil da más puntos de habilidad, pero si no lo cumplís '
+                    'no suma (y la confianza del DT baja). Podés cambiar hasta jugar el primer partido.',
+                    style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 8),
+                  for (var i = 0; i < o.length; i++)
+                    CheckboxListTile(
+                      value: _elegidos.contains(i),
+                      onChanged: (v) => setState(() {
+                        if (v == true) {
+                          if (_elegidos.length < ObjetivosCarrera.maxAceptados) _elegidos.add(i);
+                        } else {
+                          _elegidos.remove(i);
+                        }
+                      }),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(o[i].texto),
+                      subtitle: Text('${o[i].tipo.familia.etiqueta} · ${o[i].nivel.etiqueta}'),
+                      secondary: Text(
+                        '+${o[i].nivel.puntos}',
+                        style: tema.textTheme.titleMedium?.copyWith(color: esquema.primary),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Elegiste ${_elegidos.length} (${ObjetivosCarrera.minAceptados} a ${ObjetivosCarrera.maxAceptados}) · hasta $_puntos puntos',
+                    textAlign: TextAlign.center,
+                    style: tema.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton(
+                    onPressed: _valido
+                        ? () {
+                            widget.onConfirmar(ObjetivosCarrera.elegir(widget.estado, _elegidos));
+                            Navigator.of(context).pop();
+                          }
+                        : null,
+                    child: const Text('CONFIRMAR OBJETIVOS'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Mini-objetivo del mes y objetivos de carrera (varias temporadas).
+class PanelObjetivosLargos extends StatelessWidget {
+  const PanelObjetivosLargos({super.key, required this.estado});
+
+  final EstadoCarrera estado;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final mini = ObjetivosCarrera.miniActual(estado);
+    final pendientes =
+        [
+          for (final o in ObjetivoCarrera.values)
+            if (!o.lograda(estado)) o,
+        ]..sort((a, b) {
+          double f(ObjetivoCarrera o) => o.avance(estado).$1 / o.avance(estado).$2;
+          return f(b).compareTo(f(a));
+        });
+    final hechos = ObjetivoCarrera.values.where((o) => o.lograda(estado)).length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (mini != null) ...[
+          Text('MINI-OBJETIVO DEL MES ${ObjetivosCarrera.mesActual(estado)}', style: tema.textTheme.labelLarge),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(child: Text(ObjetivosCarrera.textoMini(mini.$1, mini.$2), style: tema.textTheme.bodyMedium)),
+              Text(
+                '${ObjetivosCarrera.valorMes(mini.$1, estado.uso).toStringAsFixed(mini.$1 == MiniObjetivo.victorias || mini.$1 == MiniObjetivo.partidos25 ? 0 : 1).replaceAll('.', ',')} '
+                '(${estado.uso['mes:n'] ?? 0}/${MiniObjetivo.partidosPorMes})',
+                style: tema.textTheme.bodySmall,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+        if ((estado.uso['sc:semana'] ?? 0) + (estado.uso['sc:mes'] ?? 0) + (estado.uso['sc:novMes'] ?? 0) + (estado.uso['sc:clutch'] ?? 0) > 0) ...[
+          Text('PREMIOS DE ESTE AÑO', style: tema.textTheme.labelLarge),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              if ((estado.uso['sc:semana'] ?? 0) > 0) Chip(visualDensity: VisualDensity.compact, label: Text('Jugador de la semana ×${estado.uso['sc:semana']}')),
+              if ((estado.uso['sc:mes'] ?? 0) > 0) Chip(visualDensity: VisualDensity.compact, label: Text('Jugador del mes ×${estado.uso['sc:mes']}')),
+              if ((estado.uso['sc:novMes'] ?? 0) > 0) Chip(visualDensity: VisualDensity.compact, label: Text('Novato del mes ×${estado.uso['sc:novMes']}')),
+              if ((estado.uso['sc:clutch'] ?? 0) > 0) Chip(visualDensity: VisualDensity.compact, label: Text('Partidos clutch ×${estado.uso['sc:clutch']} (6 = Clutch Player)')),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+        Row(
+          children: [
+            Expanded(child: Text('OBJETIVOS DE CARRERA', style: tema.textTheme.labelLarge)),
+            Text('$hechos/${ObjetivoCarrera.values.length}', style: tema.textTheme.labelLarge),
+          ],
+        ),
+        const SizedBox(height: 6),
+        for (final o in pendientes.take(5))
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: Text(o.texto, style: tema.textTheme.bodySmall)),
+                    Text('+${o.puntos}', style: tema.textTheme.labelSmall?.copyWith(color: esquema.primary)),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                LinearProgressIndicator(
+                  value: (o.avance(estado).$1 / o.avance(estado).$2).clamp(0.0, 1.0),
+                  minHeight: 4,
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// De dónde salieron los puntos de habilidad de esta temporada: rendimiento, notas de partido, objetivos,
 /// premios y eventos. Los números salen de `EstadoCarrera.uso` (claves `dg:` y `gr:`).
 class PanelDesglose extends StatelessWidget {
@@ -382,6 +565,7 @@ class PanelDesglose extends StatelessWidget {
       ('Notas de partido', 'Cada partido tiene una nota de D a A+.', u['dg:nota'] ?? 0),
       ('Objetivos', 'Los que cumpliste al cerrar la temporada.', u['dg:obj'] ?? 0),
       ('Premios', 'Título, premios individuales y All-Star.', u['dg:prem'] ?? 0),
+      ('Mini-objetivos', 'Los del mes que cumpliste.', u['dg:mes'] ?? 0),
       ('Eventos', 'Decisiones fuera de la cancha.', u['dg:evento'] ?? 0),
     ];
     final total = filas.fold(0, (a, f) => a + f.$3);
@@ -422,7 +606,8 @@ class PanelDesglose extends StatelessWidget {
             spacing: 6,
             runSpacing: 4,
             children: [
-              for (final n in notas) Chip(visualDensity: VisualDensity.compact, label: Text('${n.$1.etiqueta} ×${n.$2}')),
+              for (final n in notas)
+                Chip(visualDensity: VisualDensity.compact, label: Text('${n.$1.etiqueta} ×${n.$2}')),
             ],
           ),
         ],
@@ -589,11 +774,20 @@ class _Celda extends StatelessWidget {
 
 /// Tarjeta de tu jugador en la temporada: papel, confianza, puntos de habilidad y objetivos.
 class TarjetaMiJugador extends StatelessWidget {
-  const TarjetaMiJugador({super.key, required this.estado, required this.marca, required this.onAbrir});
+  const TarjetaMiJugador({
+    super.key,
+    required this.estado,
+    required this.marca,
+    required this.onAbrir,
+    this.onElegirObjetivos,
+  });
 
   final EstadoCarrera estado;
   final MarcaTemporada marca;
   final VoidCallback onAbrir;
+
+  /// Si se puede elegir los objetivos de la temporada (antes del primer partido).
+  final VoidCallback? onElegirObjetivos;
 
   @override
   Widget build(BuildContext context) {
@@ -650,6 +844,12 @@ class TarjetaMiJugador extends StatelessWidget {
             style: tema.textTheme.bodyMedium,
           ),
           const SizedBox(height: 6),
+          if (onElegirObjetivos != null)
+            OutlinedButton.icon(
+              onPressed: onElegirObjetivos,
+              icon: const Icon(Icons.flag_outlined),
+              label: Text('ELEGÍ TUS OBJETIVOS (${ObjetivosCarrera.minAceptados} A ${ObjetivosCarrera.maxAceptados})'),
+            ),
           for (final o in estado.objetivos)
             Builder(
               builder: (context) {
@@ -672,11 +872,9 @@ class TarjetaMiJugador extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (o.tipo != TipoObjetivo.playoffs && o.tipo != TipoObjetivo.allStar)
-                        Text(
-                          o.tipo == TipoObjetivo.victorias || o.tipo == TipoObjetivo.partidos ? '${v.round()}' : _n1(v),
-                          style: tema.textTheme.bodySmall,
-                        ),
+                      if (!o.tipo.siNo) Text(_avanceCorto(o, v), style: tema.textTheme.bodySmall),
+                      const SizedBox(width: 6),
+                      Text('+${o.nivel.puntos}', style: tema.textTheme.labelSmall?.copyWith(color: esquema.primary)),
                     ],
                   ),
                 );
@@ -809,18 +1007,14 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(ok ? Icons.check_circle : Icons.flag_outlined, color: ok ? esquema.primary : null),
                     title: Text(o.texto),
-                    trailing: o.tipo == TipoObjetivo.playoffs || o.tipo == TipoObjetivo.allStar
-                        ? null
-                        : Text(
-                            o.tipo == TipoObjetivo.victorias || o.tipo == TipoObjetivo.partidos
-                                ? '${v.round()}/${o.meta.round()}'
-                                : '${_n1(v)}/${_n1(o.meta)}',
-                          ),
+                    subtitle: Text('${o.nivel.etiqueta} · +${o.nivel.puntos} puntos', style: tema.textTheme.bodySmall),
+                    trailing: o.tipo.siNo ? null : Text('${_avanceCorto(o, v)}/${_avanceCorto(o, o.meta)}'),
                   );
                 },
               ),
             Text(
-              'Cada objetivo cumplido da 3 puntos de habilidad y confianza al final de la temporada.',
+              'Cada objetivo cumplido da puntos de habilidad según su nivel (Fácil 1, Normal 2, Difícil 4, Élite 6) y '
+              'confianza del DT, al final de la temporada.',
               style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
             ),
           ],
@@ -828,6 +1022,8 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
       ),
     ];
     final derecha = <Widget>[
+      _Panel(child: PanelObjetivosLargos(estado: e)),
+      const SizedBox(height: 12),
       _Panel(child: PanelDesglose(estado: e)),
       const SizedBox(height: 12),
       _Panel(child: PanelMarca(estado: e)),
@@ -1133,6 +1329,13 @@ class _RecesoJugadorPantallaState extends State<RecesoJugadorPantalla> {
                     ),
                 ],
               ),
+              for (final o in c.objetivosCarrera) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '¡Objetivo de carrera cumplido: ${o.texto}! +${o.puntos} puntos de habilidad.',
+                  style: tema.textTheme.bodyMedium?.copyWith(color: esquema.primary),
+                ),
+              ],
               for (final i in c.insigniasNuevas) ...[
                 const SizedBox(height: 8),
                 Text(
