@@ -1,4 +1,5 @@
 import '../../data/estado_app.dart';
+import 'etapas_previas_pantalla.dart';
 import '../../domain/liga.dart';
 import 'dart:math';
 
@@ -94,6 +95,7 @@ Future<void> iniciarCarreraJugador(ContextoModos c, {JugadorCreado? creadoInicia
     await c.abrirTemporada(t);
     return;
   }
+  CaminoPrevio? previo;
   final creado = creadoInicial ?? await nav.push(
     MaterialPageRoute<JugadorCreado>(
       builder: (_) => const CreadorJugadorPantalla(
@@ -103,10 +105,29 @@ Future<void> iniciarCarreraJugador(ContextoModos c, {JugadorCreado? creadoInicia
       ),
     ),
   );
+  if (creadoInicial == null && creado != null && c.context.mounted) {
+    final vivir = await showDialog<bool>(
+      context: c.context,
+      builder: (d) => AlertDialog(
+        title: const Text('¿Vivís tu etapa previa?'),
+        content: const Text('Podés jugar el secundario y la universidad antes del draft, o ir directo al combine.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('IR DIRECTO')),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('SECUNDARIO Y UNIVERSIDAD')),
+        ],
+      ),
+    );
+    if (vivir == true && c.context.mounted) {
+      previo = await nav.push(
+        MaterialPageRoute<CaminoPrevio>(builder: (_) => EtapasPreviasPantalla(creado: creado, semilla: semilla)),
+      );
+      if (previo == null) return;
+    }
+  }
   if (creado == null || !c.context.mounted) return;
   final dificultad = await elegirDificultad(c.context);
   if (dificultad == null || !c.context.mounted) return;
-  final combine = carrera.combine(creado, Random(semilla));
+  final combine = carrera.combine(previo?.creado ?? creado, Random(semilla));
   final listo = await nav.push(
     MaterialPageRoute<bool>(
       builder: (_) => CombinePantalla(creado: creado, resultado: combine),
@@ -128,7 +149,8 @@ Future<void> iniciarCarreraJugador(ContextoModos c, {JugadorCreado? creadoInicia
     ),
   );
   if (franquicia == null) return;
-  final estado = carrera.estadoCreado(raiz: id, creado: creado, pick: combine.pick, franquiciaId: franquicia);
+  var estado = carrera.estadoCreado(raiz: id, creado: previo?.creado ?? creado, pick: combine.pick, franquiciaId: franquicia);
+  if (previo != null) estado = estado.copyWith(hitos: [...previo.hitos, ...estado.hitos]);
   final t = carrera.nuevaCarrera(estado: estado, dificultad: dificultad);
   await c.guardar(t);
   await c.abrirTemporada(t);

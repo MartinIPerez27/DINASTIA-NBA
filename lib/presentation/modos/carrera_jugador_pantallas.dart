@@ -1,3 +1,4 @@
+import 'minijuego_timing.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/franquicias.dart';
@@ -714,6 +715,56 @@ class PanelControlPartido extends StatelessWidget {
   }
 }
 
+/// Entrenamiento interactivo y concursos del All-Star.
+class PanelMinijuegos extends StatelessWidget {
+  const PanelMinijuegos({super.key, required this.estado, required this.esAllStar, required this.alEntrenar, required this.alConcursar});
+
+  final EstadoCarrera estado;
+  final bool esAllStar;
+  final ValueChanged<Atributo> alEntrenar;
+  final ValueChanged<Concurso> alConcursar;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('ENTRENAMIENTO INTERACTIVO', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        if (EntrenamientoInteractivo.yaHecho(estado))
+          Text('Ya entrenaste esta temporada.', style: tema.textTheme.bodySmall)
+        else ...[
+          Text('Una sesión por temporada: 5 intentos con la barra. Con 6 puntos de 10 ganás 1 punto de habilidad y con 9, 2. Cinco perfectos suben el atributo.', style: tema.textTheme.bodySmall),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final a in Atributo.values)
+                OutlinedButton(onPressed: () => alEntrenar(a), child: Text(a.etiqueta)),
+            ],
+          ),
+        ],
+        const SizedBox(height: 12),
+        Text('FIN DE SEMANA DE ESTRELLAS', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        if (!esAllStar)
+          Text('Los concursos son para los elegidos al All-Star.', style: tema.textTheme.bodySmall)
+        else
+          for (final c in Concurso.values)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: ConcursosAllStar.jugado(estado, c)
+                  ? Text('${c.etiqueta}: ${(estado.uso['as:${c.name}'] ?? 0) == 1 ? '¡campeón!' : '${estado.uso['as:${c.name}']}.º puesto'}', style: tema.textTheme.bodyMedium)
+                  : OutlinedButton(onPressed: () => alConcursar(c), child: Text('${c.etiqueta.toUpperCase()} · ${c.descripcion}', textAlign: TextAlign.center)),
+            ),
+        Text('Concursos ganados en tu carrera: ${estado.uso['as:ganados'] ?? 0}', style: tema.textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
 /// Tu rival, tu mentor, las redes y lo que se acuerda el relator.
 class PanelNarrativa extends StatelessWidget {
   const PanelNarrativa({super.key, required this.estado, required this.rival, required this.alPublicar});
@@ -1409,6 +1460,47 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
     widget.onCambiar(_t);
   }
 
+  Future<void> _entrenar(Atributo a) async {
+    final ronda = await Navigator.of(context).push<RondaTiming>(
+      MaterialPageRoute(
+        builder: (_) => MinijuegoTimingPantalla(
+          titulo: 'Sesión de ${a.etiqueta.toLowerCase()}',
+          descripcion: 'Tocá cuando la barra esté en la zona verde.',
+          intentos: EntrenamientoInteractivo.intentos,
+          ventana: EntrenamientoInteractivo.ventana(_e, a),
+        ),
+      ),
+    );
+    if (ronda == null || !mounted) return;
+    _cambiarEstado(EntrenamientoInteractivo.aplicar(_e, a, ronda));
+  }
+
+  Future<void> _concursar(Concurso c) async {
+    final ronda = await Navigator.of(context).push<RondaTiming>(
+      MaterialPageRoute(
+        builder: (_) => MinijuegoTimingPantalla(
+          titulo: c.etiqueta,
+          descripcion: c.descripcion,
+          intentos: c.intentos,
+          ventana: ConcursosAllStar.ventana(_e, c),
+          segundos: 0.9,
+        ),
+      ),
+    );
+    if (ronda == null || !mounted) return;
+    final r = ConcursosAllStar.resolver(_e, c, ronda);
+    _cambiarEstado(ConcursosAllStar.aplicar(_e, r));
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text(r.gano ? '¡Ganaste el ${c.etiqueta.toLowerCase()}!' : '${r.puesto}.º en el ${c.etiqueta.toLowerCase()}'),
+        content: Text('Tu puntaje: ${r.tuPuntaje.toStringAsFixed(0)}\n${[for (final x in r.rivales) '${x.$1}: ${x.$2.toStringAsFixed(1)}'].join('\n')}'),
+        actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('OK'))],
+      ),
+    );
+  }
+
   void _cambiarEstado(EstadoCarrera e) {
     setState(() => _t = widget.carrera.sincronizar(_t, e));
     widget.onCambiar(_t);
@@ -1588,6 +1680,15 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
       ),
       const SizedBox(height: 12),
       _Panel(child: PanelAvanzadas(estado: e)),
+      const SizedBox(height: 12),
+      _Panel(
+        child: PanelMinijuegos(
+          estado: e,
+          esAllStar: widget.carrera.esAllStar(_t, e),
+          alEntrenar: _entrenar,
+          alConcursar: _concursar,
+        ),
+      ),
       const SizedBox(height: 12),
       _Panel(child: PanelMapaTiro(estado: e)),
       const SizedBox(height: 12),

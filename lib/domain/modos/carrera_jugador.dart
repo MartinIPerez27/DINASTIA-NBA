@@ -18,6 +18,7 @@ import 'cuerpo_carrera.dart';
 import 'dinastia.dart';
 import 'economia_carrera.dart';
 import 'habilidades.dart';
+import 'minijuegos_carrera.dart';
 import 'mundo_carrera.dart';
 import 'narrativa_carrera.dart';
 import 'objetivos_carrera.dart';
@@ -29,8 +30,10 @@ import 'vida_carrera.dart';
 
 export 'cuerpo_carrera.dart';
 export 'economia_carrera.dart';
+export 'etapas_previas.dart';
 export 'legado_carrera.dart';
 export 'mapa_tiro.dart';
+export 'minijuegos_carrera.dart';
 export 'narrativa_carrera.dart';
 export 'mundo_carrera.dart';
 export 'objetivos_carrera.dart';
@@ -2113,6 +2116,9 @@ class CarreraJugador {
     );
   }
 
+  /// ¿Estás entre los convocados al All-Star de esta temporada?
+  bool esAllStar(Temporada t, EstadoCarrera e) => _esAllStar(t, e);
+
   bool _esAllStar(Temporada t, EstadoCarrera e) {
     final a = t.allStar;
     if (a == null) return false;
@@ -2204,6 +2210,7 @@ class CarreraJugador {
     final premios = [
       if (t.calendario.isNotEmpty) ..._premiosDe(t, e),
       ...PremiosCarrera.delCierre(t, liga, e, campeon: resumen.campeon),
+      ...ConcursosAllStar.premios(e),
     ];
     final resultados = [for (final o in e.objetivos) (o, o.avance(marcaFinal).$2)];
     final cumplidos = resultados.where((r) => r.$2).length;
@@ -2310,7 +2317,8 @@ class CarreraJugador {
     final torneo = SeleccionCarrera.jugar(e, media: e.media, ppg: marcaFinal.ppg);
     final conSeleccion = torneo == null ? cerrado : SeleccionCarrera.aplicar(cerrado, torneo, e.etiquetaTemporada);
     final conRivales = RedesCarrera.alCerrar(RivalidadCarrera.alCerrar(conSeleccion, temporada, liga.catalogo), temporada);
-    final conPlata = EconomiaCarrera.alCerrar(conRivales);
+    final conPlata0 = EconomiaCarrera.alCerrar(conRivales);
+    final conPlata = conPlata0.copyWith(uso: EntrenamientoInteractivo.alCerrar(ConcursosAllStar.alCerrar(conPlata0.uso)));
     final logradosCarrera = ObjetivosCarrera.nuevosDeCarrera(conPlata);
     final estado = ObjetivosCarrera.cobrarCarrera(conPlata, logradosCarrera);
     // Insignias que ganaste o subiste de grado este año (con la carrera ya sumada).
