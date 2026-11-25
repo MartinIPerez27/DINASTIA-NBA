@@ -80,6 +80,21 @@ jugable · Salón de la Fama con cuadro de honor por generación.
 - No elegidas: dificultad de carrera, eras comparables, capítulos, álbum, reto del día, fantasma de leyenda,
   tarjeta para compartir, logros de carrera.
 
+### Segunda ronda de ideas ✔ (todas aprobadas para implementar)
+Desglose de puntos · bandeja de entrada · opciones de control de la barra de tiro · rivales que se adaptan ·
+personalidad de jugador · química con compañeros · carga de partidos y cansancio · lesiones por partes del cuerpo ·
+camino secundario→universidad→NBA · selección nacional (Mundial y Juegos Olímpicos) · carrera generacional ·
+staff y agente · tu carta de carrera (cruce con álbum/Dinastía) · relator con memoria · mapa de tiro de carrera y
+estadísticas avanzadas.
+
+## Estado de implementación
+- **Bloque 1 (puntos y costos) — hecho.** Rendimiento sin tope por edad (seguro 30), calificación de cada partido
+  (D a A+) que acredita fracciones de punto, techo blando por potencial (recargo ×(1+0,5·exceso), máx. ×4, con el
+  desgaste del cuerpo desde los 29), desglose de puntos en pantalla y contadores de carrera por partido
+  (`uso`: `c:p30/p40/p50/td/dd`, `m:pts/reb/ast/rob/tap/t3`) que alimentan los récords.
+  - Balance medido: un jugador de potencial 88 que gasta todo llega a ~94; con potencial 99 se mantiene en 99
+    entre los 26 y los 34 años (antes 4 temporadas).
+
 ## Orden sugerido
 1. Puntos y costos (1, 3) · 2. Objetivos y premios (2, 4) · 3. Habilidades 2K (5) · 4. Año, edad y plantilla (6)
 · 5. Editor de personaje (7) · 6. Récords históricos · 7. Barra de tiro y control del jugador (8)
