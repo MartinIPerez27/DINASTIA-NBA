@@ -1957,6 +1957,16 @@ class CarreraJugador {
         ne = e.copyWith(movimientos: [...e.movimientos, '$etiqueta: fecha límite: ${saliente.nombre} se queda, el rumor quedó en nada.']);
       }
     }
+    // El rumor era sobre vos y se concreta: si no tenés la confianza del club, te traspasan sin preguntarte.
+    if (rumor == 1 && (e.uso['tr:real'] ?? 0) == 1 && e.confianza < 60) {
+      return ne.copyWith(
+        pidioTraspaso: true,
+        confianza: ne.confianza - 3,
+        uso: {...ne.uso, 'tr:hecho': 1, 'tr:forzado': 1},
+        hitos: [...ne.hitos, '$etiqueta: fecha límite: el club decide traspasar a ${e.nombre} al final de la temporada.'],
+        movimientos: [...ne.movimientos, '$etiqueta: el club decidió traspasarte; elegís destino en el receso.'],
+      );
+    }
     return ne.copyWith(uso: {...ne.uso, 'tr:pend': 1});
   }
 

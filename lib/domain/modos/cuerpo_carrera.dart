@@ -130,6 +130,18 @@ class CuerpoCarrera {
         ..remove('cu:activa')
         ..remove('cu:dias')
         ..['cu:rehab'] = 0;
+      // Una baja larga le cuesta físico (y a veces finalización) al volver; el fisio lo amortigua.
+      final largas = e.uso['cu:dias'] ?? 0;
+      var secuela = largas >= 20 ? 2 : (largas >= 11 ? 1 : 0);
+      secuela = max(0, secuela - (EconomiaCarrera.nivel(e, Personal.fisio) >= 2 ? 1 : 0));
+      if (secuela > 0) {
+        var a = ne.atributos.con(Atributo.fisico, ne.atributos[Atributo.fisico] - secuela);
+        if (largas >= 20) a = a.con(Atributo.finalizacion, a[Atributo.finalizacion] - 1);
+        ne = ne.copyWith(
+          atributos: a,
+          hitos: [...ne.hitos, '${ne.etiquetaTemporada}: vuelve de una lesión larga de ${parte.etiqueta.toLowerCase()} con secuelas físicas.'],
+        );
+      }
       if (recae) {
         final dias = 2 + azar.nextInt(5);
         tt = t.copyWith(lesiones: {...t.lesiones, e.jugadorId: dias});

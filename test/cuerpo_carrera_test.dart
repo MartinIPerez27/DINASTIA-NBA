@@ -5,6 +5,7 @@ import 'package:dinastia_nba/data/catalogo_jugadores.dart';
 import 'package:dinastia_nba/data/franquicias.dart';
 import 'package:dinastia_nba/domain/entities/posicion.dart';
 import 'package:dinastia_nba/domain/entities/rol_cancha.dart';
+import 'package:dinastia_nba/domain/entities/partido.dart';
 import 'package:dinastia_nba/domain/entities/temporada.dart';
 import 'package:dinastia_nba/domain/liga.dart';
 import 'package:dinastia_nba/domain/modos/carrera_jugador.dart';
@@ -117,6 +118,51 @@ void main() {
       final cr = e.copyWith(uso: {...e.uso, 'cu:p${ParteCuerpo.rodilla.index}': 3});
       expect(CuerpoCarrera.cronicas(cr), [ParteCuerpo.rodilla]);
       expect(CuerpoCarrera.cronicas(e), isEmpty);
+    });
+  });
+
+  group('secuelas', () {
+    test('una baja larga le saca físico al volver y una corta no', () {
+      EstadoCarrera vuelve(int dias) {
+        final (t, e) = nueva();
+        final (t1, e1) = CuerpoCarrera.alPartido(t.copyWith(lesiones: {e.jugadorId: 4}), e, 0, 1);
+        final larga = e1.copyWith(uso: {...e1.uso, 'cu:dias': dias});
+        final alta = t1.copyWith(lesiones: Map.of(t1.lesiones)..remove(e.jugadorId));
+        return CuerpoCarrera.alPartido(alta, larga, 0, 9).$2;
+      }
+
+      final (_, base) = nueva();
+      expect(vuelve(5).atributos[Atributo.fisico], base.atributos[Atributo.fisico]);
+      expect(vuelve(12).atributos[Atributo.fisico], base.atributos[Atributo.fisico] - 1);
+      final grave = vuelve(25);
+      expect(grave.atributos[Atributo.fisico], base.atributos[Atributo.fisico] - 2);
+      expect(grave.atributos[Atributo.finalizacion], base.atributos[Atributo.finalizacion] - 1);
+    });
+  });
+
+  group('traspaso del club', () {
+    test('si el rumor era sobre vos, se concreta y no tenés confianza, el club te traspasa en la fecha límite', () {
+      final l = Liga(catalogo, franquicias, azar: Random(11));
+      final c = CarreraJugador(l);
+      final e0 = c.estadoCreado(raiz: 'tr1', creado: creado, pick: 5, franquiciaId: 'CHI');
+      var t = c.nuevaCarrera(estado: e0, dificultad: Dificultad.normal);
+      final propios = t.calendario.where((p) => p.participa(t.franquiciaUsuarioId) && p.jornada > 0).take(70).toList();
+      Temporada jugar(Temporada t, Iterable<Partido> ps) {
+        for (final p in ps) {
+          final m = l.motor(t, p, azar: Random(p.id.hashCode))..simularTodo();
+          t = l.registrar(t, p, m);
+        }
+        return t;
+      }
+
+      t = jugar(t, propios.take(35));
+      final e35 = EstadoCarrera.de(t)!;
+      t = c.sincronizar(t, e35.copyWith(confianza: 30, uso: {...e35.uso, 'tr:rumor': 1, 'tr:real': 1, 'tr:idx': 0}));
+      t = jugar(t, propios.skip(35));
+      final e = EstadoCarrera.de(t)!;
+      expect(e.pidioTraspaso, isTrue, reason: 'pj=${e.uso['sc:pj']} rumor=${e.uso['tr:rumor']} real=${e.uso['tr:real']} conf=${e.confianza} hecho=${e.uso['tr:hecho']} pend=${e.uso['tr:pend']}');
+      expect(e.uso['tr:forzado'], 1);
+      expect(e.uso['tr:pend'] ?? 0, 0, reason: 'no hay decisión: ya lo decidió el club');
     });
   });
 
