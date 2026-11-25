@@ -33,7 +33,10 @@ import '../../domain/entities/metajuego.dart' show TipoMision;
 import '../../domain/misiones.dart';
 import '../tema/vestuario.dart';
 import '../../domain/decisiones_partido.dart';
+import '../../domain/modos/carrera_jugador.dart' show EstadoCarrera;
+import '../../domain/modos/medidor_tiro.dart';
 import '../partido/decisiones.dart';
+import '../partido/medidor_tiro.dart';
 
 enum _Panel { jugadores, tiros, partido, relato }
 
@@ -180,6 +183,10 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     yo: widget.jugadorCarrera,
   );
   DecisionPartido? _decision;
+
+  /// Tu tiro (o el de tu marca) esperando tu timing, y lo que fuiste logrando con la barra en este partido.
+  MomentoPendiente? _momento;
+  final _usoMedidor = <String, int>{};
   InformeEntretiempo? _informe;
   var _verAjustes = false, _ajustePausoYo = false;
   String? _aviso;
@@ -218,6 +225,13 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     PartidoEnCurso.alEmpezar?.call();
+    // Control del jugador (Mi carrera): el partido se frena en tus tiros y en tu defensa directa.
+    if (widget.jugadorCarrera case final y?) {
+      _m.medidorId = y.id;
+      _m.modoMedidor = y.ajustes.modo;
+      _m.momentosActivos = y.ajustes.momentos;
+      _m.medidorImportante = () => _dir.takeoverActivo;
+    }
     _box = _copiaBox();
     double media(bool local) {
       final js = [..._m.enCancha(local), ?_m.enBanco(local)];
@@ -364,6 +378,17 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   /// La hoja que corresponde mostrar (entretiempo, decisión o menú de ajustes), o null.
   Widget? _hoja() {
     if (_final) return null;
+    if (_momento case final momento?) {
+      final y = widget.jugadorCarrera!;
+      return HojaMedidor(
+        key: ValueKey('${momento.jugadorId}-${_m.reloj}-${_m.cuarto}'),
+        momento: momento,
+        ventana: MedidorTiro.ventana(y, momento),
+        segundos: MedidorTiro.segundos(y),
+        mantener: y.ajustes.mantener,
+        alSoltar: (calidad, _) => _resolverMomento(calidad),
+      );
+    }
     if (_informe case final i?) return HojaEntretiempo(informe: i, onSeguir: _seguirEntretiempo);
     if (_decision case final d?) {
       return HojaDecision(
@@ -421,7 +446,57 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
       Haptica.media();
       return;
     }
-    final e = _m.siguiente();
+    if (_momento != null) return;
+    final interactivo = widget.jugadorCarrera != null && _m.medidorId != null && _m.modoMedidor != ModoMedidor.automatico;
+    final siguiente = interactivo ? _m.siguienteInteractivo() : _m.siguiente();
+    if (siguiente == null) {
+      // El tiro es tuyo (o de tu marca): el partido espera tu timing.
+      Haptica.media();
+      setState(() => _momento = _m.momentoPendiente);
+      return;
+    }
+    _mostrarEvento(siguiente);
+  }
+
+  /// Resuelve el momento pendiente con la calidad de tu timing y sigue con la jugada que salió.
+  void _resolverMomento(CalidadTiro calidad) {
+    final momento = _momento;
+    if (momento == null) return;
+    final EventoPartido e;
+    final double efecto;
+    if (momento.tipo == TipoMomento.tiro) {
+      efecto = MedidorTiro.deltaTiro(calidad);
+      e = _m.resolverMomento(efecto);
+    } else if (momento.tipo == TipoMomento.defensa) {
+      final (delta, tapon) = MedidorTiro.efectoDefensa(calidad);
+      efecto = delta;
+      e = _m.resolverMomento(delta, bonusTapon: tapon);
+    } else {
+      efecto = MedidorTiro.efectoExtra(momento.tipo, calidad);
+      e = _m.resolverMomento(efecto);
+    }
+    _usoMedidor['q:${calidad.name}'] = (_usoMedidor['q:${calidad.name}'] ?? 0) + 1;
+    calidad == CalidadTiro.perfecto ? Haptica.fuerte() : Haptica.ligera();
+    // A veces la resolución abre otro momento (los libres tras la falta de un tiro, el tiro tras tu pase): se sigue con la barra.
+    final siguienteMomento = _m.momentoPendiente;
+    setState(() => _momento = siguienteMomento);
+    _mostrarAviso(switch (momento.tipo) {
+      TipoMomento.tiro =>
+        '${calidad.etiqueta} · ${(efecto * 100).round() >= 0 ? '+' : ''}${(efecto * 100).round()} % de acierto',
+      TipoMomento.defensa => '${calidad.etiqueta} en defensa',
+      TipoMomento.libres => '${calidad.etiqueta} en los libres',
+      TipoMomento.rebote => '${calidad.etiqueta} en el rebote',
+      TipoMomento.robo => '${calidad.etiqueta} presionando la pelota',
+      TipoMomento.pase => '${calidad.etiqueta} con la pelota',
+    });
+    if (siguienteMomento != null) {
+      Haptica.media();
+      return;
+    }
+    _mostrarEvento(e);
+  }
+
+  void _mostrarEvento(EventoPartido e) {
     final ataca = switch (e.tipo) {
       TipoEvento.tiro ||
       TipoEvento.libres ||
@@ -653,6 +728,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
   double _orden(Destacada d) => _transcurrido(d.cuarto, d.reloj);
 
   void _alternarPausa() {
+    if (_momento != null) return;
     setState(() => _pausado = !_pausado);
     _pausado ? _sonido.pausar() : _sonido.reanudar();
     if (_pausado) _voz.callar();
@@ -679,7 +755,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
     _registrado = true;
     PartidoEnCurso.alTerminar?.call();
     Misiones.anotar(TipoMision.jugarEnVivo);
-    widget.alUsarCarrera?.call(_dir.usoCarrera);
+    widget.alUsarCarrera?.call(EstadoCarrera.sumarUso(_dir.usoCarrera, _usoMedidor));
     widget.onTerminado(_m);
     setState(() => _final = true);
     _sonido.chicharra();
@@ -980,6 +1056,7 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                   },
                   presion: _presion,
                   onAjustes: _final ? null : _abrirAjustes,
+                  soloJugador: widget.jugadorCarrera != null,
                   onPresion: (v) {
                     _m.presionAlta(usuarioLocal, v);
                     setState(() => _presion = v);
@@ -1015,10 +1092,12 @@ class _PartidoPantallaState extends State<PartidoPantalla> with SingleTickerProv
                           energia: _m.energias(usuarioLocal),
                           forma: _m.forma,
                           rotacionAuto: _m.esRotacionAutomatica(usuarioLocal),
-                          onRotacion: _final ? null : (v) => setState(() => _m.rotacionAutomatica(usuarioLocal, v)),
+                          onRotacion: _final || widget.jugadorCarrera != null
+                              ? null
+                              : (v) => setState(() => _m.rotacionAutomatica(usuarioLocal, v)),
                           minutosBanco: _m.nivelMinutosBanco(usuarioLocal),
                           onMinutos: (v) => setState(() => _m.minutosDelBanco(usuarioLocal, v)),
-                          onSentar: _final
+                          onSentar: _final || widget.jugadorCarrera != null
                               ? null
                               : (id) {
                                   if (_m.cambiar(usuarioLocal, id)) Haptica.ligera();
@@ -1276,6 +1355,7 @@ class _Controles extends StatelessWidget {
     required this.presion,
     required this.onPresion,
     this.onAjustes,
+    this.soloJugador = false,
   });
 
   final bool pausado;
@@ -1294,6 +1374,9 @@ class _Controles extends StatelessWidget {
 
   /// Abre el menú de ajustes tácticos (null: no disponible).
   final VoidCallback? onAjustes;
+
+  /// Mi carrera: sos el jugador, no el entrenador. No hay tiempo muerto, ritmo ni presión.
+  final bool soloJugador;
   final ValueChanged<bool> onAcelerar, onPresion;
 
   @override
@@ -1320,13 +1403,15 @@ class _Controles extends StatelessWidget {
               onSelectionChanged: (s) => onVelocidad(s.first),
               style: const ButtonStyle(visualDensity: VisualDensity.compact),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: FilledButton.tonal(
-                onPressed: tiemposMuertos > 0 ? onTiempoMuerto : null,
-                child: FittedBox(child: Text('TIEMPO MUERTO · $tiemposMuertos')),
+            if (!soloJugador) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonal(
+                  onPressed: tiemposMuertos > 0 ? onTiempoMuerto : null,
+                  child: FittedBox(child: Text('TIEMPO MUERTO · $tiemposMuertos')),
+                ),
               ),
-            ),
+            ],
           ],
         ),
         Row(
@@ -1335,10 +1420,16 @@ class _Controles extends StatelessWidget {
               child: Wrap(
                 spacing: 8,
                 children: [
-                  FilterChip(label: const Text('Acelerar ritmo'), selected: acelerar, onSelected: onAcelerar),
-                  FilterChip(label: const Text('Presión alta'), selected: presion, onSelected: onPresion),
+                  if (!soloJugador) ...[
+                    FilterChip(label: const Text('Acelerar ritmo'), selected: acelerar, onSelected: onAcelerar),
+                    FilterChip(label: const Text('Presión alta'), selected: presion, onSelected: onPresion),
+                  ],
                   if (onAjustes != null)
-                    ActionChip(avatar: const Icon(Icons.tune, size: 18), label: const Text('Ajustes'), onPressed: onAjustes),
+                    ActionChip(
+                      avatar: const Icon(Icons.tune, size: 18),
+                      label: Text(soloJugador ? 'Mis decisiones' : 'Ajustes'),
+                      onPressed: onAjustes,
+                    ),
                 ],
               ),
             ),

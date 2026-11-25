@@ -9,6 +9,7 @@ import 'package:dinastia_nba/domain/entities/temporada.dart';
 import 'package:dinastia_nba/domain/liga.dart';
 import 'package:dinastia_nba/domain/modos/carrera_jugador.dart';
 import 'package:dinastia_nba/domain/modos/vida_carrera.dart';
+import 'package:dinastia_nba/presentation/modos/carrera_equipo_pantallas.dart';
 import 'package:dinastia_nba/presentation/modos/carrera_jugador_pantallas.dart';
 import 'package:dinastia_nba/presentation/modos/creador_jugador.dart';
 import 'package:dinastia_nba/presentation/tema/tema_franquicia.dart';
@@ -88,7 +89,7 @@ void main() {
 
   testWidgets('Mi jugador: gastar un punto sube el atributo y avisa', (t) async {
     telefono(t);
-    t.view.physicalSize = const Size(412, 2600) * 2.5;
+    t.view.physicalSize = const Size(412, 6000) * 2.5;
     final e0 = carrera.estadoCreado(raiz: 'w1', creado: creado, pick: 9, franquiciaId: 'CHI').copyWith(phBanco: 6);
     final temporada = carrera.nuevaCarrera(estado: e0, dificultad: Dificultad.normal);
     Temporada? ultima;
@@ -216,6 +217,132 @@ void main() {
     expect(find.textContaining('22,0 puntos'), findsOneWidget);
     expect(find.text('OBJETIVOS DE CARRERA'), findsOneWidget);
     expect(find.text('0/${ObjetivoCarrera.values.length}'), findsOneWidget);
+  });
+
+  testWidgets('Mi equipo muestra el plantel con edad y contrato, y los movimientos', (t) async {
+    telefono(t);
+    final base = carrera.estadoCreado(raiz: 'w12', creado: creado, pick: 5, franquiciaId: 'CHI');
+    final t0 = carrera.nuevaCarrera(estado: base, dificultad: Dificultad.normal);
+    final e = EstadoCarrera.de(t0)!.copyWith(movimientos: ['2027–28: Fulano se retira a los 37 años.']);
+    await t.pumpWidget(app(MiEquipoPantalla(estado: e)));
+    expect(find.text('Mi equipo'), findsOneWidget);
+    expect(find.textContaining('años'), findsWidgets);
+    expect(find.text('MOVIMIENTOS DEL PLANTEL'), findsOneWidget);
+    expect(find.textContaining('Fulano se retira'), findsOneWidget);
+  });
+
+  testWidgets('Mi generación lista la clase del draft con vos y tu rival', (t) async {
+    telefono(t);
+    final e = carrera.estadoCreado(raiz: 'w13', creado: creado, pick: 5, franquiciaId: 'CHI');
+    final real = GeneracionCarrera.deJson2026(File('assets/database/draft_2026.json').readAsStringSync());
+    await t.pumpWidget(app(GeneracionPantalla(estado: e, catalogo: liga.catalogo, clase2026: real)));
+    await t.pumpAndSettle();
+    expect(find.text('Clase del draft ${e.anioBase}'), findsOneWidget);
+    expect(find.textContaining('TU RIVAL DE GENERACIÓN: AJ DYBANTSA'), findsOneWidget);
+    expect(find.textContaining('Washington Wizards'), findsOneWidget);
+  });
+
+  testWidgets('la fecha límite de traspasos ofrece las tres opciones', (t) async {
+    telefono(t);
+    OpcionFechaLimite? elegida;
+    await t.pumpWidget(
+      app(
+        Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: FilledButton(
+                onPressed: () => mostrarFechaLimite(context, (o) => elegida = o, rumor: 'Rumor: varios equipos preguntan por vos.'),
+                child: const Text('abrir'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.text('abrir'));
+    await t.pumpAndSettle();
+    expect(find.text('Fecha límite de traspasos'), findsOneWidget);
+    expect(find.textContaining('Rumor'), findsOneWidget);
+    for (final o in OpcionFechaLimite.values) {
+      expect(find.text(o.etiqueta), findsOneWidget);
+    }
+    await t.tap(find.text('Pedir el traspaso'));
+    await t.pumpAndSettle();
+    expect(elegida, OpcionFechaLimite.pedirTraspaso);
+  });
+
+  testWidgets('el creador de Mi carrera pide año, edad y número y los devuelve', (t) async {
+    telefono(t);
+    t.view.physicalSize = const Size(412, 3600) * 2.5;
+    JugadorCreado? salida;
+    await t.pumpWidget(
+      app(
+        Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: FilledButton(
+                onPressed: () async {
+                  salida = await Navigator.of(context).push<JugadorCreado>(
+                    MaterialPageRoute(builder: (_) => const CreadorJugadorPantalla(textoBoton: 'LISTO', conArranque: true)),
+                  );
+                },
+                child: const Text('abrir'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.text('abrir'));
+    await t.pumpAndSettle();
+    expect(find.text('TU ARRANQUE'), findsOneWidget);
+    await t.enterText(find.byType(TextField), 'Lucía Gómez');
+    await t.pump();
+    await t.ensureVisible(find.text('1995'));
+    await t.tap(find.text('1995'));
+    await t.pump();
+    await t.ensureVisible(find.widgetWithText(FilledButton, 'LISTO'));
+    await t.tap(find.widgetWithText(FilledButton, 'LISTO'));
+    await t.pumpAndSettle();
+    expect(salida?.anioDraft, 1995);
+    expect(salida?.edadInicial, 20);
+    expect(salida?.nacimiento, 1975);
+  });
+
+  testWidgets('la bandeja filtra por categoría y marca todo como leído al abrirla', (t) async {
+    telefono(t);
+    var leidos = 0;
+    final base = carrera.estadoCreado(raiz: 'w14', creado: creado, pick: 5, franquiciaId: 'CHI');
+    final et = base.etiquetaDe(1);
+    final e = base.copyWith(
+      hitos: ['$et: Jugador del mes.', '$et: mini-objetivo del mes cumplido — algo.'],
+      movimientos: ['$et: Zutano se retira a los 36 años.'],
+    );
+    await t.pumpWidget(app(BandejaPantalla(estado: e, alAbrir: () => leidos++)));
+    await t.pumpAndSettle();
+    expect(find.text('Bandeja de entrada'), findsOneWidget);
+    expect(find.textContaining('Todos (3)'), findsOneWidget);
+    expect(leidos, 1);
+    await t.tap(find.widgetWithText(ChoiceChip, 'Premios'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('Jugador del mes'), findsOneWidget);
+    expect(find.textContaining('se retira'), findsNothing);
+  });
+
+  testWidgets('los paneles de scouting, química, personalidad y avanzadas se ven', (t) async {
+    telefono(t);
+    t.view.physicalSize = const Size(412, 2400) * 2.5;
+    final base = carrera.estadoCreado(raiz: 'w15', creado: creado, pick: 5, franquiciaId: 'CHI');
+    final e = EstadoCarrera.de(carrera.nuevaCarrera(estado: base, dificultad: Dificultad.normal))!.copyWith(
+      uso: {'c:pj': 150, 'c:pts': 3000, 'c:t3': 700, 'c:tcI': 1100, 'c:tcA': 2300, 'c:t3A': 1800, 'c:tlI': 400, 'c:tlA': 500, 'c:ast': 400, 'c:per': 300, 'c:seg': 150 * 30 * 60},
+    );
+    await t.pumpWidget(app(Scaffold(body: SingleChildScrollView(child: Column(children: [PanelMundo(estado: e), PanelAvanzadas(estado: e)])))));
+    expect(find.textContaining('TU PERSONALIDAD'), findsOneWidget);
+    expect(find.text('QUÍMICA DEL EQUIPO'), findsOneWidget);
+    expect(find.text('SCOUTING DE LOS RIVALES'), findsOneWidget);
+    expect(find.textContaining('Te cierran el triple'), findsOneWidget);
+    expect(find.text('ESTADÍSTICAS AVANZADAS'), findsOneWidget);
+    expect(find.text('TS %'), findsOneWidget);
   });
 
   testWidgets('legado: totales, veredicto y línea de tiempo', (t) async {

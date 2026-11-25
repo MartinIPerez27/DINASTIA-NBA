@@ -1,3 +1,4 @@
+import 'domain/entities/jugador.dart';
 import 'domain/coleccion.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -104,8 +105,17 @@ class _DinastiaNbaAppState extends State<DinastiaNbaApp> {
   Liga? _liga;
 
   /// Una sola liga para toda la app (el catálogo se carga una vez).
-  Future<Liga> _ligaLista() async =>
-      _liga ??= Liga(await cargarCatalogo(), franquicias)..nivelEvolucion = (id) => nivelEvo(perfilApp.value, id);
+  Future<Liga> _ligaLista() async {
+    if (_liga != null) return _liga!;
+    // El catálogo es compartido: se copia para sumarle las cartas de carrera de este perfil.
+    final liga = Liga([...await cargarCatalogo()], franquicias)..nivelEvolucion = (id) => nivelEvo(perfilApp.value, id);
+    for (final c in perfilApp.value.cartasCarrera) {
+      try {
+        liga.agregarCartaPropia(Jugador.fromJson(c));
+      } catch (_) {}
+    }
+    return _liga = liga;
+  }
 
   late final _modos = ContextoModos(
     liga: _ligaLista,

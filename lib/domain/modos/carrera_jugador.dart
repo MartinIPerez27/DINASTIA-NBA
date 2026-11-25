@@ -1,6 +1,8 @@
 import 'dart:math';
 
+import '../efecto_en_vivo.dart';
 import '../entities/avatar_creado.dart';
+import '../entities/estilo_creado.dart';
 import '../entities/jugador.dart';
 import '../entities/modo_juego.dart';
 import '../entities/partido.dart';
@@ -12,16 +14,35 @@ import '../liga.dart';
 import '../motor.dart';
 import '../playbook.dart';
 import '../premios.dart';
+import 'cuerpo_carrera.dart';
 import 'dinastia.dart';
+import 'economia_carrera.dart';
 import 'habilidades.dart';
+import 'minijuegos_carrera.dart';
+import 'mundo_carrera.dart';
+import 'narrativa_carrera.dart';
 import 'objetivos_carrera.dart';
+import 'plantel_carrera.dart';
 import 'premios_carrera.dart';
 import 'puntos_carrera.dart';
+import 'seleccion_carrera.dart';
 import 'vida_carrera.dart';
 
+export 'cuerpo_carrera.dart';
+export 'economia_carrera.dart';
+export 'etapas_previas.dart';
+export 'legado_carrera.dart';
+export 'mapa_tiro.dart';
+export 'minijuegos_carrera.dart';
+export 'narrativa_carrera.dart';
+export 'mundo_carrera.dart';
 export 'objetivos_carrera.dart';
+export 'generacion_carrera.dart';
+export 'plantel_carrera.dart';
 export 'premios_carrera.dart';
 export 'puntos_carrera.dart';
+export 'seleccion_carrera.dart';
+export 'records_carrera.dart';
 
 export 'habilidades.dart';
 import '../entities/enum_tolerante.dart';
@@ -523,6 +544,9 @@ class JugadorCreado {
     this.pickFijo,
     this.edadInicial,
     this.avatar,
+    this.anioDraft,
+    this.dorsal = 0,
+    this.estilo,
   });
 
   final String nombre;
@@ -543,6 +567,15 @@ class JugadorCreado {
   /// elección real del draft y su edad, en vez de arrancar de cero como uno recién creado.
   final Atributos? atributosFijos;
   final int? pickFijo, edadInicial;
+
+  /// Año del draft en el que arranca (null: 2026) y número de camiseta (0 a 99).
+  final int? anioDraft;
+  final int dorsal;
+
+  /// Envergadura, mano, origen, forma de tirar y festejo (null en jugadores viejos: sin ajustes).
+  final EstiloCreado? estilo;
+
+  static const anioMin = 1980, anioMax = 2026, edadMin = 18, edadMax = 28;
 
   static const alturaMin = 170, alturaMax = 225, pesoMin = 70, pesoMax = 150;
 
@@ -580,12 +613,40 @@ class JugadorCreado {
     for (final f in fuertes) {
       a = a.con(f, a[f] + 4);
     }
+    // El origen inclina un poco el arranque (solo si lo elegiste).
+    switch (estilo?.origen) {
+      case OrigenJugador.secundario:
+        a = a.con(Atributo.fisico, a[Atributo.fisico] + 2).con(Atributo.iq, a[Atributo.iq] - 1);
+      case OrigenJugador.universidad:
+        a = a.con(Atributo.iq, a[Atributo.iq] + 2).con(Atributo.fisico, a[Atributo.fisico] - 1);
+      case OrigenJugador.internacional:
+        a = a.con(Atributo.tiro, a[Atributo.tiro] + 2).con(Atributo.fisico, a[Atributo.fisico] - 1);
+      case null:
+    }
     return a;
   }
 
   int get media => ModeloCarrera.mediaDe(atributos, posicion);
 
-  EstadisticasJugador get estadisticas => ModeloCarrera.estadisticasDe(atributos, posicion, media);
+  EstadisticasJugador get estadisticas {
+    final s = ModeloCarrera.estadisticasDe(atributos, posicion, media);
+    final env = estilo?.envergadura ?? 0;
+    if (env == 0) return s;
+    // Brazos largos: más tapones, robos y rebotes (cada centímetro de envergadura suma un poquito).
+    return EstadisticasJugador(
+      ppp: s.ppp,
+      rpp: s.rpp + 0.012 * env,
+      app: s.app,
+      robP: max(0.2, s.robP + 0.004 * env),
+      tapP: max(0.0, s.tapP + 0.007 * env),
+      pctTc: s.pctTc,
+      pctT3: s.pctT3,
+      pctTl: s.pctTl,
+      minP: s.minP,
+      perP: s.perP,
+      iq: s.iq,
+    );
+  }
 
   /// La carta de tu jugador en [franquiciaId] (la franquicia y la época cambian con los equipos).
   Jugador comoCarta({required String id, required String franquiciaId, Epoca epoca = Epoca.actualidad, int? anio}) =>
@@ -598,7 +659,7 @@ class JugadorCreado {
         tier: Tier.b,
         posiciones: [posicion],
         rol: rol,
-        dorsal: 0,
+        dorsal: dorsal,
         stats: estadisticas,
         media: media,
         fotos: const [],
@@ -619,6 +680,9 @@ class JugadorCreado {
     if (atributosFijos != null) 'atrFijos': atributosFijos!.toJson(),
     if (pickFijo != null) 'pickFijo': pickFijo,
     if (edadInicial != null) 'edadInicial': edadInicial,
+    if (anioDraft != null) 'anioDraft': anioDraft,
+    if (estilo != null) 'estilo': estilo!.codigo,
+    if (dorsal != 0) 'dorsal': dorsal,
   };
 
   factory JugadorCreado.fromJson(Map<String, dynamic> j) => JugadorCreado(
@@ -633,6 +697,9 @@ class JugadorCreado {
     atributosFijos: j['atrFijos'] == null ? null : Atributos.fromJson(j['atrFijos'] as Map<String, dynamic>),
     pickFijo: j['pickFijo'] as int?,
     edadInicial: j['edadInicial'] as int?,
+    anioDraft: j['anioDraft'] as int?,
+    estilo: EstiloCreado.deCodigo(j['estilo'] as String?),
+    dorsal: j['dorsal'] as int? ?? 0,
   );
 }
 
@@ -706,6 +773,17 @@ enum RolOferta {
 }
 
 /// Oferta de un equipo en la agencia libre (o al pedir el traspaso).
+/// Cláusula extra de un contrato.
+enum ClausulaContrato {
+  ninguna('Sin cláusulas', ''),
+  opcionJugador('Opción del jugador', 'El último año podés renegociar: la renovación te paga 12 % más.'),
+  noTraspaso('No traspasable', 'El club no puede traspasarte en la fecha límite.'),
+  bonoTitulo('Bono por título', 'Cobrás 4 M extra si salís campeón.');
+
+  const ClausulaContrato(this.etiqueta, this.descripcion);
+  final String etiqueta, descripcion;
+}
+
 class OfertaContrato {
   const OfertaContrato({
     required this.franquiciaId,
@@ -714,6 +792,9 @@ class OfertaContrato {
     required this.nivelEquipo,
     this.rival,
     this.renovacion = false,
+    this.salario = 0,
+    this.clausula = ClausulaContrato.ninguna,
+    this.limitadoPorTope = false,
   });
 
   final String franquiciaId;
@@ -728,6 +809,11 @@ class OfertaContrato {
 
   /// Es tu propio equipo renovando.
   final bool renovacion;
+
+  /// Sueldo anual en millones (0 = no calculado), cláusula, y si el tope salarial del equipo lo recortó.
+  final double salario;
+  final ClausulaContrato clausula;
+  final bool limitadoPorTope;
 }
 
 // -------------------------------------------------------------------------------------------
@@ -876,6 +962,7 @@ class EstadoCarrera {
     this.companeros = const [],
     this.objetivos = const [],
     this.ofrecidos = const [],
+    this.movimientos = const [],
     this.historial = const [],
     this.hitos = const [],
     this.snapPj = 0,
@@ -932,6 +1019,9 @@ class EstadoCarrera {
 
   /// Los 8 objetivos que el DT ofreció para la temporada (de ahí se aceptan entre 4 y 6).
   final List<ObjetivoTemporada> ofrecidos;
+
+  /// Cómo cambió el plantel año a año (retiros, traspasos, llegadas), para la pantalla "Mi equipo".
+  final List<String> movimientos;
   final List<TemporadaJugador> historial;
 
   /// Cosas que pasaron: draft, contratos, prensa, traspasos… (para la línea de tiempo).
@@ -1049,7 +1139,7 @@ class EstadoCarrera {
     tier: tier,
     posiciones: base.posiciones,
     rol: base.rol,
-    dorsal: 0,
+    dorsal: base.dorsal,
     stats: ModeloCarrera.estadisticasActuales(
       base: base.stats,
       a0: atributosBase,
@@ -1094,6 +1184,7 @@ class EstadoCarrera {
     List<Jugador>? companeros,
     List<ObjetivoTemporada>? objetivos,
     List<ObjetivoTemporada>? ofrecidos,
+    List<String>? movimientos,
     List<TemporadaJugador>? historial,
     List<String>? hitos,
     int? snapPj,
@@ -1133,6 +1224,7 @@ class EstadoCarrera {
     companeros: companeros ?? this.companeros,
     objetivos: objetivos ?? this.objetivos,
     ofrecidos: ofrecidos ?? this.ofrecidos,
+    movimientos: movimientos ?? this.movimientos,
     historial: historial ?? this.historial,
     hitos: hitos ?? this.hitos,
     snapPj: snapPj ?? this.snapPj,
@@ -1178,6 +1270,7 @@ class EstadoCarrera {
     'comp': [for (final j in companeros) j.toJson()],
     'objetivos': [for (final o in objetivos) o.toJson()],
     if (ofrecidos.isNotEmpty) 'ofrecidos': [for (final o in ofrecidos) o.toJson()],
+    if (movimientos.isNotEmpty) 'movs': movimientos,
     'historial': [for (final h in historial) h.toJson()],
     if (hitos.isNotEmpty) 'hitos': hitos,
     'snapPj': snapPj,
@@ -1226,6 +1319,7 @@ class EstadoCarrera {
     ofrecidos: [
       for (final x in j['ofrecidos'] as List? ?? const []) ObjetivoTemporada.fromJson(x as Map<String, dynamic>),
     ],
+    movimientos: [for (final x in j['movs'] as List? ?? const []) x as String],
     historial: [
       for (final x in j['historial'] as List? ?? const []) TemporadaJugador.fromJson(x as Map<String, dynamic>),
     ],
@@ -1300,6 +1394,22 @@ class CierreTemporada {
 class CarreraJugador {
   CarreraJugador(this.liga) {
     liga.alRegistrarPartido = (t, p, m) => t.modoJuego == ModoJuego.carreraJugador ? alPartido(t, p, m) : t;
+    liga.factorLesionJugador = (t, id) {
+      if (t.modoJuego != ModoJuego.carreraJugador) return 1.0;
+      final e = EstadoCarrera.de(t);
+      return e == null || e.retirado || e.jugadorId != id ? 1.0 : CuerpoCarrera.factor(e);
+    };
+    liga.alCrearMotor = (t, p, m) {
+      if (t.modoJuego != ModoJuego.carreraJugador) return;
+      final e = EstadoCarrera.de(t);
+      if (e == null || e.retirado) return;
+      final local = p.localId == t.franquiciaUsuarioId;
+      // La química con tus compañeros suma a tu equipo; los rivales, ya preparados, cierran lo que más hacés.
+      final quimica = QuimicaCarrera.mods(e);
+      if (!quimica.esNeutro) m.aplicarEfecto(local, EfectoEnVivo(mods: quimica));
+      final rival = AdaptacionRival.efecto(e);
+      if (rival != null) m.aplicarEfecto(!local, rival);
+    };
   }
 
   final Liga liga;
@@ -1465,10 +1575,11 @@ class CarreraJugador {
     required JugadorCreado creado,
     required int pick,
     required String franquiciaId,
-    int anioBase = 2026,
+    int? anioInicial,
     int? edad,
     int? potencial,
   }) {
+    final anioBase = anioInicial ?? creado.anioDraft ?? 2026;
     final a0 = creado.atributos;
     final carta = creado.comoCarta(id: 'mc-$raiz', franquiciaId: franquiciaId, anio: anioBase + 1);
     final confianza = confianzaInicial(pick, carta.media);
@@ -1517,6 +1628,10 @@ class CarreraJugador {
     );
     final ofrecidos1 = ObjetivosCarrera.ofrecer(estado, Random(_hash('${estado.raiz}-obj-1')));
     final e = estado.copyWith(
+      uso: PlantelCarrera.contratosIniciales(
+        estado.copyWith(companeros: companeros),
+        Random(_hash('${estado.raiz}-contratos')),
+      ),
       companeros: companeros,
       ofrecidos: ofrecidos1,
       objetivos: ObjetivosCarrera.porDefecto(ofrecidos1),
@@ -1724,11 +1839,16 @@ class CarreraJugador {
   /// cambia en plena temporada: el DT lo revisa en el receso.
   /// Después de cada partido de tu equipo: la calificación (puntos de habilidad) y los hitos de la carrera.
   Temporada alPartido(Temporada t, Partido p, MotorPartido m) {
-    final e = EstadoCarrera.de(t);
-    if (e == null || e.retirado) return t;
+    final actual = EstadoCarrera.de(t);
+    if (actual == null || actual.retirado) return t;
+    var e = actual;
     if (p.localId != t.franquiciaUsuarioId && p.visitanteId != t.franquiciaUsuarioId) return t;
     final l = m.boxLocal[e.jugadorId] ?? m.boxVisitante[e.jugadorId];
-    if (l == null || (l.pj == 0 && l.seg <= 0)) return t;
+    // Cuerpo: carga acumulada, lesión nueva (parte y gravedad) o alta. Va antes de mirar si jugaste.
+    final cuerpo = CuerpoCarrera.alPartido(t, e, l?.seg ?? 0, e.uso['c:pj'] ?? 0);
+    t = cuerpo.$1;
+    e = cuerpo.$2;
+    if (l == null || (l.pj == 0 && l.seg <= 0)) return sincronizar(t, e);
     final local = p.localId == t.franquiciaUsuarioId;
     final gano = local ? m.puntosLocal > m.puntosVisitante : m.puntosVisitante > m.puntosLocal;
     final nota = PuntosCarrera.nota(PuntosCarrera.puntajePartido(l, gano: gano));
@@ -1744,6 +1864,22 @@ class CarreraJugador {
       'gr:${nota.etiqueta}': (e.uso['gr:${nota.etiqueta}'] ?? 0) + 1,
       'dg:nota': (e.uso['dg:nota'] ?? 0) + (nota.puntos * 100).round(),
       'c:pj': (e.uso['c:pj'] ?? 0) + 1,
+      'c:pts': (e.uso['c:pts'] ?? 0) + l.pts,
+      'c:reb': (e.uso['c:reb'] ?? 0) + l.reb,
+      'c:ast': (e.uso['c:ast'] ?? 0) + l.ast,
+      'c:rob': (e.uso['c:rob'] ?? 0) + l.rob,
+      'c:tap': (e.uso['c:tap'] ?? 0) + l.tap,
+      'c:t3': (e.uso['c:t3'] ?? 0) + l.t3I,
+      'c:tcI': (e.uso['c:tcI'] ?? 0) + l.tcI,
+      'c:tcA': (e.uso['c:tcA'] ?? 0) + l.tcA,
+      'c:t3A': (e.uso['c:t3A'] ?? 0) + l.t3A,
+      'c:pinI': (e.uso['c:pinI'] ?? 0) + l.pinI,
+      'c:pinA': (e.uso['c:pinA'] ?? 0) + l.pinA,
+      'c:tlI': (e.uso['c:tlI'] ?? 0) + l.tlI,
+      'c:tlA': (e.uso['c:tlA'] ?? 0) + l.tlA,
+      'c:per': (e.uso['c:per'] ?? 0) + l.per,
+      'c:fal': (e.uso['c:fal'] ?? 0) + l.fal,
+      'c:seg': (e.uso['c:seg'] ?? 0) + l.seg.round(),
       if (l.pts >= 30) 'c:p30': (e.uso['c:p30'] ?? 0) + 1,
       if (l.pts >= 40) 'c:p40': (e.uso['c:p40'] ?? 0) + 1,
       if (l.pts >= 50) 'c:p50': (e.uso['c:p50'] ?? 0) + 1,
@@ -1756,7 +1892,13 @@ class CarreraJugador {
       'm:tap': mejor('m:tap', l.tap),
       'm:t3': mejor('m:t3', l.t3I),
     };
-    var ne = e.copyWith(uso: uso, phBanco: e.phBanco + enteros);
+    // Química: un partido más con cada compañero que jugó.
+    final cajas = local ? m.boxLocal : m.boxVisitante;
+    final jugaron = [
+      for (final x in cajas.entries)
+        if (x.value.seg > 0 && x.key != e.jugadorId) x.key,
+    ];
+    var ne = e.copyWith(uso: QuimicaCarrera.alPartido(e.copyWith(uso: uso), jugaron), phBanco: e.phBanco + enteros);
     // Temporada regular: contadores del año y del "mes" (14 partidos), con su mini-objetivo.
     if (regular) {
       if (ne.uso['mo:tipo'] == null) ne = ne.copyWith(uso: {...ne.uso, ...ObjetivosCarrera.fijarMini(ne)});
@@ -1781,9 +1923,105 @@ class CarreraJugador {
         ne = ne.copyWith(uso: {...ne.uso, 'sc:clutch': (ne.uso['sc:clutch'] ?? 0) + 1});
       }
       ne = PremiosCarrera.alPartido(ne, t, l, gano, n);
+      if (n == 35 || n == 49) ne = _traspasos(ne, n);
       if (n % MiniObjetivo.partidosPorMes == 0) ne = _cerrarMes(ne, t);
     }
     return sincronizar(t, ne);
+  }
+
+  /// Los partidos de temporada regular en que se mueve el mercado: rumores y la fecha límite de traspasos.
+  static const partidoRumor = 35, partidoFechaLimite = 49;
+
+  /// Rumores (partido 35) y fecha límite (partido 49): a veces un compañero cambia de equipo, y siempre te toca decidir.
+  EstadoCarrera _traspasos(EstadoCarrera e, int n) {
+    final azar = Random(_hash('${e.raiz}-fecha-${e.numero}'));
+    final sobreMi = (e.contrato <= 1 || e.confianza < 45) && azar.nextDouble() < 0.7;
+    final idx = e.companeros.isEmpty ? 0 : azar.nextInt(e.companeros.length);
+    final seConcreta = azar.nextDouble() < 0.6;
+    final etiqueta = e.etiquetaTemporada;
+    if (e.companeros.isEmpty) return e;
+    if (n == partidoRumor) {
+      final texto = sobreMi
+          ? 'Rumor: varios equipos preguntan por ${e.nombre}.'
+          : 'Rumor: ${e.companeros[idx].nombre} está en la mira de otros equipos.';
+      return e.copyWith(
+        uso: {...e.uso, 'tr:rumor': sobreMi ? 1 : 2, 'tr:idx': idx, 'tr:real': seConcreta ? 1 : 0},
+        movimientos: [...e.movimientos, '$etiqueta: $texto'],
+        hitos: sobreMi ? [...e.hitos, '$etiqueta: $texto'] : null,
+      );
+    }
+    // Fecha límite: el rumor sobre un compañero se concreta (o no) y te toca decidir a vos.
+    var ne = e;
+    final rumor = e.uso['tr:rumor'] ?? 0;
+    final iRumor = (e.uso['tr:idx'] ?? 0).clamp(0, e.companeros.length - 1);
+    if (rumor == 2) {
+      final saliente = e.companeros[iRumor];
+      if ((e.uso['tr:real'] ?? 0) == 1) {
+        final fijos = [
+          for (var i = 0; i < e.companeros.length; i++)
+            if (i != iRumor) e.companeros[i],
+        ];
+        final nuevos = armarCompaneros(
+          franquiciaId: e.franquiciaId,
+          epoca: e.epoca,
+          objetivo: _nivelPropio(e).toDouble(),
+          excluidos: {e.base.nbaPlayerId, saliente.nbaPlayerId},
+          azar: azar,
+          fijos: fijos,
+        );
+        final llega = nuevos.where((j) => !fijos.contains(j)).toList();
+        final destino = liga.franquicias.where((f) => f.id != e.franquiciaId).toList()[azar.nextInt(29)];
+        final uso = {...e.uso, for (final j in llega) 'ct:${j.id}': 1 + azar.nextInt(3)}..remove('ct:${saliente.id}');
+        ne = e.copyWith(
+          companeros: nuevos,
+          uso: uso,
+          movimientos: [
+            ...e.movimientos,
+            '$etiqueta: fecha límite: ${saliente.nombre} es traspasado a ${_nombre(destino.id)}'
+                '${llega.isEmpty ? '' : ' y llega ${llega.first.nombre}'}.',
+          ],
+        );
+      } else {
+        ne = e.copyWith(movimientos: [...e.movimientos, '$etiqueta: fecha límite: ${saliente.nombre} se queda, el rumor quedó en nada.']);
+      }
+    }
+    // El rumor era sobre vos y se concreta: si no tenés la confianza del club, te traspasan sin preguntarte.
+    if (rumor == 1 && (e.uso['tr:real'] ?? 0) == 1 && e.confianza < 60 && e.uso['ec:cl'] != ClausulaContrato.noTraspaso.index + 1) {
+      return ne.copyWith(
+        pidioTraspaso: true,
+        confianza: ne.confianza - 3,
+        uso: {...ne.uso, 'tr:hecho': 1, 'tr:forzado': 1},
+        hitos: [...ne.hitos, '$etiqueta: fecha límite: el club decide traspasar a ${e.nombre} al final de la temporada.'],
+        movimientos: [...ne.movimientos, '$etiqueta: el club decidió traspasarte; elegís destino en el receso.'],
+      );
+    }
+    return ne.copyWith(uso: {...ne.uso, 'tr:pend': 1});
+  }
+
+  /// Lo que elegís en la fecha límite de traspasos. Cierra la decisión pendiente.
+  EstadoCarrera resolverFechaLimite(EstadoCarrera e, OpcionFechaLimite o) {
+    if ((e.uso['tr:pend'] ?? 0) == 0) return e;
+    final uso = {...e.uso}
+      ..remove('tr:pend')
+      ..['tr:hecho'] = 1;
+    final etiqueta = e.etiquetaTemporada;
+    return switch (o) {
+      OpcionFechaLimite.quedarme => e.copyWith(uso: uso, hitos: [...e.hitos, '$etiqueta: ${e.nombre} pasa la fecha límite de traspasos sin cambios.']),
+      OpcionFechaLimite.pedirTraspaso => e.copyWith(
+        uso: uso,
+        pidioTraspaso: true,
+        relacion: e.relacion - 5,
+        confianza: e.confianza - 4,
+        hitos: [...e.hitos, '$etiqueta: ${e.nombre} pide el traspaso en la fecha límite.'],
+      ),
+      OpcionFechaLimite.extender => e.copyWith(
+        uso: uso,
+        contrato: e.contrato + 1,
+        confianza: e.confianza + 3,
+        fans: e.fans + 1,
+        hitos: [...e.hitos, '$etiqueta: ${e.nombre} extiende su contrato un año más.'],
+      ),
+    };
   }
 
   /// Termina el "mes": cobra el mini-objetivo si se cumplió y deja listo el del mes siguiente.
@@ -1871,12 +2109,15 @@ class CarreraJugador {
       dobles: e.uso['sc:dd'] ?? 0,
       triplesDobles: e.uso['sc:td'] ?? 0,
       jugadorDelMes: e.uso['sc:mes'] ?? 0,
-      relacion: e.relacion,
+      relacion: (e.relacion + (VidaCarrera.personalidad(e) == Personalidad.lider ? 2 : 0)).clamp(0, 100),
       moral: e.moral,
       confianza: e.confianza,
       fans: e.fans,
     );
   }
+
+  /// ¿Estás entre los convocados al All-Star de esta temporada?
+  bool esAllStar(Temporada t, EstadoCarrera e) => _esAllStar(t, e);
 
   bool _esAllStar(Temporada t, EstadoCarrera e) {
     final a = t.allStar;
@@ -1969,6 +2210,7 @@ class CarreraJugador {
     final premios = [
       if (t.calendario.isNotEmpty) ..._premiosDe(t, e),
       ...PremiosCarrera.delCierre(t, liga, e, campeon: resumen.campeon),
+      ...ConcursosAllStar.premios(e),
     ];
     final resultados = [for (final o in e.objetivos) (o, o.avance(marcaFinal).$2)];
     final cumplidos = resultados.where((r) => r.$2).length;
@@ -2039,13 +2281,15 @@ class CarreraJugador {
         (resumen.campeon ? 4 : 0) +
         (cumplidos >= 2 ? 2 : -2) +
         (resumen.victorias >= 50 ? 1 : 0) +
-        (VidaCarrera.rutinaDe(e) == Rutina.recuperacion ? 3 : 0);
+        (VidaCarrera.rutinaDe(e) == Rutina.recuperacion ? 3 : 0) +
+        (VidaCarrera.personalidad(e) == Personalidad.profesional ? 1 : 0);
     final dFans =
         (marcaFinal.allStar ? 3 : 0) +
         (resumen.campeon ? 4 : 0) +
         min(3, premios.length) +
         (cumplidos >= 2 ? 1 : -1) +
-        VidaCarrera.fansPorPatrocinios(e);
+        VidaCarrera.fansPorPatrocinios(e) +
+        (VidaCarrera.personalidad(e) == Personalidad.showman ? 3 : 0);
     final cerrado = e.copyWith(
       atributos: atributosNuevos,
       edad: edadNueva,
@@ -2053,17 +2297,30 @@ class CarreraJugador {
       phBanco: e.phBanco + phBase + phObjetivos + phPremios,
       phAcreditados: 0,
       historial: [...e.historial, temporada],
-      uso: {...e.uso, 'dg:obj': phObjetivos * 100, 'dg:prem': phPremios * 100}..remove('rutina'),
+      uso: {
+        ...e.uso,
+        'dg:obj': phObjetivos * 100,
+        'dg:prem': phPremios * 100,
+        // Mejores promedios de una temporada (para los récords): los de puntos, rebotes y asistencias salen del historial.
+        'b:rob100': max(e.uso['b:rob100'] ?? 0, (marcaFinal.robPorPartido * 100).round()),
+        'b:tap100': max(e.uso['b:tap100'] ?? 0, (marcaFinal.tapPorPartido * 100).round()),
+      }..remove('rutina'),
       hitos: hitos,
       confianza: (confianzaAnio + dConfianza).clamp(0, 98).toInt(),
-      moral: (moralAnio + dMoral).clamp(0, 97).toInt(),
+      moral: (moralAnio + dMoral).clamp(VidaCarrera.personalidad(e) == Personalidad.profesional ? 35 : 0, 97).toInt(),
       fans: (fansAnio + dFans).clamp(0, 98).toInt(),
       cerrada: true,
       prensaHecha: 0,
+      relacion: e.relacion + (VidaCarrera.personalidad(e) == Personalidad.lider ? 2 : 0),
     );
     // Objetivos de carrera que se cumplieron con esta temporada sumada.
-    final logradosCarrera = ObjetivosCarrera.nuevosDeCarrera(cerrado);
-    final estado = ObjetivosCarrera.cobrarCarrera(cerrado, logradosCarrera);
+    final torneo = SeleccionCarrera.jugar(e, media: e.media, ppg: marcaFinal.ppg);
+    final conSeleccion = torneo == null ? cerrado : SeleccionCarrera.aplicar(cerrado, torneo, e.etiquetaTemporada);
+    final conRivales = RedesCarrera.alCerrar(RivalidadCarrera.alCerrar(conSeleccion, temporada, liga.catalogo), temporada);
+    final conPlata0 = EconomiaCarrera.alCerrar(conRivales);
+    final conPlata = conPlata0.copyWith(uso: EntrenamientoInteractivo.alCerrar(ConcursosAllStar.alCerrar(conPlata0.uso)));
+    final logradosCarrera = ObjetivosCarrera.nuevosDeCarrera(conPlata);
+    final estado = ObjetivosCarrera.cobrarCarrera(conPlata, logradosCarrera);
     // Insignias que ganaste o subiste de grado este año (con la carrera ya sumada).
     final antesG = e.grados;
     final gradosNuevos = estado.grados;
@@ -2232,31 +2489,71 @@ class CarreraJugador {
     final lista = <OfertaContrato>[];
     if (!traspaso) {
       final rival = _titularDe(e.companeros, e.posicion);
+      final rol = _rolOferta(e.media, rival?.$2, e.confianza);
+      final nivel = _nivelPropio(e);
+      final cond = _condiciones(e, rol, nivel, azar, renovando: true);
       lista.add(
         OfertaContrato(
           franquiciaId: e.franquiciaId,
-          rol: _rolOferta(e.media, rival?.$2, e.confianza),
+          rol: rol,
           anios: 2 + azar.nextInt(3),
-          nivelEquipo: _nivelPropio(e),
+          nivelEquipo: nivel,
           rival: rival,
           renovacion: true,
+          salario: cond.$1,
+          clausula: cond.$2,
+          limitadoPorTope: cond.$3,
         ),
       );
     }
-    for (final id in otros.take(traspaso ? 4 : 3)) {
+    for (final id in otros.take((traspaso ? 4 : 3) + EconomiaCarrera.ofertasExtra(e))) {
       final plantel = _plantelRival(t, id);
       final rival = plantel == null ? null : _titularDe(plantel.jugadores.toList(), e.posicion);
+      final rol = _rolOferta(e.media, rival?.$2, e.confianza + 10);
+      final nivel = _nivelDe(plantel);
+      final cond = _condiciones(e, rol, nivel, azar, renovando: false);
       lista.add(
         OfertaContrato(
           franquiciaId: id,
-          rol: _rolOferta(e.media, rival?.$2, e.confianza + 10),
+          rol: rol,
           anios: 1 + azar.nextInt(4),
-          nivelEquipo: _nivelDe(plantel),
+          nivelEquipo: nivel,
           rival: rival,
+          salario: cond.$1,
+          clausula: cond.$2,
+          limitadoPorTope: cond.$3,
         ),
       );
     }
     return lista;
+  }
+
+  /// Espacio salarial de un equipo (millones): los más armados ya gastaron casi todo el tope.
+  static double espacioSalarial(int nivelEquipo) => (75 - (nivelEquipo - 70) * 3.0).clamp(8.0, 70.0).toDouble();
+
+  /// Sueldo, cláusula y si el tope lo recortó: lo que quiere pagar el equipo según tu rol, con el tope salarial por encima.
+  (double, ClausulaContrato, bool) _condiciones(EstadoCarrera e, RolOferta rol, int nivelEquipo, Random azar, {required bool renovando}) {
+    final factorRol = switch (rol) {
+      RolOferta.estrella => 1.15,
+      RolOferta.titular => 1.0,
+      RolOferta.rotacion => 0.8,
+    };
+    final opcion = e.uso['ec:cl'] == ClausulaContrato.opcionJugador.index + 1 && e.contrato <= 1;
+    final deseado = EconomiaCarrera.sueldoBase(e.copyWith(numero: max(e.numero, 20))) *
+        factorRol *
+        (1 + 0.05 * EconomiaCarrera.nivel(e, Personal.agente)) *
+        (renovando && opcion ? 1.12 : 1.0);
+    final tope = espacioSalarial(nivelEquipo);
+    final r = azar.nextDouble();
+    final clausula = r < 0.35
+        ? ClausulaContrato.opcionJugador
+        : r < 0.6
+        ? ClausulaContrato.noTraspaso
+        : r < 0.8
+        ? ClausulaContrato.bonoTitulo
+        : ClausulaContrato.ninguna;
+    final salario = min(deseado, tope) * (clausula == ClausulaContrato.noTraspaso ? 0.95 : 1.0);
+    return (double.parse(salario.toStringAsFixed(1)), clausula, deseado > tope);
   }
 
   /// El mejor de [jugadores] en [posicion] (nombre y media): con quién competirías por el puesto.
@@ -2341,6 +2638,11 @@ class CarreraJugador {
       ne = ne.copyWith(
         contrato: oferta.anios,
         confianza: mudanza ? oferta.rol.confianza : max(e.confianza, oferta.rol.confianza - 10),
+        uso: {
+          ...ne.uso,
+          if (oferta.salario > 0) 'ec:sal': (oferta.salario * 10).round(),
+          'ec:cl': oferta.clausula.index + 1,
+        },
       );
     } else if (e.contrato <= 0) {
       ne = ne.copyWith(contrato: 1);
@@ -2354,6 +2656,7 @@ class CarreraJugador {
             86.0,
           );
     final era = EstadoCarrera.epocaDeCierre(e.anioBase + numero);
+    var movs = [...e.movimientos];
     if (mudanza) {
       companeros = armarCompaneros(
         franquiciaId: franquicia,
@@ -2365,10 +2668,15 @@ class CarreraJugador {
       ne = ne.copyWith(relacion: 50, hitos: hitos);
     } else {
       // Se quedan los que no cambian de equipo; algunos se van y llegan caras nuevas.
-      final fijos = [
-        for (final j in companeros)
-          if (azar.nextDouble() < 0.7) j,
-      ];
+      final rot = PlantelCarrera.rotar(
+        e,
+        azar,
+        anio: e.anioBase + numero,
+        nombreDe: _nombre,
+        franquicias: [for (final f in liga.franquicias) if (f.id != franquicia) f.id],
+      );
+      final fijos = rot.quedan;
+      movs = [...movs, ...rot.movimientos];
       companeros = armarCompaneros(
         franquiciaId: franquicia,
         epoca: era,
@@ -2378,7 +2686,20 @@ class CarreraJugador {
         fijos: fijos,
       );
     }
+    final (usoContratos, llegadas) = PlantelCarrera.contratos(
+      ne,
+      mudanza ? const [] : e.companeros,
+      companeros,
+      azar,
+      anio: e.anioBase + numero,
+    );
+    movs = [
+      ...movs,
+      if (mudanza) '${e.etiquetaDe(numero)}: nuevo equipo, nuevo plantel en ${_nombre(franquicia)}.' else ...llegadas,
+    ];
     ne = ne.copyWith(
+      uso: usoContratos,
+      movimientos: movs,
       franquiciaId: franquicia,
       companeros: companeros,
       numero: numero,
@@ -2399,7 +2720,7 @@ class CarreraJugador {
       objetivos: ObjetivosCarrera.porDefecto(nuevosOfrecidos),
       uso: {
         for (final x in ne.uso.entries)
-          if (!const ['dg:', 'gr:', 'sc:', 'mes:', 'mo:', 'sem:'].any(x.key.startsWith)) x.key: x.value,
+          if (!const ['dg:', 'gr:', 'sc:', 'mes:', 'mo:', 'sem:', 'tr:'].any(x.key.startsWith)) x.key: x.value,
       },
     );
     return _armarTemporada(

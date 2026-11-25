@@ -356,13 +356,20 @@ class Liga {
     return null;
   }
 
-  MotorPartido motor(Temporada t, Partido p, {Random? azar, Map<String, int>? lesiones}) => MotorPartido(
-    local: _conDesgaste(equipo(t, p.localId, lesiones: lesiones), t, p, p.localId),
-    visitante: _conDesgaste(equipo(t, p.visitanteId, lesiones: lesiones), t, p, p.visitanteId),
-    // Partido entre dos IA: sin lado del usuario (así los dos piden tiempo muerto igual).
-    usuarioLocal: p.participa(t.franquiciaUsuarioId) ? p.localId == t.franquiciaUsuarioId : null,
-    azar: azar ?? _azar,
-  );
+  /// Lo que hace un modo con cada motor recién armado de un partido de tu equipo (Mi carrera: química y rivales que te estudian).
+  void Function(Temporada t, Partido partido, MotorPartido motor)? alCrearMotor;
+
+  MotorPartido motor(Temporada t, Partido p, {Random? azar, Map<String, int>? lesiones}) {
+    final m = MotorPartido(
+      local: _conDesgaste(equipo(t, p.localId, lesiones: lesiones), t, p, p.localId),
+      visitante: _conDesgaste(equipo(t, p.visitanteId, lesiones: lesiones), t, p, p.visitanteId),
+      // Partido entre dos IA: sin lado del usuario (así los dos piden tiempo muerto igual).
+      usuarioLocal: p.participa(t.franquiciaUsuarioId) ? p.localId == t.franquiciaUsuarioId : null,
+      azar: azar ?? _azar,
+    );
+    if (p.participa(t.franquiciaUsuarioId)) alCrearMotor?.call(t, p, m);
+    return m;
+  }
 
   /// Calendario con desgaste: ¿jugó la noche anterior (back-to-back)? ¿cuántos partidos seguidos
   /// lleva de visitante (gira)? Solo en temporada regular.
@@ -428,7 +435,7 @@ class Liga {
             final m = motor(t, p, lesiones: lesiones)..simularTodo();
             _sumarBox(lineas, m);
             _actualizarForma(forma, m);
-            _actualizarLesiones(lesiones, p, m, equipoDe, extremo: t.modoJuego == ModoJuego.extremo);
+            _actualizarLesiones(t, lesiones, p, m, equipoDe, extremo: t.modoJuego == ModoJuego.extremo);
             return p.conResultado(m.parcialesLocal, m.parcialesVisitante);
           }()
         else
@@ -450,7 +457,7 @@ class Liga {
     _actualizarForma(forma, m);
     final lesiones = Map.of(t.lesiones);
     if (partido.jornada > 0) {
-      _actualizarLesiones(lesiones, partido, m, equipos(t), extremo: t.modoJuego == ModoJuego.extremo);
+      _actualizarLesiones(t, lesiones, partido, m, equipos(t), extremo: t.modoJuego == ModoJuego.extremo);
     }
     final calendario = [
       for (final p in t.calendario) p.id == partido.id ? p.conResultado(m.parcialesLocal, m.parcialesVisitante) : p,
@@ -471,6 +478,7 @@ class Liga {
   /// jugó tiene una chance chica de lesionarse (casi siempre poco tiempo; a veces, semanas).
   /// En Extremo ([extremo]) son el doble de probables y duran 50 % más.
   void _actualizarLesiones(
+    Temporada t,
     Map<String, int> lesiones,
     Partido p,
     MotorPartido m,
@@ -489,13 +497,16 @@ class Liga {
       }
     }
     for (final e in [...m.boxLocal.entries, ...m.boxVisitante.entries]) {
-      final chance = probabilidadLesion * (extremo ? 2 : 1);
+      final chance = probabilidadLesion * (extremo ? 2 : 1) * (factorLesionJugador?.call(t, e.key) ?? 1.0);
       if (e.value.seg < 60 || lesiones.containsKey(e.key) || _azar.nextDouble() >= chance) continue;
       final r = _azar.nextDouble();
       final dias = r < 0.6 ? 1 + _azar.nextInt(3) : (r < 0.9 ? 4 + _azar.nextInt(7) : 11 + _azar.nextInt(15));
       lesiones[e.key] = extremo ? (dias * 1.5).ceil() : dias;
     }
   }
+
+  /// Multiplica la chance de lesión de un jugador concreto (Mi carrera: durabilidad, carga y rutina de tu jugador).
+  double Function(Temporada t, String jugadorId)? factorLesionJugador;
 
   /// Chance de lesionarse en cada partido que juega (≈ 2-3 lesiones por equipo por temporada).
   static const probabilidadLesion = 0.005;
@@ -566,6 +577,19 @@ class Liga {
   /// Anota (o reemplaza) una carta propia de una partida, como el jugador de Mi carrera: premios,
   /// forma y All-Star lo buscan por id. Tiene que tener un id que no sea de ninguna carta del catálogo.
   void registrarCarta(Jugador j) => _porId[j.id] = j;
+
+  /// Suma al catálogo una carta propia (tu carta de carrera) para que la usen los demás modos.
+  /// Si ya estaba, no hace nada. Devuelve si quedó agregada.
+  bool agregarCartaPropia(Jugador j) {
+    if (catalogo.any((x) => x.id == j.id)) return false;
+    try {
+      catalogo.add(j);
+    } catch (_) {
+      return false; // catálogo de solo lectura (tests)
+    }
+    _porId[j.id] = j;
+    return true;
+  }
 
   /// Franquicia de cada carta en esta temporada (tu plantel y los 29 rivales).
   Map<String, String> equipos(Temporada t) => {

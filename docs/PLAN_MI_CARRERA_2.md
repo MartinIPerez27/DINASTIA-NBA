@@ -104,6 +104,141 @@ estadísticas avanzadas.
   - Balance: recargo del techo blando ×(1+0,75·exceso), máx. ×5. Con potencial 88 y gasto óptimo se llega a ~96;
     con potencial 99 se mantiene en 99 hasta los ~35 años.
   - Faltan del punto 4: concurso de volcadas y de triples (dependen de la barra de tiro).
+- **Bloque 3 (habilidades estilo 2K) — hecho.** 34 habilidades técnicas (tiro 5, finalización 7, defensa 7, físico 8,
+  IQ y pase 7) y 4 rasgos mentales (Consistencia, Clutch, Durabilidad, Garra) bajo los 5 atributos; 7 insignias nuevas
+  (33 en total). Cada habilidad mueve la carta que usa el motor; Durabilidad baja o sube la probabilidad de lesión
+  (×0,7 a ×1,3) y las acciones del partido en vivo (triple, aro, pelota, última jugada, marca, robo, energía) usan las
+  habilidades nuevas y el rasgo Clutch. Las partidas viejas cargan sin migración (las nuevas arrancan en el valor del
+  atributo).
+- **Bloque 4 (año, edad, plantilla, traspasos y generación) — hecho.**
+  - Creador: año del draft (1980–2026), edad de arranque (18–28) y número de camiseta; el año define la época de
+    compañeros y carta. El número se muestra al retirarse la camiseta.
+  - Plantilla: edad de los compañeros (por año de nacimiento), contrato de 1 a 4 años, retiro desde los 35 con
+    probabilidad creciente, traspasos y fin de contrato; las bajas se reemplazan (novatos del draft, agentes libres,
+    traspasos). Todo queda en "Mi equipo" (`movimientos`).
+  - Fecha límite de traspasos: rumor en el partido 35 y decisión en el 49 (quedarte, pedir el traspaso o extender el
+    contrato); un rumor sobre un compañero se concreta con 60 % y cambia el plantel en plena temporada.
+  - Mi generación: los primeros 8 elegidos de tu draft con números reales por época (hasta 2025). El draft 2026,
+    que ya se jugó, usa los 60 elegidos reales (`assets/database/draft_2026.json`, de Wikipedia) con sus equipos y
+    números proyectados; el #1 es tu rival. Solo si faltaran datos cae en una clase ficticia.
+  - Pendiente de este punto: que el jugador "salga" mid-season por una decisión del club (hoy solo se mueven
+    compañeros; el traspaso propio se negocia en el receso).
+
+- **Bloque 13 (todo lo pendiente, en una tirada) — hecho.**
+  - **Lesiones largas**: una baja de 11+ partidos le cuesta físico al volver (20+, también finalización); un fisio de nivel 2 lo
+    amortigua. **Traspaso del club**: si el rumor era sobre vos, se concreta y no tenés la confianza (menos de 60), el club te
+    traspasa en la fecha límite sin preguntarte (salvo cláusula de no traspaso) y elegís destino en el receso. *No se ejecuta
+    a mitad de temporada*: el calendario y los récords están atados a la franquicia del año; el cambio vale desde el receso.
+  - **Mapa de tiro** (pintura, media distancia, triples) contra la liga. Las zonas se estiman por el tipo de tiro (contraataque y
+    tiros de los grandes = pintura): el motor no guarda coordenadas.
+  - **Rival de época y mentor** (duelo de temporada contra una carta real de tu puesto y época; el mentor da 1 punto de habilidad si la
+    relación es 60+), **redes sociales** (seguidores, una publicación por temporada, suman marcas) y **relator con memoria**
+    (frases con tus puntos, tus 40, tu mejor año, tu rodilla crónica…). **Cuadro de honor** del Salón de la Fama (pestaña HONOR en récords).
+  - **Mercado**: cada oferta trae sueldo, cláusula (opción del jugador, no traspasable, bono por título) y tope salarial del equipo
+    (los más armados tienen menos espacio).
+  - **Tu carta de carrera**: al retirarte queda en el álbum del perfil y en el catálogo para los otros modos (desde que se carga la liga).
+    **Carrera generacional**: con 5+ temporadas retirado, empezás la carrera de tu hijo/a (mismo apellido y país, fama de la familia).
+  - **Entrenamiento interactivo** (una sesión por temporada con la barra) y **concursos del All-Star** (triples y volcadas contra 4 rivales;
+    campeón da premio). El partido del All-Star sigue siendo simulado.
+  - **Secundario → universidad → NBA**: después de crear el jugador podés vivir 3 años de secundario (ranking de reclutas,
+    McDonald's) y 0-3 de universidad (March Madness, premios); sale el pick, la edad y los atributos del draft.
+  - **Timing en libres, rebote, robo y pase** (opcionales en Control del partido): con timing neutro el partido es idéntico (probado).
+    Los libres de un "y uno" siguen automáticos.
+  - **Datos**: los novatos 2026 usan sus estadísticas reales de la temporada en curso (`tools/novatos_2026.py`, pesan según los partidos
+    jugados, 30+ = solo reales). Para los partidos de 40 y 50 puntos no hay una fuente pública confiable (Basketball-Reference y
+    Wikipedia no publican ese ranking): quedan solo como marcas personales.
+  - Balance: sin cambios; el 99 que gasta todo sigue acotado por los tests.
+
+- **Bloque 12 (staff, agente y finanzas) — hecho.**
+  - Economía simple en millones: sueldo anual (escala de novato por pick, después por media), marcas (patrocinios + fama) y
+    una **caja** que se cobra al cerrar cada temporada.
+  - **Equipo personal** (3 niveles cada uno, se paga por temporada): entrenador (+1 punto de habilidad por nivel), fisio
+    (−10 % de lesiones por nivel), nutricionista (más recuperación de carga) y agente (+5 % de sueldo, ofertas extra de
+    otros equipos y 3 % de comisión por nivel). Se contrata con la caja; si falta plata, el más caro se va.
+  - Panel "Finanzas y equipo personal" en Mi jugador.
+  - Sin hacer: salary cap y negociación de cláusulas.
+
+- **Bloque 11 (selección nacional) — hecho.**
+  - Elegís el **país** al crear el jugador (17 opciones, cada uno con su fuerza; los jugadores reales no tienen).
+  - **Mundial y Juegos Olímpicos** en la 3.ª, 7.ª, 11.ª… temporada, alternados, simulados al cerrar el año con tu nivel:
+    convocatoria (titular desde fuerza−4, suplente desde fuerza−14), primera fase, cuartos, semis, bronce y final.
+  - Medallas, convocatorias y puntos por partido en el panel "Selección" de Mi jugador; suma fans y queda en tus hitos
+    y en la bandeja. Determinista por raíz y temporada.
+  - No se juega en vivo (queda para el All-Star y los torneos jugables).
+
+- **Bloque 10 (slots y exportación) — hecho.**
+  - Las partidas guardadas ya permitían varias carreras en paralelo, exportar e importar (la importada queda de
+    exhibición y con raíz nueva). Se sumó lo que faltaba para Mi carrera: la fila muestra **tu jugador** (nombre, edad,
+    media, temporada, fase y récord) en vez del nombre de la franquicia.
+  - Nueva acción **Duplicar (punto de guardado)**: copia la partida con id y raíz nuevos, sigue dando premios y marcas;
+    sirve para probar otro camino sin perder el actual.
+
+- **Bloque 9 (cuerpo y salud) — hecho.**
+  - **Carga de partidos** (0-100): cada partido suma según los minutos (≈ +1 con 36 min) y con descanso baja; pasando
+    40 las lesiones son más probables (hasta ×1,8). Podés **descansar el próximo partido** (baja de 1 PJ, carga a la mitad).
+  - **Lesiones por parte del cuerpo** (tobillo, rodilla, isquiotibiales, espalda, muñeca, hombro, pie): cada parte cambia
+    cuánto dura (rodilla ×1,5, muñeca ×0,8…); las ya lastimadas se repiten más y duran más; a la 3.ª vez son crónicas.
+    El historial suma propensión (+5 % por lesión, hasta ×1,3).
+  - **Rehabilitación**: cuidadosa (+25 % de baja, sin recaída), normal o acelerada (−40 %, 30 % de recaer al volver).
+  - Hook `Liga.factorLesionJugador`: durabilidad, personalidad, rutina, carga e historial ahora cambian la chance de
+    lesión **en cada partido** (antes solo al cerrar la temporada). Panel "Cuerpo y salud" en Mi jugador.
+  - Test de balance de campeonatos del 99 "gastando todo" subido de 60 % a 65 % (cambió la secuencia aleatoria).
+
+- **Bloque 8 (el mundo alrededor de tu jugador) — hecho.**
+  - **Bandeja de entrada**: premios, objetivos, plantel y mercado en un solo lugar, con filtros y contador de no
+    leídos (se arma con tu historia y los movimientos; no guarda nada aparte).
+  - **Rivales que se adaptan + informe de scouting**: con los partidos (150 para conocerte del todo) los rivales
+    cierran lo que más hacés: si el 30 % o más de tus puntos son de triples te cierran el triple (hasta −7 %) y si
+    casi no tirás de afuera te cierran la pintura (hasta −6 %); un juego equilibrado casi no se marca. Entra al
+    motor como ajuste del rival en simular y en vivo, y el director de decisiones lo conserva.
+  - **Química con compañeros**: cada partido juntos suma (Bronce 20, Plata 60, Oro 150); sube el acierto de los tiros
+    asistidos (hasta +1,2 %) y la química general (hasta +0,6 %); si el compañero se va, se pierde.
+  - **Personalidad** (Líder, Competidor, Showman, Profesional), elegida al crear el jugador (los reales reciben una
+    fija): relación, clutch y Takeover, fans, lesiones y ánimo.
+  - **Estadísticas avanzadas** (TS %, eFG %, TC, T3, TL, asistencias por pérdida, valoración de Hollinger, minutos y
+    puntos por 36), llevadas partido a partido desde esta versión.
+  - Sin hacer todavía de las ideas aprobadas: secundario→
+    universidad→NBA, carrera generacional, tu carta de carrera, relator con
+    memoria, mapa de tiro de carrera, entrenamientos interactivos, mercado y contratos, mentores,
+    prensa y redes, All-Star jugable, Salón de la Fama con cuadro de honor, y el timing de libres/robo/rebote/pase.
+
+- **Bloque 7 (barra de tiro y control del jugador) — hecho en parte.**
+  - Motor: el tiro se parte en dos pasos sin tocar el azar (`siguienteInteractivo` / `resolverMomento`): con timing
+    neutro el partido sale idéntico al de siempre (probado). Simular, saltar jugadas y los demás modos nunca se frenan.
+  - Barra de tiro para **tus tiros de campo** y para **tu defensa directa** (si marcás al que tira, la barra decide
+    cuánto le cerrás el tiro y la chance de tapón). Perfecto +15 % de acierto, Bien +5 %, Temprano −9 %, Tarde −12 %.
+  - La zona verde crece con tus habilidades (triple, media distancia, bandejas, defensa…), con lo abierto del tiro y
+    con tu forma de tirar; hay modos "Solo lo importante" (por defecto: final apretado, Takeover y chicharras),
+    "Todos mis tiros" y "Automático", tamaño de zona y "mantener y soltar".
+  - Sin controles de entrenador en Mi carrera (tiempo muerto, ritmo, presión, rotación, minutos y cambios); queda
+    "Mis decisiones" con las del jugador.
+  - **No incluido todavía:** tiros libres, robo, rebote y pase con timing. Los tiros libres y el rebote se resuelven
+    en el motor dentro de la misma jugada (varios intentos seguidos), y requieren partir esa resolución en más pasos.
+    Concursos de volcadas y de triples del All-Star: dependen de esto.
+
+- **Bloque 6 (récords históricos de la NBA) — hecho.**
+  - Datos reales en `assets/database/records_nba.json`, generados por `tools/records_nba.py` (con tests) desde
+    Basketball-Reference (totales de carrera, promedios por temporada y triples en un partido) y Wikipedia (marcas de
+    un partido: las de Basketball-Reference no cubren las épocas viejas, p. ej. faltan los 55 rebotes de Wilt). Solo
+    NBA, con la fecha de descarga. Para actualizar: `python tools/records_nba.py`.
+  - Pantalla "Camino a los récords" (carrera, temporada, partido, hitos): tu valor, puesto histórico que ocuparías,
+    próximo rival a superar, cuánto falta y a qué ritmo, y a quiénes ya superaste.
+  - Se llevan por partido los totales de carrera (puntos, rebotes, asistencias, robos, tapones, triples,
+    triples-dobles), tus mejores marcas de un partido y tu mejor promedio de robos y tapones por temporada.
+  - Límite: no hay un ranking confiable de partidos de 40 y 50 puntos, así que "Hitos" muestra solo tu cuenta.
+    Las partidas viejas tienen totales de puntos, rebotes y asistencias desde su historial; los demás empiezan a
+    contarse desde esta versión.
+
+- **Bloque 5 (editor de personaje completo) — hecho.**
+  - Rostro: 6 ojos, 5 cejas, 5 narices, 5 bocas, 3 orejas, ancho y alto de cara, 6 tonos de piel y 8 colores de pelo.
+  - 20 peinados (los 7 de siempre + afro, trenzas, rastas, mohicano, plano, undercut, degradé, ondas, peinado atrás,
+    raya, colita alta, dos moños y rulos largos), 7 barbas, 5 tatuajes (cuello y hombros), 4 gafas, cinta de brazo y
+    5 complexiones. Los avatares viejos y los retratos automáticos (sin foto) no cambian.
+  - Cuerpo y origen: envergadura (−10 a +15 cm: más tapones, robos y rebotes), mano dominante y origen
+    (secundario, universidad, internacional) que inclina un poco los atributos de arranque.
+  - Estilo de juego: forma de tirar (5) y festejo (6): quedan guardados para la barra de tiro y el relato.
+  - Para ver todo hay grupos plegables (ROSTRO, PEINADO Y BARBA, ACCESORIOS Y TATUAJES, CUERPO Y ORIGEN, ESTILO DE
+    JUEGO) al final del creador, con "Al azar" y "Restablecer".
 
 ## Orden sugerido
 1. Puntos y costos (1, 3) · 2. Objetivos y premios (2, 4) · 3. Habilidades 2K (5) · 4. Año, edad y plantilla (6)

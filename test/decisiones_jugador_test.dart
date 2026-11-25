@@ -107,6 +107,40 @@ void main() {
     expect(m2.efecto(true)!.focoExtra, greaterThan(flojo.focoExtra), reason: 'el crack acierta más con la pelota');
   });
 
+  test('las habilidades nuevas y los rasgos mentales mueven las decisiones', () {
+    final m = partido(3);
+    final id = m.enCancha(true).first.id;
+    final a = Atributos.de(tiro: 80, finalizacion: 80, defensa: 75, fisico: 75, iq: 80);
+    double extra(Map<Habilidad, int> espec, AccionTactica acc) {
+      final mm = partido(3);
+      final d = DirectorDecisiones(motor: mm, propio: true, yo: PerfilVivo(id: id, nombre: 'Yo', atributos: a, espec: espec));
+      d.aplicarManual(d.menuTactico().firstWhere((o) => o.accion == acc));
+      return mm.efecto(true)!.focoExtra;
+    }
+
+    expect(
+      extra({Habilidad.tiroDeEsquina: 20, Habilidad.tiroEnMovimiento: 20}, AccionTactica.tirarTriple),
+      greaterThan(extra(const {}, AccionTactica.tirarTriple)),
+    );
+    expect(
+      extra({Habilidad.finalizacionContacto: 20, Habilidad.flotadora: 20}, AccionTactica.atacarAro),
+      greaterThan(extra(const {}, AccionTactica.atacarAro)),
+    );
+    expect(
+      extra({Habilidad.creacionDeTiro: 20, Habilidad.consistencia: 20}, AccionTactica.pedirPelota),
+      greaterThan(extra(const {}, AccionTactica.pedirPelota)),
+    );
+    // El rasgo Clutch cuenta en la última jugada.
+    final base = partido(11)
+      ..arrancarEn(cuarto: 4, reloj: 60, puntosLocal: 90, puntosVisitante: 90, ataqueLocal: true, energia: 90);
+    String textoDe(Map<Habilidad, int> espec) {
+      final d = DirectorDecisiones(motor: base, propio: true, yo: PerfilVivo(id: base.enCancha(true).first.id, nombre: 'Yo', atributos: a, espec: espec));
+      return d.evaluar()!.opciones.firstWhere((o) => o.accion == AccionTactica.yoAislamiento || o.accion == AccionTactica.yoTriple).efecto;
+    }
+
+    expect(textoDe({Habilidad.clutch: 20}), isNot(textoDe(const {})));
+  });
+
   test('tomar el último tiro lo tira tu jugador; pasar, no', () {
     for (final pasar in [false, true]) {
       var total = 0, cumplen = 0;

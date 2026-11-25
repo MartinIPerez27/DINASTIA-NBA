@@ -1,3 +1,6 @@
+import '../../data/estado_app.dart';
+import 'etapas_previas_pantalla.dart';
+import '../../domain/liga.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -9,6 +12,7 @@ import '../../domain/modos/carrera_jugador.dart';
 import '../pantallas/playoffs_pantalla.dart';
 import '../pantallas/temporada_pantalla.dart';
 import '../widgets/elegir_modo.dart';
+import 'carrera_equipo_pantallas.dart';
 import 'carrera_jugador_pantallas.dart';
 import 'creador_jugador.dart';
 import 'modos.dart';
@@ -91,15 +95,39 @@ Future<void> iniciarCarreraJugador(ContextoModos c, {JugadorCreado? creadoInicia
     await c.abrirTemporada(t);
     return;
   }
+  CaminoPrevio? previo;
   final creado = creadoInicial ?? await nav.push(
     MaterialPageRoute<JugadorCreado>(
-      builder: (_) => const CreadorJugadorPantalla(titulo: 'Creá tu jugador', textoBoton: 'IR AL COMBINE'),
+      builder: (_) => const CreadorJugadorPantalla(
+        titulo: 'Creá tu jugador',
+        textoBoton: 'IR AL COMBINE',
+        conArranque: true,
+      ),
     ),
   );
+  if (creadoInicial == null && creado != null && c.context.mounted) {
+    final vivir = await showDialog<bool>(
+      context: c.context,
+      builder: (d) => AlertDialog(
+        title: const Text('¿Vivís tu etapa previa?'),
+        content: const Text('Podés jugar el secundario y la universidad antes del draft, o ir directo al combine.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('IR DIRECTO')),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('SECUNDARIO Y UNIVERSIDAD')),
+        ],
+      ),
+    );
+    if (vivir == true && c.context.mounted) {
+      previo = await nav.push(
+        MaterialPageRoute<CaminoPrevio>(builder: (_) => EtapasPreviasPantalla(creado: creado, semilla: semilla)),
+      );
+      if (previo == null) return;
+    }
+  }
   if (creado == null || !c.context.mounted) return;
   final dificultad = await elegirDificultad(c.context);
   if (dificultad == null || !c.context.mounted) return;
-  final combine = carrera.combine(creado, Random(semilla));
+  final combine = carrera.combine(previo?.creado ?? creado, Random(semilla));
   final listo = await nav.push(
     MaterialPageRoute<bool>(
       builder: (_) => CombinePantalla(creado: creado, resultado: combine),
@@ -115,16 +143,33 @@ Future<void> iniciarCarreraJugador(ContextoModos c, {JugadorCreado? creadoInicia
         nombre: creado.nombre,
         pick: combine.pick,
         franquiciaId: propio,
-        anio: 2026,
+        anio: creado.anioDraft ?? 2026,
         opciones: opciones,
       ),
     ),
   );
   if (franquicia == null) return;
-  final estado = carrera.estadoCreado(raiz: id, creado: creado, pick: combine.pick, franquiciaId: franquicia);
+  var estado = carrera.estadoCreado(raiz: id, creado: previo?.creado ?? creado, pick: combine.pick, franquiciaId: franquicia);
+  if (previo != null) estado = estado.copyWith(hitos: [...previo.hitos, ...estado.hitos]);
   final t = carrera.nuevaCarrera(estado: estado, dificultad: dificultad);
   await c.guardar(t);
   await c.abrirTemporada(t);
+}
+
+/// Al retirarte, tu carta queda en el álbum del perfil y se suma a la liga para usarla en los otros modos.
+Future<void> _guardarCartaDeCarrera(ContextoModos c, Liga liga, EstadoCarrera retirado) async {
+  final carta = CartaCarrera.deRetiro(retirado);
+  final perfil = perfilApp.value;
+  if (perfil.cartasCarrera.any((x) => x['id'] == carta.id)) return;
+  final nuevo = perfil.copyWith(
+    cartasCarrera: [...perfil.cartasCarrera, carta.toJson()],
+    coleccion: {...perfil.coleccion, carta.id},
+  );
+  perfilApp.value = nuevo;
+  liga.agregarCartaPropia(carta);
+  try {
+    await c.db?.escribir('perfil', nuevo.toJson());
+  } catch (_) {}
 }
 
 String _nombreDe(String id) => franquiciaPorId(id).nombreCompleto;
@@ -148,6 +193,17 @@ Future<Widget?> pantallaCarreraJugador(Temporada t, ContextoModos c) async {
       estado: estado,
       carrera: carrera,
       alInicio: () => c.navegador.currentState?.popUntil((r) => r.isFirst),
+      alHeredar: HerederoCarrera.puede(estado)
+          ? () async {
+              final dificultad = await elegirDificultad(c.context);
+              if (dificultad == null) return;
+              final h = HerederoCarrera.de(estado);
+              final e = h.estado(carrera, '${DateTime.now().microsecondsSinceEpoch}', estado.nombre);
+              final nueva = carrera.nuevaCarrera(estado: e, dificultad: dificultad);
+              await c.guardar(nueva);
+              await c.abrirTemporada(nueva);
+            }
+          : null,
     );
   }
   if (estado.cerrada) return _receso(t, estado, null, carrera, c, apilado: false);
@@ -192,6 +248,13 @@ Future<Widget?> pantallaCarreraJugador(Temporada t, ContextoModos c) async {
                 builder: (_) => MiJugadorPantalla(temporada: temp, carrera: carrera, onCambiar: cambiar),
               ),
             ),
+            onFechaLimite: (e.uso['tr:pend'] ?? 0) == 1
+                ? () => mostrarFechaLimite(
+                    context,
+                    (o) => cambiar(carrera.sincronizar(temp, carrera.resolverFechaLimite(e, o))),
+                    rumor: e.movimientos.isEmpty ? null : e.movimientos.lastWhere((m) => m.contains('fecha límite') || m.contains('Rumor'), orElse: () => ''),
+                  )
+                : null,
             onElegirObjetivos: ObjetivosCarrera.puedeElegir(e)
                 ? () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
@@ -270,6 +333,7 @@ Widget _receso(
         final retirado = carrera.retirar(e);
         actual = actual.copyWith(datosModo: retirado.aDatos());
         await c.guardar(actual);
+        await _guardarCartaDeCarrera(c, carrera.liga, retirado);
         if (apilado && contexto.mounted) Navigator.of(contexto).pop();
         await c.abrirTemporada(actual, reemplazar: true);
       },

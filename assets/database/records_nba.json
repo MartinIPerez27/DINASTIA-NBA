@@ -1,0 +1,1345 @@
+{
+ "fuente": "Basketball-Reference y Wikipedia (solo NBA)",
+ "fecha": "2026-11-25",
+ "carrera": {
+  "puntos": {
+   "etiqueta": "Puntos",
+   "filas": [
+    {
+     "nombre": "LeBron James",
+     "valor": 43672,
+     "activo": true
+    },
+    {
+     "nombre": "Kareem Abdul-Jabbar",
+     "valor": 38387,
+     "activo": false
+    },
+    {
+     "nombre": "Karl Malone",
+     "valor": 36928,
+     "activo": false
+    },
+    {
+     "nombre": "Kobe Bryant",
+     "valor": 33643,
+     "activo": false
+    },
+    {
+     "nombre": "Kevin Durant",
+     "valor": 32986,
+     "activo": true
+    },
+    {
+     "nombre": "Michael Jordan",
+     "valor": 32292,
+     "activo": false
+    },
+    {
+     "nombre": "Dirk Nowitzki",
+     "valor": 31560,
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 31419,
+     "activo": false
+    },
+    {
+     "nombre": "James Harden",
+     "valor": 29654,
+     "activo": true
+    },
+    {
+     "nombre": "Shaquille O'Neal",
+     "valor": 28596,
+     "activo": false
+    },
+    {
+     "nombre": "Carmelo Anthony",
+     "valor": 28289,
+     "activo": false
+    },
+    {
+     "nombre": "Moses Malone",
+     "valor": 27409,
+     "activo": false
+    },
+    {
+     "nombre": "Elvin Hayes",
+     "valor": 27313,
+     "activo": false
+    },
+    {
+     "nombre": "Russell Westbrook",
+     "valor": 27176,
+     "activo": false
+    },
+    {
+     "nombre": "Hakeem Olajuwon",
+     "valor": 26946,
+     "activo": false
+    }
+   ]
+  },
+  "rebotes": {
+   "etiqueta": "Rebotes",
+   "filas": [
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 23924,
+     "activo": false
+    },
+    {
+     "nombre": "Bill Russell",
+     "valor": 21620,
+     "activo": false
+    },
+    {
+     "nombre": "Kareem Abdul-Jabbar",
+     "valor": 17440,
+     "activo": false
+    },
+    {
+     "nombre": "Elvin Hayes",
+     "valor": 16279,
+     "activo": false
+    },
+    {
+     "nombre": "Moses Malone",
+     "valor": 16212,
+     "activo": false
+    },
+    {
+     "nombre": "Tim Duncan",
+     "valor": 15091,
+     "activo": false
+    },
+    {
+     "nombre": "Karl Malone",
+     "valor": 14968,
+     "activo": false
+    },
+    {
+     "nombre": "Robert Parish",
+     "valor": 14715,
+     "activo": false
+    },
+    {
+     "nombre": "Kevin Garnett",
+     "valor": 14662,
+     "activo": false
+    },
+    {
+     "nombre": "Dwight Howard",
+     "valor": 14627,
+     "activo": false
+    },
+    {
+     "nombre": "Nate Thurmond",
+     "valor": 14464,
+     "activo": false
+    },
+    {
+     "nombre": "Walt Bellamy",
+     "valor": 14241,
+     "activo": false
+    },
+    {
+     "nombre": "Wes Unseld",
+     "valor": 13769,
+     "activo": false
+    },
+    {
+     "nombre": "Hakeem Olajuwon",
+     "valor": 13748,
+     "activo": false
+    },
+    {
+     "nombre": "Shaquille O'Neal",
+     "valor": 13099,
+     "activo": false
+    }
+   ]
+  },
+  "asistencias": {
+   "etiqueta": "Asistencias",
+   "filas": [
+    {
+     "nombre": "John Stockton",
+     "valor": 15806,
+     "activo": false
+    },
+    {
+     "nombre": "Chris Paul",
+     "valor": 12552,
+     "activo": false
+    },
+    {
+     "nombre": "LeBron James",
+     "valor": 12107,
+     "activo": true
+    },
+    {
+     "nombre": "Jason Kidd",
+     "valor": 12091,
+     "activo": false
+    },
+    {
+     "nombre": "Russell Westbrook",
+     "valor": 10351,
+     "activo": false
+    },
+    {
+     "nombre": "Steve Nash",
+     "valor": 10335,
+     "activo": false
+    },
+    {
+     "nombre": "Mark Jackson",
+     "valor": 10334,
+     "activo": false
+    },
+    {
+     "nombre": "Magic Johnson",
+     "valor": 10141,
+     "activo": false
+    },
+    {
+     "nombre": "Oscar Robertson",
+     "valor": 9887,
+     "activo": false
+    },
+    {
+     "nombre": "Isiah Thomas",
+     "valor": 9061,
+     "activo": false
+    },
+    {
+     "nombre": "James Harden",
+     "valor": 8978,
+     "activo": true
+    },
+    {
+     "nombre": "Gary Payton",
+     "valor": 8966,
+     "activo": false
+    },
+    {
+     "nombre": "Andre Miller",
+     "valor": 8524,
+     "activo": false
+    },
+    {
+     "nombre": "Rod Strickland",
+     "valor": 7987,
+     "activo": false
+    },
+    {
+     "nombre": "Rajon Rondo",
+     "valor": 7584,
+     "activo": false
+    }
+   ]
+  },
+  "robos": {
+   "etiqueta": "Robos",
+   "filas": [
+    {
+     "nombre": "John Stockton",
+     "valor": 3265,
+     "activo": false
+    },
+    {
+     "nombre": "Chris Paul",
+     "valor": 2728,
+     "activo": false
+    },
+    {
+     "nombre": "Jason Kidd",
+     "valor": 2684,
+     "activo": false
+    },
+    {
+     "nombre": "Michael Jordan",
+     "valor": 2514,
+     "activo": false
+    },
+    {
+     "nombre": "Gary Payton",
+     "valor": 2445,
+     "activo": false
+    },
+    {
+     "nombre": "LeBron James",
+     "valor": 2433,
+     "activo": true
+    },
+    {
+     "nombre": "Maurice Cheeks",
+     "valor": 2310,
+     "activo": false
+    },
+    {
+     "nombre": "Scottie Pippen",
+     "valor": 2307,
+     "activo": false
+    },
+    {
+     "nombre": "Clyde Drexler",
+     "valor": 2207,
+     "activo": false
+    },
+    {
+     "nombre": "Hakeem Olajuwon",
+     "valor": 2162,
+     "activo": false
+    },
+    {
+     "nombre": "Alvin Robertson",
+     "valor": 2112,
+     "activo": false
+    },
+    {
+     "nombre": "Karl Malone",
+     "valor": 2085,
+     "activo": false
+    },
+    {
+     "nombre": "Mookie Blaylock",
+     "valor": 2075,
+     "activo": false
+    },
+    {
+     "nombre": "Russell Westbrook",
+     "valor": 2038,
+     "activo": false
+    },
+    {
+     "nombre": "Allen Iverson",
+     "valor": 1983,
+     "activo": false
+    }
+   ]
+  },
+  "tapones": {
+   "etiqueta": "Tapones",
+   "filas": [
+    {
+     "nombre": "Hakeem Olajuwon",
+     "valor": 3830,
+     "activo": false
+    },
+    {
+     "nombre": "Dikembe Mutombo",
+     "valor": 3289,
+     "activo": false
+    },
+    {
+     "nombre": "Kareem Abdul-Jabbar",
+     "valor": 3189,
+     "activo": false
+    },
+    {
+     "nombre": "Mark Eaton",
+     "valor": 3064,
+     "activo": false
+    },
+    {
+     "nombre": "Tim Duncan",
+     "valor": 3020,
+     "activo": false
+    },
+    {
+     "nombre": "David Robinson",
+     "valor": 2954,
+     "activo": false
+    },
+    {
+     "nombre": "Patrick Ewing",
+     "valor": 2894,
+     "activo": false
+    },
+    {
+     "nombre": "Shaquille O'Neal",
+     "valor": 2732,
+     "activo": false
+    },
+    {
+     "nombre": "Tree Rollins",
+     "valor": 2542,
+     "activo": false
+    },
+    {
+     "nombre": "Robert Parish",
+     "valor": 2361,
+     "activo": false
+    },
+    {
+     "nombre": "Alonzo Mourning",
+     "valor": 2356,
+     "activo": false
+    },
+    {
+     "nombre": "Marcus Camby",
+     "valor": 2331,
+     "activo": false
+    },
+    {
+     "nombre": "Dwight Howard",
+     "valor": 2228,
+     "activo": false
+    },
+    {
+     "nombre": "Brook Lopez",
+     "valor": 2160,
+     "activo": true
+    },
+    {
+     "nombre": "Ben Wallace",
+     "valor": 2137,
+     "activo": false
+    }
+   ]
+  },
+  "triples": {
+   "etiqueta": "Triples",
+   "filas": [
+    {
+     "nombre": "Stephen Curry",
+     "valor": 4291,
+     "activo": true
+    },
+    {
+     "nombre": "James Harden",
+     "valor": 3439,
+     "activo": true
+    },
+    {
+     "nombre": "Ray Allen",
+     "valor": 2973,
+     "activo": false
+    },
+    {
+     "nombre": "Klay Thompson",
+     "valor": 2959,
+     "activo": true
+    },
+    {
+     "nombre": "Damian Lillard",
+     "valor": 2855,
+     "activo": true
+    },
+    {
+     "nombre": "LeBron James",
+     "valor": 2650,
+     "activo": true
+    },
+    {
+     "nombre": "Reggie Miller",
+     "valor": 2560,
+     "activo": false
+    },
+    {
+     "nombre": "Paul George",
+     "valor": 2501,
+     "activo": true
+    },
+    {
+     "nombre": "Kyle Korver",
+     "valor": 2450,
+     "activo": false
+    },
+    {
+     "nombre": "Kevin Durant",
+     "valor": 2407,
+     "activo": true
+    },
+    {
+     "nombre": "Vince Carter",
+     "valor": 2290,
+     "activo": false
+    },
+    {
+     "nombre": "Jason Terry",
+     "valor": 2282,
+     "activo": false
+    },
+    {
+     "nombre": "Buddy Hield",
+     "valor": 2235,
+     "activo": true
+    },
+    {
+     "nombre": "Jamal Crawford",
+     "valor": 2221,
+     "activo": false
+    },
+    {
+     "nombre": "Kyle Lowry",
+     "valor": 2209,
+     "activo": false
+    }
+   ]
+  },
+  "triplesDobles": {
+   "etiqueta": "Triples-dobles",
+   "filas": [
+    {
+     "nombre": "Russell Westbrook",
+     "valor": 209,
+     "activo": false
+    },
+    {
+     "nombre": "Nikola Jokić",
+     "valor": 202,
+     "activo": true
+    },
+    {
+     "nombre": "Oscar Robertson",
+     "valor": 181,
+     "activo": false
+    },
+    {
+     "nombre": "Magic Johnson",
+     "valor": 138,
+     "activo": false
+    },
+    {
+     "nombre": "LeBron James",
+     "valor": 125,
+     "activo": true
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 109,
+     "activo": false
+    },
+    {
+     "nombre": "Jason Kidd",
+     "valor": 107,
+     "activo": false
+    },
+    {
+     "nombre": "Luka Dončić",
+     "valor": 90,
+     "activo": true
+    },
+    {
+     "nombre": "James Harden",
+     "valor": 82,
+     "activo": true
+    },
+    {
+     "nombre": "Domantas Sabonis",
+     "valor": 69,
+     "activo": true
+    },
+    {
+     "nombre": "Larry Bird",
+     "valor": 59,
+     "activo": false
+    },
+    {
+     "nombre": "Giannis Antetokounmpo",
+     "valor": 58,
+     "activo": true
+    },
+    {
+     "nombre": "Fat Lever",
+     "valor": 43,
+     "activo": false
+    },
+    {
+     "nombre": "Bob Cousy",
+     "valor": 33,
+     "activo": false
+    },
+    {
+     "nombre": "Josh Giddey",
+     "valor": 33,
+     "activo": true
+    }
+   ]
+  }
+ },
+ "temporada": {
+  "puntos": {
+   "etiqueta": "Puntos por partido",
+   "filas": [
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 50.36,
+     "temporada": "1961-62",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 44.83,
+     "temporada": "1962-63",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 38.39,
+     "temporada": "1960-61",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 37.6,
+     "temporada": "1959-60",
+     "activo": false
+    },
+    {
+     "nombre": "Michael Jordan",
+     "valor": 37.09,
+     "temporada": "1986-87",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 36.85,
+     "temporada": "1963-64",
+     "activo": false
+    },
+    {
+     "nombre": "Luka Dončić",
+     "valor": 36.62,
+     "temporada": "2026-27",
+     "activo": true
+    },
+    {
+     "nombre": "James Harden",
+     "valor": 36.13,
+     "temporada": "2018-19",
+     "activo": true
+    },
+    {
+     "nombre": "Rick Barry",
+     "valor": 35.58,
+     "temporada": "1966-67",
+     "activo": false
+    },
+    {
+     "nombre": "Kobe Bryant",
+     "valor": 35.4,
+     "temporada": "2005-06",
+     "activo": false
+    }
+   ]
+  },
+  "rebotes": {
+   "etiqueta": "Rebotes por partido",
+   "filas": [
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 27.2,
+     "temporada": "1960-61",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 26.96,
+     "temporada": "1959-60",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 25.65,
+     "temporada": "1961-62",
+     "activo": false
+    },
+    {
+     "nombre": "Bill Russell",
+     "valor": 24.74,
+     "temporada": "1963-64",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 24.59,
+     "temporada": "1965-66",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 24.32,
+     "temporada": "1962-63",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 24.16,
+     "temporada": "1966-67",
+     "activo": false
+    },
+    {
+     "nombre": "Bill Russell",
+     "valor": 24.08,
+     "temporada": "1964-65",
+     "activo": false
+    },
+    {
+     "nombre": "Bill Russell",
+     "valor": 24.03,
+     "temporada": "1959-60",
+     "activo": false
+    },
+    {
+     "nombre": "Bill Russell",
+     "valor": 23.95,
+     "temporada": "1960-61",
+     "activo": false
+    }
+   ]
+  },
+  "asistencias": {
+   "etiqueta": "Asistencias por partido",
+   "filas": [
+    {
+     "nombre": "John Stockton",
+     "valor": 14.54,
+     "temporada": "1989-90",
+     "activo": false
+    },
+    {
+     "nombre": "John Stockton",
+     "valor": 14.2,
+     "temporada": "1990-91",
+     "activo": false
+    },
+    {
+     "nombre": "Isiah Thomas",
+     "valor": 13.86,
+     "temporada": "1984-85",
+     "activo": false
+    },
+    {
+     "nombre": "John Stockton",
+     "valor": 13.76,
+     "temporada": "1987-88",
+     "activo": false
+    },
+    {
+     "nombre": "John Stockton",
+     "valor": 13.73,
+     "temporada": "1991-92",
+     "activo": false
+    },
+    {
+     "nombre": "John Stockton",
+     "valor": 13.63,
+     "temporada": "1988-89",
+     "activo": false
+    },
+    {
+     "nombre": "Kevin Porter",
+     "valor": 13.4,
+     "temporada": "1978-79",
+     "activo": false
+    },
+    {
+     "nombre": "Magic Johnson",
+     "valor": 13.06,
+     "temporada": "1983-84",
+     "activo": false
+    },
+    {
+     "nombre": "Magic Johnson",
+     "valor": 12.83,
+     "temporada": "1988-89",
+     "activo": false
+    },
+    {
+     "nombre": "Magic Johnson",
+     "valor": 12.6,
+     "temporada": "1985-86",
+     "activo": false
+    }
+   ]
+  },
+  "robos": {
+   "etiqueta": "Robos por partido",
+   "filas": [
+    {
+     "nombre": "Alvin Robertson",
+     "valor": 3.67,
+     "temporada": "1985-86",
+     "activo": false
+    },
+    {
+     "nombre": "Don Buse",
+     "valor": 3.47,
+     "temporada": "1976-77",
+     "activo": false
+    },
+    {
+     "nombre": "Magic Johnson",
+     "valor": 3.43,
+     "temporada": "1980-81",
+     "activo": false
+    },
+    {
+     "nombre": "Michael Ray Richardson",
+     "valor": 3.23,
+     "temporada": "1979-80",
+     "activo": false
+    },
+    {
+     "nombre": "Alvin Robertson",
+     "valor": 3.21,
+     "temporada": "1986-87",
+     "activo": false
+    },
+    {
+     "nombre": "John Stockton",
+     "valor": 3.21,
+     "temporada": "1988-89",
+     "activo": false
+    },
+    {
+     "nombre": "Slick Watts",
+     "valor": 3.18,
+     "temporada": "1975-76",
+     "activo": false
+    },
+    {
+     "nombre": "Michael Jordan",
+     "valor": 3.16,
+     "temporada": "1987-88",
+     "activo": false
+    },
+    {
+     "nombre": "Alvin Robertson",
+     "valor": 3.04,
+     "temporada": "1990-91",
+     "activo": false
+    },
+    {
+     "nombre": "Alvin Robertson",
+     "valor": 3.03,
+     "temporada": "1988-89",
+     "activo": false
+    }
+   ]
+  },
+  "tapones": {
+   "etiqueta": "Tapones por partido",
+   "filas": [
+    {
+     "nombre": "Mark Eaton",
+     "valor": 5.56,
+     "temporada": "1984-85",
+     "activo": false
+    },
+    {
+     "nombre": "Manute Bol",
+     "valor": 4.96,
+     "temporada": "1985-86",
+     "activo": false
+    },
+    {
+     "nombre": "Elmore Smith",
+     "valor": 4.85,
+     "temporada": "1973-74",
+     "activo": false
+    },
+    {
+     "nombre": "Mark Eaton",
+     "valor": 4.61,
+     "temporada": "1985-86",
+     "activo": false
+    },
+    {
+     "nombre": "Hakeem Olajuwon",
+     "valor": 4.59,
+     "temporada": "1989-90",
+     "activo": false
+    },
+    {
+     "nombre": "Dikembe Mutombo",
+     "valor": 4.49,
+     "temporada": "1995-96",
+     "activo": false
+    },
+    {
+     "nombre": "David Robinson",
+     "valor": 4.49,
+     "temporada": "1991-92",
+     "activo": false
+    },
+    {
+     "nombre": "Hakeem Olajuwon",
+     "valor": 4.34,
+     "temporada": "1991-92",
+     "activo": false
+    },
+    {
+     "nombre": "Manute Bol",
+     "valor": 4.31,
+     "temporada": "1988-89",
+     "activo": false
+    },
+    {
+     "nombre": "Tree Rollins",
+     "valor": 4.29,
+     "temporada": "1982-83",
+     "activo": false
+    }
+   ]
+  }
+ },
+ "partido": {
+  "triples": {
+   "etiqueta": "Triples en un partido",
+   "filas": [
+    {
+     "nombre": "Klay Thompson",
+     "valor": 14,
+     "fecha": "2018-10-29",
+     "equipo": "GSW",
+     "activo": true
+    },
+    {
+     "nombre": "Damian Lillard",
+     "valor": 13,
+     "fecha": "2023-02-26",
+     "equipo": "POR",
+     "activo": true
+    },
+    {
+     "nombre": "Zach LaVine",
+     "valor": 13,
+     "fecha": "2019-11-23",
+     "equipo": "CHI",
+     "activo": true
+    },
+    {
+     "nombre": "Stephen Curry",
+     "valor": 13,
+     "fecha": "2016-11-07",
+     "equipo": "GSW",
+     "activo": true
+    },
+    {
+     "nombre": "Trey Murphy III",
+     "valor": 12,
+     "fecha": "2026-02-04",
+     "equipo": "NOP",
+     "activo": true
+    },
+    {
+     "nombre": "Stephen Curry",
+     "valor": 12,
+     "fecha": "2025-12-14",
+     "equipo": "GSW",
+     "activo": true
+    },
+    {
+     "nombre": "Stephen Curry",
+     "valor": 12,
+     "fecha": "2025-04-01",
+     "equipo": "GSW",
+     "activo": true
+    },
+    {
+     "nombre": "Stephen Curry",
+     "valor": 12,
+     "fecha": "2025-02-27",
+     "equipo": "GSW",
+     "activo": true
+    },
+    {
+     "nombre": "Keegan Murray",
+     "valor": 12,
+     "fecha": "2023-12-16",
+     "equipo": "SAC",
+     "activo": true
+    },
+    {
+     "nombre": "Klay Thompson",
+     "valor": 12,
+     "fecha": "2023-02-24",
+     "equipo": "GSW",
+     "activo": true
+    }
+   ]
+  },
+  "puntos": {
+   "etiqueta": "Puntos en un partido",
+   "filas": [
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 100,
+     "fecha": "March 2, 1962",
+     "equipo": "Philadelphia Warriors",
+     "activo": false
+    },
+    {
+     "nombre": "Bam Adebayo",
+     "valor": 83,
+     "fecha": "March 10, 2026",
+     "equipo": "Miami Heat",
+     "activo": true
+    },
+    {
+     "nombre": "Kobe Bryant",
+     "valor": 81,
+     "fecha": "January 22, 2006",
+     "equipo": "Los Angeles Lakers",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 78,
+     "fecha": "December 8, 1961",
+     "equipo": "Philadelphia Warriors",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 73,
+     "fecha": "January 13, 1962",
+     "equipo": "Philadelphia Warriors",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 72,
+     "fecha": "November 3, 1962",
+     "equipo": "San Francisco Warriors",
+     "activo": false
+    },
+    {
+     "nombre": "Elgin Baylor",
+     "valor": 71,
+     "fecha": "November 15, 1960",
+     "equipo": "Los Angeles Lakers",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 70,
+     "fecha": "March 10, 1963",
+     "equipo": "San Francisco Warriors",
+     "activo": false
+    },
+    {
+     "nombre": "Michael Jordan",
+     "valor": 69,
+     "fecha": "March 28, 1990",
+     "equipo": "Chicago Bulls",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 68,
+     "fecha": "December 16, 1967",
+     "equipo": "Philadelphia 76ers",
+     "activo": false
+    }
+   ]
+  },
+  "rebotes": {
+   "etiqueta": "Rebotes en un partido",
+   "filas": [
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 55,
+     "fecha": "November 24, 1960",
+     "equipo": "Philadelphia Warriors",
+     "activo": false
+    },
+    {
+     "nombre": "Bill Russell",
+     "valor": 51,
+     "fecha": "February 5, 1960",
+     "equipo": "Boston Celtics",
+     "activo": false
+    },
+    {
+     "nombre": "Bill Russell",
+     "valor": 49,
+     "fecha": "November 16, 1957",
+     "equipo": "Boston Celtics",
+     "activo": false
+    },
+    {
+     "nombre": "Bill Russell",
+     "valor": 49,
+     "fecha": "March 11, 1965",
+     "equipo": "Boston Celtics",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 45,
+     "fecha": "February 6, 1960",
+     "equipo": "Philadelphia Warriors",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 45,
+     "fecha": "January 21, 1961",
+     "equipo": "Philadelphia Warriors",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 43,
+     "fecha": "November 10, 1959",
+     "equipo": "Philadelphia Warriors",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 43,
+     "fecha": "December 8, 1961",
+     "equipo": "Philadelphia Warriors",
+     "activo": false
+    },
+    {
+     "nombre": "Bill Russell",
+     "valor": 43,
+     "fecha": "January 20, 1963",
+     "equipo": "Boston Celtics",
+     "activo": false
+    },
+    {
+     "nombre": "Wilt Chamberlain",
+     "valor": 43,
+     "fecha": "March 6, 1965",
+     "equipo": "Philadelphia 76ers",
+     "activo": false
+    }
+   ]
+  },
+  "asistencias": {
+   "etiqueta": "Asistencias en un partido",
+   "filas": [
+    {
+     "nombre": "Scott Skiles",
+     "valor": 30,
+     "fecha": "December 30, 1990",
+     "equipo": "Orlando Magic",
+     "activo": false
+    },
+    {
+     "nombre": "Kevin Porter",
+     "valor": 29,
+     "fecha": "February 24, 1978",
+     "equipo": "New Jersey Nets",
+     "activo": false
+    },
+    {
+     "nombre": "Bob Cousy",
+     "valor": 28,
+     "fecha": "February 27, 1959",
+     "equipo": "Boston Celtics",
+     "activo": false
+    },
+    {
+     "nombre": "Guy Rodgers",
+     "valor": 28,
+     "fecha": "March 14, 1963",
+     "equipo": "San Francisco Warriors",
+     "activo": false
+    },
+    {
+     "nombre": "John Stockton",
+     "valor": 28,
+     "fecha": "January 15, 1991",
+     "equipo": "Utah Jazz",
+     "activo": false
+    },
+    {
+     "nombre": "Geoff Huston",
+     "valor": 27,
+     "fecha": "January 27, 1982",
+     "equipo": "Cleveland Cavaliers",
+     "activo": false
+    },
+    {
+     "nombre": "John Stockton",
+     "valor": 27,
+     "fecha": "December 19, 1989",
+     "equipo": "Utah Jazz",
+     "activo": false
+    },
+    {
+     "nombre": "John Stockton",
+     "valor": 26,
+     "fecha": "April 14, 1988",
+     "equipo": "Utah Jazz",
+     "activo": false
+    },
+    {
+     "nombre": "Ernie DiGregorio",
+     "valor": 25,
+     "fecha": "January 1, 1974",
+     "equipo": "Buffalo Braves",
+     "activo": false
+    },
+    {
+     "nombre": "Kevin Porter",
+     "valor": 25,
+     "fecha": "March 9, 1979",
+     "equipo": "Detroit Pistons",
+     "activo": false
+    }
+   ]
+  },
+  "robos": {
+   "etiqueta": "Robos en un partido",
+   "filas": [
+    {
+     "nombre": "Larry Kenon",
+     "valor": 11,
+     "fecha": "December 26, 1976",
+     "equipo": "San Antonio Spurs",
+     "activo": false
+    },
+    {
+     "nombre": "Kendall Gill",
+     "valor": 11,
+     "fecha": "April 3, 1999",
+     "equipo": "New Jersey Nets",
+     "activo": false
+    },
+    {
+     "nombre": "Jerry West",
+     "valor": 10,
+     "fecha": "December 7, 1973",
+     "equipo": "Los Angeles Lakers",
+     "activo": false
+    },
+    {
+     "nombre": "Larry Steele",
+     "valor": 10,
+     "fecha": "November 16, 1974",
+     "equipo": "Portland Trail Blazers",
+     "activo": false
+    },
+    {
+     "nombre": "Fred Brown",
+     "valor": 10,
+     "fecha": "December 3, 1976",
+     "equipo": "Seattle SuperSonics",
+     "activo": false
+    },
+    {
+     "nombre": "Gus Williams",
+     "valor": 10,
+     "fecha": "February 22, 1978",
+     "equipo": "Seattle SuperSonics",
+     "activo": false
+    },
+    {
+     "nombre": "Eddie Jordan",
+     "valor": 10,
+     "fecha": "March 23, 1979",
+     "equipo": "New Jersey Nets",
+     "activo": false
+    },
+    {
+     "nombre": "Johnny Moore",
+     "valor": 10,
+     "fecha": "March 6, 1985",
+     "equipo": "San Antonio Spurs",
+     "activo": false
+    },
+    {
+     "nombre": "Fat Lever",
+     "valor": 10,
+     "fecha": "March 9, 1985",
+     "equipo": "Denver Nuggets",
+     "activo": false
+    },
+    {
+     "nombre": "Clyde Drexler",
+     "valor": 10,
+     "fecha": "January 10, 1986",
+     "equipo": "Portland Trail Blazers",
+     "activo": false
+    }
+   ]
+  },
+  "tapones": {
+   "etiqueta": "Tapones en un partido",
+   "filas": [
+    {
+     "nombre": "Elmore Smith",
+     "valor": 17,
+     "fecha": "October 28, 1973",
+     "equipo": "Los Angeles Lakers",
+     "activo": false
+    },
+    {
+     "nombre": "Manute Bol",
+     "valor": 15,
+     "fecha": "January 25, 1986",
+     "equipo": "Washington Bullets",
+     "activo": false
+    },
+    {
+     "nombre": "Manute Bol",
+     "valor": 15,
+     "fecha": "February 26, 1987",
+     "equipo": "Washington Bullets",
+     "activo": false
+    },
+    {
+     "nombre": "Shaquille O'Neal",
+     "valor": 15,
+     "fecha": "November 20, 1993",
+     "equipo": "Orlando Magic",
+     "activo": false
+    },
+    {
+     "nombre": "Elmore Smith",
+     "valor": 14,
+     "fecha": "October 26, 1973",
+     "equipo": "Los Angeles Lakers",
+     "activo": false
+    },
+    {
+     "nombre": "Elmore Smith",
+     "valor": 14,
+     "fecha": "November 4, 1973",
+     "equipo": "Los Angeles Lakers",
+     "activo": false
+    },
+    {
+     "nombre": "Mark Eaton",
+     "valor": 14,
+     "fecha": "January 18, 1985",
+     "equipo": "Utah Jazz",
+     "activo": false
+    },
+    {
+     "nombre": "Mark Eaton",
+     "valor": 14,
+     "fecha": "February 18, 1989",
+     "equipo": "Utah Jazz",
+     "activo": false
+    },
+    {
+     "nombre": "George T. Johnson",
+     "valor": 13,
+     "fecha": "February 24, 1981",
+     "equipo": "San Antonio Spurs",
+     "activo": false
+    },
+    {
+     "nombre": "Mark Eaton",
+     "valor": 13,
+     "fecha": "February 18, 1983",
+     "equipo": "Utah Jazz",
+     "activo": false
+    }
+   ]
+  }
+ }
+}

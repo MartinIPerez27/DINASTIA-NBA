@@ -1,3 +1,5 @@
+import '../../domain/motor.dart' show TipoMomento;
+import 'minijuego_timing.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/franquicias.dart';
@@ -5,7 +7,10 @@ import '../../domain/entities/franquicia.dart';
 import '../../domain/entities/jugador.dart';
 import '../../domain/entities/temporada.dart';
 import '../../domain/modos/carrera_jugador.dart';
+import '../../domain/modos/medidor_tiro.dart';
+import '../../domain/motor.dart' show ModoMedidor;
 import '../../domain/modos/vida_carrera.dart';
+import 'carrera_equipo_pantallas.dart';
 import '../widgets/disposicion.dart';
 import '../widgets/escudo.dart';
 import '../widgets/jugador_avatar.dart';
@@ -173,6 +178,29 @@ class PanelAtributos extends StatelessWidget {
                 ),
               ),
             ),
+          Material(
+            type: MaterialType.transparency,
+            child: Theme(
+              data: tema.copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                dense: true,
+                title: Text('Rasgos mentales', style: tema.textTheme.bodyMedium),
+                children: [
+                  for (final h in Habilidad.mentales)
+                    _FilaHabilidad(
+                      habilidad: h,
+                      valor: Habilidad.valor(h, estado.atributos, estado.espec),
+                      espec: estado.espec[h] ?? 0,
+                      costo: carrera.costoHabilidad(estado, h),
+                      puede: carrera.puedeSubirHabilidad(estado, h),
+                      onSubir: () => onSubirHabilidad!(h),
+                    ),
+                ],
+              ),
+            ),
+          ),
         ],
         const SizedBox(height: 12),
         Text('INSIGNIAS', style: tema.textTheme.labelLarge),
@@ -622,6 +650,519 @@ class PanelDesglose extends StatelessWidget {
   }
 }
 
+/// Cómo jugás el control del partido: cuándo aparece la barra de tiro, el tamaño de la zona verde y cómo se suelta.
+class PanelControlPartido extends StatelessWidget {
+  const PanelControlPartido({super.key, required this.estado, required this.alCambiar});
+
+  final EstadoCarrera estado;
+  final ValueChanged<AjustesMedidor> alCambiar;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final a = AjustesMedidor.de(estado);
+    final u = estado.uso;
+    final perfectos = u['q:perfecto'] ?? 0;
+    final total = perfectos + (u['q:bueno'] ?? 0) + (u['q:temprano'] ?? 0) + (u['q:tarde'] ?? 0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('CONTROL DEL PARTIDO', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 2),
+        Text(
+          'Jugando en vivo, tus tiros y tu defensa directa se resuelven con la barra: tu timing decide. Al simular, '
+          'todo sigue automático.',
+          style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        SegmentedButton<ModoMedidor>(
+          segments: [for (final m in ModoMedidor.values) ButtonSegment(value: m, label: Text(m.etiqueta, textAlign: TextAlign.center))],
+          selected: {a.modo},
+          showSelectedIcon: false,
+          onSelectionChanged: (s) => alCambiar(a.copyWith(modo: s.first)),
+          style: const ButtonStyle(visualDensity: VisualDensity.compact),
+        ),
+        const SizedBox(height: 4),
+        Text(a.modo.descripcion, style: tema.textTheme.bodySmall),
+        const SizedBox(height: 8),
+        Text('Zona verde', style: tema.textTheme.bodySmall),
+        const SizedBox(height: 4),
+        SegmentedButton<int>(
+          segments: [for (var i = 0; i < 3; i++) ButtonSegment(value: i, label: Text(AjustesMedidor.nombresZona[i]))],
+          selected: {a.zona},
+          showSelectedIcon: false,
+          onSelectionChanged: (s) => alCambiar(a.copyWith(zona: s.first)),
+          style: const ButtonStyle(visualDensity: VisualDensity.compact),
+        ),
+        Material(
+          type: MaterialType.transparency,
+          child: SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: const Text('Mantener y soltar'),
+            subtitle: const Text('En vez de tocar una vez: mantenés apretado mientras se llena y soltás.'),
+            value: a.mantener,
+            onChanged: (v) => alCambiar(a.copyWith(mantener: v)),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text('También con la barra (opcional)', style: tema.textTheme.bodySmall),
+        Wrap(
+          spacing: 6,
+          children: [
+            for (final t in AjustesMedidor.posiblesExtras)
+              FilterChip(
+                label: Text(switch (t) {
+                  TipoMomento.libres => 'Tiros libres',
+                  TipoMomento.rebote => 'Rebote',
+                  TipoMomento.robo => 'Robo',
+                  _ => 'Pase',
+                }),
+                selected: a.extras.contains(t),
+                visualDensity: VisualDensity.compact,
+                onSelected: (v) => alCambiar(a.copyWith(extras: v ? {...a.extras, t} : ({...a.extras}..remove(t)))),
+              ),
+          ],
+        ),
+        if (total > 0)
+          Text(
+            'Tus timings: $perfectos perfectos de $total (${(100 * perfectos / total).round()} %).',
+            style: tema.textTheme.bodySmall?.copyWith(color: esquema.primary),
+          ),
+      ],
+    );
+  }
+}
+
+/// Entrenamiento interactivo y concursos del All-Star.
+class PanelMinijuegos extends StatelessWidget {
+  const PanelMinijuegos({super.key, required this.estado, required this.esAllStar, required this.alEntrenar, required this.alConcursar});
+
+  final EstadoCarrera estado;
+  final bool esAllStar;
+  final ValueChanged<Atributo> alEntrenar;
+  final ValueChanged<Concurso> alConcursar;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('ENTRENAMIENTO INTERACTIVO', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        if (EntrenamientoInteractivo.yaHecho(estado))
+          Text('Ya entrenaste esta temporada.', style: tema.textTheme.bodySmall)
+        else ...[
+          Text('Una sesión por temporada: 5 intentos con la barra. Con 6 puntos de 10 ganás 1 punto de habilidad y con 9, 2. Cinco perfectos suben el atributo.', style: tema.textTheme.bodySmall),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final a in Atributo.values)
+                OutlinedButton(onPressed: () => alEntrenar(a), child: Text(a.etiqueta)),
+            ],
+          ),
+        ],
+        const SizedBox(height: 12),
+        Text('FIN DE SEMANA DE ESTRELLAS', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        if (!esAllStar)
+          Text('Los concursos son para los elegidos al All-Star.', style: tema.textTheme.bodySmall)
+        else
+          for (final c in Concurso.values)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: ConcursosAllStar.jugado(estado, c)
+                  ? Text('${c.etiqueta}: ${(estado.uso['as:${c.name}'] ?? 0) == 1 ? '¡campeón!' : '${estado.uso['as:${c.name}']}.º puesto'}', style: tema.textTheme.bodyMedium)
+                  : OutlinedButton(onPressed: () => alConcursar(c), child: Text('${c.etiqueta.toUpperCase()} · ${c.descripcion}', textAlign: TextAlign.center)),
+            ),
+        Text('Concursos ganados en tu carrera: ${estado.uso['as:ganados'] ?? 0}', style: tema.textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
+/// Tu rival, tu mentor, las redes y lo que se acuerda el relator.
+class PanelNarrativa extends StatelessWidget {
+  const PanelNarrativa({super.key, required this.estado, required this.rival, required this.alPublicar});
+
+  final EstadoCarrera estado;
+  final Jugador? rival;
+  final ValueChanged<PostRedes> alPublicar;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final mentor = RivalidadCarrera.mentor(estado);
+    final memorias = RelatorCarrera.memorias(estado, rival: rival);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('RIVAL Y MENTOR', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        Text(
+          rival == null
+              ? 'Todavía no tenés un rival de época.'
+              : 'Rival: ${rival!.nombre} (${rival!.media}). Duelo de temporadas: ${RivalidadCarrera.ganados(estado)}-${RivalidadCarrera.perdidos(estado)}.',
+          style: tema.textTheme.bodyMedium,
+        ),
+        Text(
+          mentor == null
+              ? 'Sin mentor.'
+              : RivalidadCarrera.mentorActivo(estado)
+              ? 'Mentor: ${mentor.nombre}: te enseña y suma 1 punto de habilidad por temporada.'
+              : 'Mentor posible: ${mentor.nombre}. Necesitás relación 60 con el vestuario para que te enseñe.',
+          style: tema.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 10),
+        Text('REDES · ${RedesCarrera.seguidores(estado)} mil seguidores', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        if (RedesCarrera.yaPublico(estado))
+          Text('Ya publicaste esta temporada.', style: tema.textTheme.bodySmall)
+        else
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final p in PostRedes.values)
+                Tooltip(
+                  message: p.descripcion,
+                  child: OutlinedButton(onPressed: () => alPublicar(p), child: Text(p.etiqueta)),
+                ),
+            ],
+          ),
+        const SizedBox(height: 10),
+        Text('EL RELATOR SE ACUERDA', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        if (memorias.isEmpty)
+          Text('Todavía no hay historia que contar.', style: tema.textTheme.bodySmall)
+        else
+          for (final m in memorias.take(4)) Text('• $m', style: tema.textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
+/// Dónde tirás: pintura, media distancia y triples, contra la liga.
+class PanelMapaTiro extends StatelessWidget {
+  const PanelMapaTiro({super.key, required this.estado});
+
+  final EstadoCarrera estado;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final mapa = MapaTiro.de(estado);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('MAPA DE TIRO', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 6),
+        for (final z in mapa.zonas)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${z.nombre}: ${z.hechos}/${z.intentos} (${(z.pct * 100).toStringAsFixed(1).replaceAll('.', ',')} %) · ${z.veredicto}',
+                  style: tema.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 2),
+                LinearProgressIndicator(value: mapa.participacion(z), minHeight: 6),
+                Text(
+                  '${(mapa.participacion(z) * 100).round()} % de tus tiros · liga ${(z.ligaPct * 100).round()} %',
+                  style: tema.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        Text(mapa.consejo, style: tema.textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
+/// Sueldo, marcas, caja y equipo personal (entrenador, fisio, nutricionista y agente).
+class PanelFinanzas extends StatelessWidget {
+  const PanelFinanzas({super.key, required this.estado, required this.alSubir, required this.alBajar});
+
+  final EstadoCarrera estado;
+  final ValueChanged<Personal> alSubir, alBajar;
+
+  static String _m(double v) => '${v.toStringAsFixed(1).replaceAll('.', ',')} M';
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('FINANZAS Y EQUIPO PERSONAL', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        Text('Caja: ${_m(EconomiaCarrera.caja(estado))} · Ganado en la carrera: ${_m(EconomiaCarrera.ganadoEnTotal(estado))}', style: tema.textTheme.bodyMedium),
+        Text(
+          'Por temporada: sueldo ${_m(EconomiaCarrera.sueldo(estado))} + marcas ${_m(EconomiaCarrera.patrocinios(estado))} − equipo ${_m(EconomiaCarrera.costoStaff(estado) + EconomiaCarrera.comision(estado))}. Cobrás al cerrar la temporada.',
+          style: tema.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        for (final p in Personal.values)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${p.etiqueta} · nivel ${EconomiaCarrera.nivel(estado, p)}/${EconomiaCarrera.nivelMaximo}', style: tema.textTheme.bodyMedium),
+                      Text(p.descripcion, style: tema.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Bajar nivel de ${p.etiqueta}',
+                  onPressed: EconomiaCarrera.nivel(estado, p) > 0 ? () => alBajar(p) : null,
+                  icon: const Icon(Icons.remove_circle_outline),
+                ),
+                IconButton(
+                  tooltip: EconomiaCarrera.costoDeSubir(estado, p) == null
+                      ? '${p.etiqueta} al máximo'
+                      : 'Subir ${p.etiqueta} (${_m(EconomiaCarrera.costoDeSubir(estado, p)!)})',
+                  onPressed: EconomiaCarrera.puedeSubir(estado, p) ? () => alSubir(p) : null,
+                  icon: const Icon(Icons.add_circle_outline),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Tu selección nacional: país, convocatorias y medallas.
+class PanelSeleccion extends StatelessWidget {
+  const PanelSeleccion({super.key, required this.estado});
+
+  final EstadoCarrera estado;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final pais = SeleccionCarrera.paisDe(estado);
+    if (pais == null) {
+      return Text('SELECCIÓN NACIONAL: solo los jugadores creados juegan con su país.', style: tema.textTheme.bodySmall);
+    }
+    final faltan = SeleccionCarrera.faltan(estado.numero);
+    final proximo = SeleccionCarrera.nombreTorneo(estado.numero + faltan);
+    int n(String k) => estado.uso[k] ?? 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('SELECCIÓN: ${pais.nombre.toUpperCase()}', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        Text(
+          'Convocatorias: ${SeleccionCarrera.convocatorias(estado)} · Oro ${n('sn:oro')} · Plata ${n('sn:plata')} · Bronce ${n('sn:bronce')}',
+          style: tema.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          faltan == 0
+              ? 'Este año hay $proximo: se juega al cerrar la temporada.'
+              : 'Próximo torneo: $proximo, en $faltan ${faltan == 1 ? 'temporada' : 'temporadas'}. Te convocan con media ${pais.fuerza - 14} o más (titular desde ${pais.fuerza - 4}).',
+          style: tema.textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
+/// Carga de partidos, lesión actual por parte del cuerpo, rehabilitación e historial.
+class PanelCuerpo extends StatelessWidget {
+  const PanelCuerpo({
+    super.key,
+    required this.temporada,
+    required this.estado,
+    required this.alElegirRehab,
+    required this.alDescansar,
+  });
+
+  final Temporada temporada;
+  final EstadoCarrera estado;
+  final ValueChanged<Rehab> alElegirRehab;
+  final VoidCallback alDescansar;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final carga = CuerpoCarrera.carga(estado);
+    final parte = CuerpoCarrera.activa(estado);
+    final baja = temporada.lesiones[estado.jugadorId];
+    final rehab = CuerpoCarrera.rehabElegida(estado);
+    final cronicas = CuerpoCarrera.cronicas(estado);
+    final cansado = carga > CuerpoCarrera.cargaCansada;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('CUERPO Y SALUD', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 6),
+        Text('Carga de partidos: $carga / 100', style: tema.textTheme.bodyMedium),
+        const SizedBox(height: 4),
+        LinearProgressIndicator(
+          value: carga / 100,
+          minHeight: 6,
+          color: cansado ? tema.colorScheme.error : null,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          cansado
+              ? 'Venís muy cargado: te lesionás ×${CuerpoCarrera.factor(estado).toStringAsFixed(1).replaceAll('.', ',')} más seguido. Un partido de descanso baja la carga a la mitad.'
+              : 'Jugar muchos minutos suma carga; con descanso se recupera. Pasando los ${CuerpoCarrera.cargaCansada} sube el riesgo de lesión.',
+          style: tema.textTheme.bodySmall,
+        ),
+        if (parte != null && baja != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            'LESIÓN DE ${parte.etiqueta.toUpperCase()}: te quedan $baja partidos de baja',
+            style: tema.textTheme.labelLarge?.copyWith(color: tema.colorScheme.error),
+          ),
+          const SizedBox(height: 4),
+          if (rehab == null)
+            for (final r in Rehab.values)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: OutlinedButton(
+                  onPressed: () => alElegirRehab(r),
+                  child: Text('${r.etiqueta.toUpperCase()} · ${r.descripcion}', textAlign: TextAlign.center),
+                ),
+              )
+          else
+            Text('Rehabilitación ${rehab.etiqueta.toLowerCase()}: ${rehab.descripcion}', style: tema.textTheme.bodySmall),
+        ] else if (CuerpoCarrera.puedeDescansar(temporada, estado)) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: alDescansar,
+            icon: const Icon(Icons.hotel_outlined),
+            label: const Text('DESCANSAR EL PRÓXIMO PARTIDO'),
+          ),
+        ],
+        const SizedBox(height: 10),
+        Text('HISTORIAL (${CuerpoCarrera.total(estado)} lesiones)', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 2),
+        Text(
+          CuerpoCarrera.total(estado) == 0
+              ? 'Todavía no te lastimaste.'
+              : [
+                  for (final p in ParteCuerpo.values)
+                    if (CuerpoCarrera.veces(estado, p) > 0) '${p.etiqueta} ×${CuerpoCarrera.veces(estado, p)}',
+                ].join(' · '),
+          style: tema.textTheme.bodySmall,
+        ),
+        if (cronicas.isNotEmpty)
+          Text(
+            'Molestias crónicas: ${cronicas.map((p) => p.etiqueta.toLowerCase()).join(', ')} (se repiten y duran más).',
+            style: tema.textTheme.bodySmall?.copyWith(color: tema.colorScheme.error),
+          ),
+      ],
+    );
+  }
+}
+
+/// Tu personalidad, la química con el plantel y lo que los rivales saben de vos.
+class PanelMundo extends StatelessWidget {
+  const PanelMundo({super.key, required this.estado});
+
+  final EstadoCarrera estado;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final p = VidaCarrera.personalidad(estado);
+    final puntos = QuimicaCarrera.puntos(estado);
+    final maximo = estado.companeros.length * 3;
+    final mods = QuimicaCarrera.mods(estado);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('TU PERSONALIDAD: ${p.etiqueta.toUpperCase()}', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 2),
+        Text(p.descripcion, style: tema.textTheme.bodySmall),
+        const SizedBox(height: 12),
+        Text('QUÍMICA DEL EQUIPO', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        LinearProgressIndicator(value: maximo == 0 ? 0 : puntos / maximo, minHeight: 6),
+        const SizedBox(height: 4),
+        Text(
+          puntos == 0
+              ? 'Jugando juntos se arma la química (Bronce a los 20 partidos, Plata a los 60 y Oro a los 150). Si un compañero se va, se pierde.'
+              : 'Tus tiros asistidos aciertan +${(mods.asistidoExtra * 100).toStringAsFixed(1).replaceAll('.', ',')} % por lo bien que se conocen.',
+          style: tema.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 12),
+        Text('SCOUTING DE LOS RIVALES', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        for (final l in AdaptacionRival.informe(estado))
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Text(l, style: tema.textTheme.bodySmall?.copyWith(color: l.startsWith('Te cierran') ? esquema.error : null)),
+          ),
+      ],
+    );
+  }
+}
+
+/// Tus estadísticas avanzadas de carrera.
+class PanelAvanzadas extends StatelessWidget {
+  const PanelAvanzadas({super.key, required this.estado});
+
+  final EstadoCarrera estado;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final esquema = tema.colorScheme;
+    final a = AvanzadasCarrera.de(estado);
+    String pc(double v) => '${(v * 100).toStringAsFixed(1).replaceAll('.', ',')} %';
+    String n1(double v) => v.toStringAsFixed(1).replaceAll('.', ',');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('ESTADÍSTICAS AVANZADAS', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        if (a == null)
+          Text('Aparecen después de tu primer partido.', style: tema.textTheme.bodySmall)
+        else ...[
+          Wrap(
+            spacing: 18,
+            runSpacing: 8,
+            children: [
+              _Celda('TS %', pc(a.ts)),
+              _Celda('eFG %', pc(a.efg)),
+              _Celda('TC', pc(a.pctTc)),
+              _Celda('T3', pc(a.pctT3)),
+              _Celda('TL', pc(a.pctTl)),
+              _Celda('AST/PÉRD.', n1(a.astPorPerdida)),
+              _Celda('VALORACIÓN', n1(a.valoracion)),
+              _Celda('MIN', n1(a.minutos)),
+              _Celda('PTS/36', n1(a.puntosPor36)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'En ${a.pj} partidos desde que se llevan estos números. TS % y eFG % cuentan que un triple vale más y '
+            'los libres importan; la valoración usa la fórmula de Hollinger.',
+            style: tema.textTheme.bodySmall?.copyWith(color: esquema.onSurfaceVariant),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 /// Tu marca personal: fama, patrocinios y camisetas retiradas.
 class PanelMarca extends StatelessWidget {
   const PanelMarca({super.key, required this.estado});
@@ -780,6 +1321,7 @@ class TarjetaMiJugador extends StatelessWidget {
     required this.marca,
     required this.onAbrir,
     this.onElegirObjetivos,
+    this.onFechaLimite,
   });
 
   final EstadoCarrera estado;
@@ -788,6 +1330,9 @@ class TarjetaMiJugador extends StatelessWidget {
 
   /// Si se puede elegir los objetivos de la temporada (antes del primer partido).
   final VoidCallback? onElegirObjetivos;
+
+  /// Si hay una decisión pendiente en la fecha límite de traspasos.
+  final VoidCallback? onFechaLimite;
 
   @override
   Widget build(BuildContext context) {
@@ -844,6 +1389,12 @@ class TarjetaMiJugador extends StatelessWidget {
             style: tema.textTheme.bodyMedium,
           ),
           const SizedBox(height: 6),
+          if (onFechaLimite != null)
+            FilledButton.tonalIcon(
+              onPressed: onFechaLimite,
+              icon: const Icon(Icons.swap_horiz),
+              label: const Text('FECHA LÍMITE DE TRASPASOS: DECIDÍ'),
+            ),
           if (onElegirObjetivos != null)
             OutlinedButton.icon(
               onPressed: onElegirObjetivos,
@@ -913,6 +1464,76 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
 
   void _subir(Atributo a) {
     final e = widget.carrera.subir(_e, a);
+    setState(() => _t = widget.carrera.sincronizar(_t, e));
+    widget.onCambiar(_t);
+  }
+
+  void _elegirRehab(Rehab r) {
+    final (t, e) = CuerpoCarrera.elegirRehab(_t, _e, r);
+    setState(() => _t = widget.carrera.sincronizar(t, e));
+    widget.onCambiar(_t);
+  }
+
+  void _descansar() {
+    final (t, e) = CuerpoCarrera.descansar(_t, _e);
+    setState(() => _t = widget.carrera.sincronizar(t, e));
+    widget.onCambiar(_t);
+  }
+
+  Future<void> _entrenar(Atributo a) async {
+    final ronda = await Navigator.of(context).push<RondaTiming>(
+      MaterialPageRoute(
+        builder: (_) => MinijuegoTimingPantalla(
+          titulo: 'Sesión de ${a.etiqueta.toLowerCase()}',
+          descripcion: 'Tocá cuando la barra esté en la zona verde.',
+          intentos: EntrenamientoInteractivo.intentos,
+          ventana: EntrenamientoInteractivo.ventana(_e, a),
+        ),
+      ),
+    );
+    if (ronda == null || !mounted) return;
+    _cambiarEstado(EntrenamientoInteractivo.aplicar(_e, a, ronda));
+  }
+
+  Future<void> _concursar(Concurso c) async {
+    final ronda = await Navigator.of(context).push<RondaTiming>(
+      MaterialPageRoute(
+        builder: (_) => MinijuegoTimingPantalla(
+          titulo: c.etiqueta,
+          descripcion: c.descripcion,
+          intentos: c.intentos,
+          ventana: ConcursosAllStar.ventana(_e, c),
+          segundos: 0.9,
+        ),
+      ),
+    );
+    if (ronda == null || !mounted) return;
+    final r = ConcursosAllStar.resolver(_e, c, ronda);
+    _cambiarEstado(ConcursosAllStar.aplicar(_e, r));
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text(r.gano ? '¡Ganaste el ${c.etiqueta.toLowerCase()}!' : '${r.puesto}.º en el ${c.etiqueta.toLowerCase()}'),
+        content: Text('Tu puntaje: ${r.tuPuntaje.toStringAsFixed(0)}\n${[for (final x in r.rivales) '${x.$1}: ${x.$2.toStringAsFixed(1)}'].join('\n')}'),
+        actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('OK'))],
+      ),
+    );
+  }
+
+  void _cambiarEstado(EstadoCarrera e) {
+    setState(() => _t = widget.carrera.sincronizar(_t, e));
+    widget.onCambiar(_t);
+  }
+
+  void _marcarLeidos() {
+    final e = BandejaCarrera.marcarLeidos(_e);
+    setState(() => _t = widget.carrera.sincronizar(_t, e));
+    widget.onCambiar(_t);
+  }
+
+  void _ajustarMedidor(AjustesMedidor a) {
+    final e = _e.copyWith(uso: {..._e.uso, ...a.aUso});
     setState(() => _t = widget.carrera.sincronizar(_t, e));
     widget.onCambiar(_t);
   }
@@ -1022,7 +1643,86 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
       ),
     ];
     final derecha = <Widget>[
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => MiEquipoPantalla(estado: e))),
+              icon: const Icon(Icons.groups_outlined),
+              label: const Text('MI EQUIPO'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => GeneracionPantalla(estado: e, catalogo: widget.carrera.liga.catalogo),
+                ),
+              ),
+              icon: const Icon(Icons.school_outlined),
+              label: const Text('MI GENERACIÓN'),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(
+        onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => RecordsPantalla(estado: e))),
+        icon: const Icon(Icons.emoji_events_outlined),
+        label: const Text('CAMINO A LOS RÉCORDS'),
+      ),
+      const SizedBox(height: 12),
       _Panel(child: PanelObjetivosLargos(estado: e)),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => BandejaPantalla(estado: e, alAbrir: _marcarLeidos)),
+        ),
+        icon: const Icon(Icons.inbox_outlined),
+        label: Text(BandejaCarrera.sinLeer(e) > 0 ? 'BANDEJA DE ENTRADA · ${BandejaCarrera.sinLeer(e)} NUEVOS' : 'BANDEJA DE ENTRADA'),
+      ),
+      const SizedBox(height: 12),
+      _Panel(child: PanelMundo(estado: e)),
+      const SizedBox(height: 12),
+      _Panel(child: PanelSeleccion(estado: e)),
+      const SizedBox(height: 12),
+      _Panel(
+        child: PanelFinanzas(
+          estado: e,
+          alSubir: (p) => _cambiarEstado(EconomiaCarrera.subir(e, p)),
+          alBajar: (p) => _cambiarEstado(EconomiaCarrera.bajar(e, p)),
+        ),
+      ),
+      const SizedBox(height: 12),
+      _Panel(
+        child: PanelCuerpo(temporada: _t, estado: e, alElegirRehab: _elegirRehab, alDescansar: _descansar),
+      ),
+      const SizedBox(height: 12),
+      _Panel(child: PanelAvanzadas(estado: e)),
+      const SizedBox(height: 12),
+      _Panel(
+        child: PanelMinijuegos(
+          estado: e,
+          esAllStar: widget.carrera.esAllStar(_t, e),
+          alEntrenar: _entrenar,
+          alConcursar: _concursar,
+        ),
+      ),
+      const SizedBox(height: 12),
+      _Panel(child: PanelMapaTiro(estado: e)),
+      const SizedBox(height: 12),
+      _Panel(
+        child: PanelNarrativa(
+          estado: e,
+          rival: RivalidadCarrera.rival(e, widget.carrera.liga.catalogo),
+          alPublicar: (p) => _cambiarEstado(RedesCarrera.publicar(e, p)),
+        ),
+      ),
+      const SizedBox(height: 12),
+      _Panel(
+        child: PanelControlPartido(estado: e, alCambiar: _ajustarMedidor),
+      ),
       const SizedBox(height: 12),
       _Panel(child: PanelDesglose(estado: e)),
       const SizedBox(height: 12),
@@ -1757,6 +2457,11 @@ class _TarjetaOferta extends StatelessWidget {
                       '${oferta.rol.etiqueta} · ${oferta.anios} ${oferta.anios == 1 ? 'año' : 'años'}',
                       style: tema.textTheme.bodyMedium,
                     ),
+                    if (oferta.salario > 0)
+                      Text(
+                        '${oferta.salario.toStringAsFixed(1).replaceAll('.', ',')} M por año · ${oferta.clausula.etiqueta}${oferta.limitadoPorTope ? ' · recortado por el tope salarial' : ''}',
+                        style: tema.textTheme.bodySmall,
+                      ),
                     Text(
                       oferta.rival == null
                           ? 'Plantel de media ${oferta.nivelEquipo}'
@@ -1781,13 +2486,16 @@ class _TarjetaOferta extends StatelessWidget {
 
 /// La carrera completa: totales, anillos, premios, veredicto del Salón y la línea de tiempo.
 class LegadoCarreraPantalla extends StatelessWidget {
-  const LegadoCarreraPantalla({super.key, required this.estado, required this.carrera, this.alInicio});
+  const LegadoCarreraPantalla({super.key, required this.estado, required this.carrera, this.alInicio, this.alHeredar});
 
   final EstadoCarrera estado;
   final CarreraJugador carrera;
 
   /// Al terminar la carrera (retirado): volver al inicio.
   final VoidCallback? alInicio;
+
+  /// Carrera generacional: empezar la carrera de tu hijo o hija (solo si hay una carrera completa).
+  final VoidCallback? alHeredar;
 
   @override
   Widget build(BuildContext context) {
@@ -1864,7 +2572,8 @@ class LegadoCarreraPantalla extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '${_franq(c.franquiciaId).nombreCompleto} · ${c.temporadas} temporadas',
+                            '${_franq(c.franquiciaId).nombreCompleto} · ${c.temporadas} temporadas'
+                            '${estado.base.dorsal > 0 ? ' · número ${estado.base.dorsal} retirado' : ''}',
                             style: tema.textTheme.bodyMedium,
                           ),
                         ),
@@ -1924,6 +2633,14 @@ class LegadoCarreraPantalla extends StatelessWidget {
                   const SizedBox(height: 12),
                   if (huella != null) ...[huella, const SizedBox(height: 12)],
                   historia,
+                  if (alHeredar != null) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: alHeredar,
+                      icon: const Icon(Icons.family_restroom_outlined),
+                      label: const Text('EMPEZAR LA CARRERA DE TU HIJO/A'),
+                    ),
+                  ],
                   if (alInicio != null) ...[
                     const SizedBox(height: 16),
                     FilledButton(onPressed: alInicio, child: const Text('VOLVER AL INICIO')),

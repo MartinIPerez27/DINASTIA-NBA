@@ -10,26 +10,53 @@ import 'carrera_jugador.dart';
 // ("especialización"). Las insignias miran esos valores y lo que hiciste en tu carrera, y tienen cuatro
 // grados: Bronce, Plata, Oro y Leyenda.
 
-/// Habilidades específicas, agrupadas por el atributo general al que pertenecen.
+/// Habilidades específicas, agrupadas por el atributo general al que pertenecen. Las últimas cuatro son rasgos
+/// mentales (se muestran aparte): valen lo mismo que el atributo de su grupo más lo que les sumes.
 enum Habilidad {
+  // ----- Tiro -----
   triple(Atributo.tiro, 'Triple', 'Tiros de tres: acierto desde larga distancia.'),
   mediaDistancia(Atributo.tiro, 'Media distancia', 'Tiros de dos fuera de la pintura.'),
   tiroLibre(Atributo.tiro, 'Tiro libre', 'Acierto desde la línea.'),
+  tiroDeEsquina(Atributo.tiro, 'Triple de esquina', 'El triple más corto: quieto y con los pies puestos.'),
+  tiroEnMovimiento(Atributo.tiro, 'Tiro en movimiento', 'Tirar tras un bloqueo o corriendo, sin frenarte.'),
+  // ----- Finalización -----
   bandeja(Atributo.finalizacion, 'Bandejas', 'Terminar cerca del aro, con las dos manos.'),
   volcada(Atributo.finalizacion, 'Volcadas', 'Castigar al aro con potencia.'),
   poste(Atributo.finalizacion, 'Juego de poste', 'Jugadas de espaldas al aro.'),
+  tiroCercano(Atributo.finalizacion, 'Tiro cercano', 'Tiros cortos dentro de la pintura.'),
+  finalizacionContacto(Atributo.finalizacion, 'Terminar con contacto', 'Meter la bandeja aunque te golpeen.'),
+  flotadora(Atributo.finalizacion, 'Flotadora', 'Tiro suave sobre los grandes.'),
+  alleyOop(Atributo.finalizacion, 'Alley-oop', 'Recibir en el aire y rematar.'),
+  // ----- Defensa -----
   defPerimetral(Atributo.defensa, 'Defensa perimetral', 'Aguantar a los exteriores uno contra uno.'),
   defInterior(Atributo.defensa, 'Defensa interior', 'Cuidar la pintura y proteger el aro.'),
   robo(Atributo.defensa, 'Robo', 'Manos rápidas: cortar pases y quitar la pelota.'),
   tapon(Atributo.defensa, 'Tapón', 'Cronometrar y tapar tiros.'),
+  velocidadLateral(Atributo.defensa, 'Velocidad lateral', 'Seguir al rival de lado a lado.'),
+  ayudaDefensiva(Atributo.defensa, 'Ayuda defensiva', 'Leer cuándo ayudar a un compañero.'),
+  defensaDePoste(Atributo.defensa, 'Defensa de poste', 'Aguantar a los grandes de espaldas al aro.'),
+  // ----- Físico -----
   velocidad(Atributo.fisico, 'Velocidad', 'Arranque y primer paso.'),
   fuerza(Atributo.fisico, 'Fuerza', 'Aguantar el contacto y ganar posición.'),
   salto(Atributo.fisico, 'Salto', 'Explosión vertical.'),
   resistencia(Atributo.fisico, 'Resistencia', 'Rendir los 48 minutos sin caerte.'),
-  rebote(Atributo.fisico, 'Rebote', 'Posicionarte y ganar la pelota en el aire.'),
+  rebote(Atributo.fisico, 'Rebote defensivo', 'Posicionarte y ganar la pelota en tu aro.'),
+  reboteOfensivo(Atributo.fisico, 'Rebote ofensivo', 'Pelear la segunda oportunidad.'),
+  agilidad(Atributo.fisico, 'Agilidad', 'Cambiar de dirección sin perder el equilibrio.'),
+  recuperacion(Atributo.fisico, 'Recuperación', 'Volver a tope entre posesiones y partidos.'),
+  // ----- IQ y pase -----
   manejo(Atributo.iq, 'Manejo', 'Dribling seguro, sin perderla.'),
+  velocidadConPelota(Atributo.iq, 'Velocidad con pelota', 'Subir rápido sin perder el control.'),
   pase(Atributo.iq, 'Pase', 'Precisión y variedad al asistir.'),
-  vision(Atributo.iq, 'Visión de juego', 'Leer la defensa y anticipar.');
+  vision(Atributo.iq, 'Visión de juego', 'Leer la defensa y anticipar.'),
+  iqOfensivo(Atributo.iq, 'IQ ofensivo', 'Elegir la mejor jugada en cada posesión.'),
+  iqDefensivo(Atributo.iq, 'IQ defensivo', 'Anticipar rotaciones y pases.'),
+  creacionDeTiro(Atributo.iq, 'Crear tiro propio', 'Generarte un tiro sin ayuda.'),
+  // ----- Rasgos mentales -----
+  consistencia(Atributo.iq, 'Consistencia', 'Rendir parecido todas las noches.'),
+  clutch(Atributo.iq, 'Clutch', 'Crecerte cuando el partido se aprieta.'),
+  durabilidad(Atributo.fisico, 'Durabilidad', 'Menos lesiones y menos desgaste con los años.'),
+  garra(Atributo.defensa, 'Garra', 'Ir a todas las pelotas: robos, rebotes y esfuerzo.');
 
   const Habilidad(this.atributo, this.etiqueta, this.descripcion);
   final Atributo atributo;
@@ -38,10 +65,15 @@ enum Habilidad {
   /// Lo máximo que se le puede sumar a una habilidad por encima de su atributo general.
   static const maxEspecializacion = 20;
 
-  /// Las habilidades de un atributo.
+  /// Los cuatro rasgos mentales.
+  static const mentales = [consistencia, clutch, durabilidad, garra];
+
+  bool get esMental => mentales.contains(this);
+
+  /// Las habilidades técnicas de un atributo (sin los rasgos mentales).
   static List<Habilidad> de(Atributo a) => [
     for (final h in values)
-      if (h.atributo == a) h,
+      if (h.atributo == a && !h.esMental) h,
   ];
 
   /// Valor de la habilidad (25 a 99): el atributo general más su especialización.
@@ -53,21 +85,41 @@ enum Habilidad {
     Habilidad.triple => const EfectoStats(pctT3: 0.0015),
     Habilidad.mediaDistancia => const EfectoStats(ppp: 0.04),
     Habilidad.tiroLibre => const EfectoStats(pctTl: 0.0025),
+    Habilidad.tiroDeEsquina => const EfectoStats(pctT3: 0.0008, ppp: 0.01),
+    Habilidad.tiroEnMovimiento => const EfectoStats(pctT3: 0.0006, ppp: 0.02),
     Habilidad.bandeja => const EfectoStats(pctTc: 0.001),
     Habilidad.volcada => const EfectoStats(ppp: 0.04),
     Habilidad.poste => const EfectoStats(ppp: 0.03, rpp: 0.01),
+    Habilidad.tiroCercano => const EfectoStats(pctTc: 0.0008, ppp: 0.01),
+    Habilidad.finalizacionContacto => const EfectoStats(pctTc: 0.0008, rpp: 0.005),
+    Habilidad.flotadora => const EfectoStats(pctTc: 0.0006, ppp: 0.015),
+    Habilidad.alleyOop => const EfectoStats(ppp: 0.025),
     Habilidad.defPerimetral => const EfectoStats(robP: 0.008),
     Habilidad.defInterior => const EfectoStats(tapP: 0.008),
     Habilidad.robo => const EfectoStats(robP: 0.012),
     Habilidad.tapon => const EfectoStats(tapP: 0.01),
+    Habilidad.velocidadLateral => const EfectoStats(robP: 0.005),
+    Habilidad.ayudaDefensiva => const EfectoStats(tapP: 0.004, robP: 0.003),
+    Habilidad.defensaDePoste => const EfectoStats(tapP: 0.004, rpp: 0.006),
     Habilidad.velocidad => const EfectoStats(ppp: 0.02),
     Habilidad.fuerza => const EfectoStats(rpp: 0.03),
     Habilidad.salto => const EfectoStats(rpp: 0.02, tapP: 0.004),
     Habilidad.resistencia => const EfectoStats(minP: 0.08),
     Habilidad.rebote => const EfectoStats(rpp: 0.05),
+    Habilidad.reboteOfensivo => const EfectoStats(rpp: 0.03, ppp: 0.01),
+    Habilidad.agilidad => const EfectoStats(ppp: 0.01, robP: 0.004),
+    Habilidad.recuperacion => const EfectoStats(minP: 0.05),
     Habilidad.manejo => const EfectoStats(perP: -0.012),
+    Habilidad.velocidadConPelota => const EfectoStats(ppp: 0.015, perP: -0.004),
     Habilidad.pase => const EfectoStats(app: 0.05),
     Habilidad.vision => const EfectoStats(app: 0.03),
+    Habilidad.iqOfensivo => const EfectoStats(app: 0.015, perP: -0.006, pctTc: 0.0004),
+    Habilidad.iqDefensivo => const EfectoStats(robP: 0.004, tapP: 0.002),
+    Habilidad.creacionDeTiro => const EfectoStats(ppp: 0.035),
+    Habilidad.consistencia => const EfectoStats(pctTc: 0.0008, perP: -0.006),
+    Habilidad.clutch => const EfectoStats(ppp: 0.02),
+    Habilidad.durabilidad => const EfectoStats(minP: 0.06),
+    Habilidad.garra => const EfectoStats(robP: 0.006, rpp: 0.012),
   };
 }
 
@@ -188,6 +240,7 @@ enum FamiliaInsignia {
 enum Insignia {
   // --- Tiro ---
   francotirador(FamiliaInsignia.tiro, 'Francotirador', 'Triple 80+: más acierto en triples y libres.'),
+  tiradorDeEsquina(FamiliaInsignia.tiro, 'Tirador de esquina', 'Triple de esquina 82+: la esquina es tuya.'),
   codoDeOro(FamiliaInsignia.tiro, 'Codo de oro', 'Media distancia 80+: tiros de dos fuera de la pintura.'),
   libreSeguro(FamiliaInsignia.tiro, 'Libre seguro', 'Tiro libre 82+: casi nunca falla desde la línea.'),
   sangreFria(FamiliaInsignia.tiro, 'Sangre fría', 'Tiro e IQ 75+: más puntos en los finales.'),
@@ -195,6 +248,8 @@ enum Insignia {
   // --- Anotación interior ---
   finalizador(FamiliaInsignia.interior, 'Finalizador', 'Finalización 80+: más acierto en el aro.'),
   cazadorDeBandejas(FamiliaInsignia.interior, 'Cazador de bandejas', 'Bandejas 82+: no perdona cerca del aro.'),
+  flotadoraLetal(FamiliaInsignia.interior, 'Flotadora letal', 'Flotadora 82+: le ganás a los grandes por arriba.'),
+  rematador(FamiliaInsignia.interior, 'Rematador', 'Alley-oop 80+ y Salto 70+: lo que te tiran, adentro.'),
   volcador(FamiliaInsignia.interior, 'Volcador', 'Volcadas 80+ y Salto 70+: castigo con potencia.'),
   reyDelPoste(FamiliaInsignia.interior, 'Rey del poste', 'Poste 80+ y Fuerza 65+: dominás de espaldas.'),
   // --- Creación ---
@@ -208,14 +263,18 @@ enum Insignia {
   ancla(FamiliaInsignia.defensa, 'Ancla', 'Defensa interior 82+: cuida el aro.'),
   ladron(FamiliaInsignia.defensa, 'Ladrón', 'Robo 82+: cortá pases y corré.'),
   aniquilador(FamiliaInsignia.defensa, 'Aniquilador', 'Tapón 82+: nada pasa por tu zona.'),
+  cerebroDefensivo(FamiliaInsignia.defensa, 'Cerebro defensivo', 'IQ defensivo y Ayuda defensiva 80+: siempre estás donde hace falta.'),
   // --- Físico ---
   atleta(FamiliaInsignia.fisico, 'Atleta', 'Físico 82+: más rebotes.'),
   pulmones(FamiliaInsignia.fisico, 'Pulmones', 'Resistencia 82+: jugás más minutos.'),
   rebotero(FamiliaInsignia.fisico, 'Rebotero', 'Rebote 82+: la pelota rebota donde estás vos.'),
   tanque(FamiliaInsignia.fisico, 'Tanque', 'Fuerza 85+: nadie te mueve.'),
   volador(FamiliaInsignia.fisico, 'Volador', 'Salto y Velocidad 80+: arriba del aro.'),
+  incansable(FamiliaInsignia.fisico, 'Incansable', 'Durabilidad y Resistencia 82+: el cuerpo aguanta todo.'),
   // --- Mentalidad / carrera ---
   completo(FamiliaInsignia.mentalidad, 'Completo', 'Todos los atributos en 70+: un poco de todo.'),
+  consistente(FamiliaInsignia.mentalidad, 'Consistente', 'Consistencia 82+: rendís igual todas las noches.'),
+  peleador(FamiliaInsignia.mentalidad, 'Peleador', 'Garra 82+: vas a todas las pelotas.'),
   lider(FamiliaInsignia.mentalidad, 'Líder', 'IQ 78+ y la afición de tu lado: el vestuario te sigue.'),
   ganador(FamiliaInsignia.mentalidad, 'Ganador', 'Ganá títulos: el anillo es lo que cuenta.'),
   maquina(FamiliaInsignia.mentalidad, 'Máquina', 'Jugá cientos de partidos: la constancia es tu marca.'),
@@ -250,6 +309,13 @@ enum Insignia {
     Insignia.rebotero => c.h(Habilidad.rebote),
     Insignia.tanque => c.h(Habilidad.fuerza) - 3,
     Insignia.volador => min(c.h(Habilidad.salto), c.h(Habilidad.velocidad)),
+    Insignia.tiradorDeEsquina => c.h(Habilidad.tiroDeEsquina),
+    Insignia.flotadoraLetal => c.h(Habilidad.flotadora),
+    Insignia.rematador => min(c.h(Habilidad.alleyOop), c.h(Habilidad.salto) + 10),
+    Insignia.cerebroDefensivo => min(c.h(Habilidad.iqDefensivo), c.h(Habilidad.ayudaDefensiva)) + 2,
+    Insignia.incansable => min(c.h(Habilidad.durabilidad), c.h(Habilidad.resistencia)),
+    Insignia.consistente => c.h(Habilidad.consistencia),
+    Insignia.peleador => c.h(Habilidad.garra),
     Insignia.completo => Atributo.values.map(c.a).reduce(min) + 10,
     Insignia.lider => c.a(Atributo.iq) >= 78 && c.fans >= 60 ? c.a(Atributo.iq) : 0,
     // Los de carrera: no dependen de los atributos, solo de lo vivido.
@@ -272,6 +338,12 @@ enum Insignia {
     Insignia.clutch => 74,
     Insignia.completo => 80,
     Insignia.lider => 78,
+    Insignia.tiradorDeEsquina ||
+    Insignia.flotadoraLetal ||
+    Insignia.incansable ||
+    Insignia.consistente ||
+    Insignia.peleador => 82,
+    Insignia.rematador || Insignia.cerebroDefensivo => 80,
     Insignia.ganador || Insignia.maquina || Insignia.estrella => 80,
   };
 
@@ -327,6 +399,13 @@ enum Insignia {
     Insignia.rebotero => const EfectoStats(rpp: 0.7),
     Insignia.tanque => const EfectoStats(rpp: 0.4, pctTc: 0.005),
     Insignia.volador => const EfectoStats(ppp: 0.2, tapP: 0.1, rpp: 0.3),
+    Insignia.tiradorDeEsquina => const EfectoStats(pctT3: 0.01),
+    Insignia.flotadoraLetal => const EfectoStats(pctTc: 0.008, ppp: 0.1),
+    Insignia.rematador => const EfectoStats(ppp: 0.2, rpp: 0.1),
+    Insignia.cerebroDefensivo => const EfectoStats(robP: 0.1, tapP: 0.1),
+    Insignia.incansable => const EfectoStats(minP: 0.8),
+    Insignia.consistente => const EfectoStats(pctTc: 0.006, perP: -0.1),
+    Insignia.peleador => const EfectoStats(robP: 0.1, rpp: 0.3),
     Insignia.completo => const EfectoStats(ppp: 0.4, rpp: 0.3, app: 0.3),
     Insignia.lider => const EfectoStats(app: 0.4, perP: -0.1),
     Insignia.ganador => const EfectoStats(ppp: 0.1, app: 0.1),
