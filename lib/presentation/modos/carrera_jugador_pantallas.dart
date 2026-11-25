@@ -714,6 +714,63 @@ class PanelControlPartido extends StatelessWidget {
   }
 }
 
+/// Sueldo, marcas, caja y equipo personal (entrenador, fisio, nutricionista y agente).
+class PanelFinanzas extends StatelessWidget {
+  const PanelFinanzas({super.key, required this.estado, required this.alSubir, required this.alBajar});
+
+  final EstadoCarrera estado;
+  final ValueChanged<Personal> alSubir, alBajar;
+
+  static String _m(double v) => '${v.toStringAsFixed(1).replaceAll('.', ',')} M';
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('FINANZAS Y EQUIPO PERSONAL', style: tema.textTheme.labelLarge),
+        const SizedBox(height: 4),
+        Text('Caja: ${_m(EconomiaCarrera.caja(estado))} · Ganado en la carrera: ${_m(EconomiaCarrera.ganadoEnTotal(estado))}', style: tema.textTheme.bodyMedium),
+        Text(
+          'Por temporada: sueldo ${_m(EconomiaCarrera.sueldo(estado))} + marcas ${_m(EconomiaCarrera.patrocinios(estado))} − equipo ${_m(EconomiaCarrera.costoStaff(estado) + EconomiaCarrera.comision(estado))}. Cobrás al cerrar la temporada.',
+          style: tema.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        for (final p in Personal.values)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${p.etiqueta} · nivel ${EconomiaCarrera.nivel(estado, p)}/${EconomiaCarrera.nivelMaximo}', style: tema.textTheme.bodyMedium),
+                      Text(p.descripcion, style: tema.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Bajar nivel de ${p.etiqueta}',
+                  onPressed: EconomiaCarrera.nivel(estado, p) > 0 ? () => alBajar(p) : null,
+                  icon: const Icon(Icons.remove_circle_outline),
+                ),
+                IconButton(
+                  tooltip: EconomiaCarrera.costoDeSubir(estado, p) == null
+                      ? '${p.etiqueta} al máximo'
+                      : 'Subir ${p.etiqueta} (${_m(EconomiaCarrera.costoDeSubir(estado, p)!)})',
+                  onPressed: EconomiaCarrera.puedeSubir(estado, p) ? () => alSubir(p) : null,
+                  icon: const Icon(Icons.add_circle_outline),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// Tu selección nacional: país, convocatorias y medallas.
 class PanelSeleccion extends StatelessWidget {
   const PanelSeleccion({super.key, required this.estado});
@@ -1251,6 +1308,11 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
     widget.onCambiar(_t);
   }
 
+  void _cambiarEstado(EstadoCarrera e) {
+    setState(() => _t = widget.carrera.sincronizar(_t, e));
+    widget.onCambiar(_t);
+  }
+
   void _marcarLeidos() {
     final e = BandejaCarrera.marcarLeidos(_e);
     setState(() => _t = widget.carrera.sincronizar(_t, e));
@@ -1411,6 +1473,14 @@ class _MiJugadorPantallaState extends State<MiJugadorPantalla> {
       _Panel(child: PanelMundo(estado: e)),
       const SizedBox(height: 12),
       _Panel(child: PanelSeleccion(estado: e)),
+      const SizedBox(height: 12),
+      _Panel(
+        child: PanelFinanzas(
+          estado: e,
+          alSubir: (p) => _cambiarEstado(EconomiaCarrera.subir(e, p)),
+          alBajar: (p) => _cambiarEstado(EconomiaCarrera.bajar(e, p)),
+        ),
+      ),
       const SizedBox(height: 12),
       _Panel(
         child: PanelCuerpo(temporada: _t, estado: e, alElegirRehab: _elegirRehab, alDescansar: _descansar),

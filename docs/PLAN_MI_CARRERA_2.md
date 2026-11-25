@@ -124,6 +124,15 @@ estadísticas avanzadas.
   - Pendiente de este punto: que el jugador "salga" mid-season por una decisión del club (hoy solo se mueven
     compañeros; el traspaso propio se negocia en el receso).
 
+- **Bloque 12 (staff, agente y finanzas) — hecho.**
+  - Economía simple en millones: sueldo anual (escala de novato por pick, después por media), marcas (patrocinios + fama) y
+    una **caja** que se cobra al cerrar cada temporada.
+  - **Equipo personal** (3 niveles cada uno, se paga por temporada): entrenador (+1 punto de habilidad por nivel), fisio
+    (−10 % de lesiones por nivel), nutricionista (más recuperación de carga) y agente (+5 % de sueldo, ofertas extra de
+    otros equipos y 3 % de comisión por nivel). Se contrata con la caja; si falta plata, el más caro se va.
+  - Panel "Finanzas y equipo personal" en Mi jugador.
+  - Sin hacer: salary cap y negociación de cláusulas.
+
 - **Bloque 11 (selección nacional) — hecho.**
   - Elegís el **país** al crear el jugador (17 opciones, cada uno con su fuerza; los jugadores reales no tienen).
   - **Mundial y Juegos Olímpicos** en la 3.ª, 7.ª, 11.ª… temporada, alternados, simulados al cerrar el año con tu nivel:
@@ -164,7 +173,7 @@ estadísticas avanzadas.
   - **Estadísticas avanzadas** (TS %, eFG %, TC, T3, TL, asistencias por pérdida, valoración de Hollinger, minutos y
     puntos por 36), llevadas partido a partido desde esta versión.
   - Sin hacer todavía de las ideas aprobadas: secundario→
-    universidad→NBA, carrera generacional, staff y agente, tu carta de carrera, relator con
+    universidad→NBA, carrera generacional, tu carta de carrera, relator con
     memoria, mapa de tiro de carrera, entrenamientos interactivos, mercado y contratos, mentores,
     prensa y redes, All-Star jugable, Salón de la Fama con cuadro de honor, y el timing de libres/robo/rebote/pase.
 

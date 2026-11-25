@@ -16,6 +16,7 @@ import '../playbook.dart';
 import '../premios.dart';
 import 'cuerpo_carrera.dart';
 import 'dinastia.dart';
+import 'economia_carrera.dart';
 import 'habilidades.dart';
 import 'mundo_carrera.dart';
 import 'objetivos_carrera.dart';
@@ -26,6 +27,7 @@ import 'seleccion_carrera.dart';
 import 'vida_carrera.dart';
 
 export 'cuerpo_carrera.dart';
+export 'economia_carrera.dart';
 export 'mundo_carrera.dart';
 export 'objetivos_carrera.dart';
 export 'generacion_carrera.dart';
@@ -2272,8 +2274,9 @@ class CarreraJugador {
     // Objetivos de carrera que se cumplieron con esta temporada sumada.
     final torneo = SeleccionCarrera.jugar(e, media: e.media, ppg: marcaFinal.ppg);
     final conSeleccion = torneo == null ? cerrado : SeleccionCarrera.aplicar(cerrado, torneo, e.etiquetaTemporada);
-    final logradosCarrera = ObjetivosCarrera.nuevosDeCarrera(conSeleccion);
-    final estado = ObjetivosCarrera.cobrarCarrera(conSeleccion, logradosCarrera);
+    final conPlata = EconomiaCarrera.alCerrar(conSeleccion);
+    final logradosCarrera = ObjetivosCarrera.nuevosDeCarrera(conPlata);
+    final estado = ObjetivosCarrera.cobrarCarrera(conPlata, logradosCarrera);
     // Insignias que ganaste o subiste de grado este año (con la carrera ya sumada).
     final antesG = e.grados;
     final gradosNuevos = estado.grados;
@@ -2453,7 +2456,7 @@ class CarreraJugador {
         ),
       );
     }
-    for (final id in otros.take(traspaso ? 4 : 3)) {
+    for (final id in otros.take((traspaso ? 4 : 3) + EconomiaCarrera.ofertasExtra(e))) {
       final plantel = _plantelRival(t, id);
       final rival = plantel == null ? null : _titularDe(plantel.jugadores.toList(), e.posicion);
       lista.add(

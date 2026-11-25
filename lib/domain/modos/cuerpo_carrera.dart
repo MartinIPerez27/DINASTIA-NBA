@@ -74,13 +74,13 @@ class CuerpoCarrera {
   static double factor(EstadoCarrera e) {
     final cansancio = carga(e) <= cargaCansada ? 1.0 : 1 + (carga(e) - cargaCansada) / 60 * 0.8;
     final historial = (1 + total(e) * 0.05).clamp(1.0, 1.3).toDouble();
-    return VidaCarrera.factorLesion(e) * cansancio * historial;
+    return VidaCarrera.factorLesion(e) * cansancio * historial * EconomiaCarrera.factorFisio(e);
   }
 
   /// Sube la carga con los minutos jugados y la baja con el descanso. Sin jugar, se recupera más.
-  static int nuevaCarga(int actual, double segundos) {
+  static int nuevaCarga(int actual, double segundos, {double extra = 0}) {
     final minutos = segundos / 60;
-    final delta = minutos <= 0 ? -12 : minutos / 6 - 5.5;
+    final delta = (minutos <= 0 ? -12 : minutos / 6 - 5.5) - extra;
     return (actual + delta).round().clamp(0, 100);
   }
 
@@ -88,7 +88,7 @@ class CuerpoCarrera {
   /// Detecta si te lesionaste (aparece en [Temporada.lesiones]) y le pone parte y duración,
   /// o si ya te recuperaste (y entonces cierra la rehabilitación, con su posible recaída).
   static (Temporada, EstadoCarrera) alPartido(Temporada t, EstadoCarrera e, double seg, int numeroPartido) {
-    var uso = {...e.uso, 'cu:carga': nuevaCarga(carga(e), seg)};
+    var uso = {...e.uso, 'cu:carga': nuevaCarga(carga(e), seg, extra: EconomiaCarrera.cargaExtra(e))};
     var ne = e.copyWith(uso: uso);
     var tt = t;
     final baja = t.lesiones[e.jugadorId];
