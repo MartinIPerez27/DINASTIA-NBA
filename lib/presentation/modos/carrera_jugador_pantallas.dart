@@ -693,13 +693,16 @@ class PanelControlPartido extends StatelessWidget {
           onSelectionChanged: (s) => alCambiar(a.copyWith(zona: s.first)),
           style: const ButtonStyle(visualDensity: VisualDensity.compact),
         ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          dense: true,
-          title: const Text('Mantener y soltar'),
-          subtitle: const Text('En vez de tocar una vez: mantenés apretado mientras se llena y soltás.'),
-          value: a.mantener,
-          onChanged: (v) => alCambiar(a.copyWith(mantener: v)),
+        Material(
+          type: MaterialType.transparency,
+          child: SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: const Text('Mantener y soltar'),
+            subtitle: const Text('En vez de tocar una vez: mantenés apretado mientras se llena y soltás.'),
+            value: a.mantener,
+            onChanged: (v) => alCambiar(a.copyWith(mantener: v)),
+          ),
         ),
         if (total > 0)
           Text(
