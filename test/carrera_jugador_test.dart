@@ -312,7 +312,7 @@ void main() {
         expect(c.edad, e.edad + 1);
         expect(c.contrato, e.contrato - 1);
         expect(cierre.temporada.pj, greaterThan(0));
-        expect(cierre.objetivos, hasLength(3));
+        expect(cierre.objetivos, hasLength(ObjetivosCarrera.minAceptados));
         expect(c.phBanco, e.phBanco + cierre.phBase + cierre.phObjetivos + cierre.phPremios);
         // Prensa.
         final preguntas = carrera.preguntasDelReceso(c);
@@ -332,7 +332,7 @@ void main() {
         expect(t.id, '${e.raiz}-t${n + 1}');
         expect(sig.numero, n + 1);
         expect(sig.cerrada, isFalse);
-        expect(sig.objetivos, hasLength(3));
+        expect(sig.objetivos, hasLength(ObjetivosCarrera.minAceptados));
         expect(sig.historial, hasLength(n));
         expect(t.fase, FaseTemporada.temporadaRegular);
         expect(t.plantel.completo, isTrue);

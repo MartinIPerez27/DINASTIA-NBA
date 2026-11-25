@@ -192,6 +192,16 @@ Future<Widget?> pantallaCarreraJugador(Temporada t, ContextoModos c) async {
                 builder: (_) => MiJugadorPantalla(temporada: temp, carrera: carrera, onCambiar: cambiar),
               ),
             ),
+            onElegirObjetivos: ObjetivosCarrera.puedeElegir(e)
+                ? () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ElegirObjetivosPantalla(
+                        estado: e,
+                        onConfirmar: (nuevo) => cambiar(carrera.sincronizar(temp, nuevo)),
+                      ),
+                    ),
+                  )
+                : null,
           );
         },
       );
