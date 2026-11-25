@@ -346,6 +346,9 @@ class PerfilVivo {
   int h(Habilidad x) => Habilidad.valor(x, atributos, espec);
   int nivel(Insignia i) => grados[i]?.nivel ?? 0;
 
+  /// Promedio de varias habilidades (las que juegan en una misma acción).
+  double prom(List<Habilidad> hs) => hs.fold(0, (a, x) => a + h(x)) / hs.length;
+
   /// Nivel ofensivo (tiro y finalización).
   double get ataque => (a(Atributo.tiro) + a(Atributo.finalizacion)) / 2;
 }
@@ -1199,22 +1202,27 @@ class DirectorDecisiones {
     final y = yo!;
     switch (a) {
       case AccionTactica.pedirPelota:
-        return _k(y.ataque, 0.0007) - 0.012;
+        return _k(y.ataque, 0.0007) + _k(y.h(Habilidad.creacionDeTiro), 0.0003) + _k(y.h(Habilidad.consistencia), 0.0002) - 0.012;
       case AccionTactica.atacarAro:
         return _k(y.a(Atributo.finalizacion), 0.0008) +
-            _k((y.h(Habilidad.bandeja) + y.h(Habilidad.volcada)) / 2, 0.0004) -
+            _k(
+              y.prom([Habilidad.bandeja, Habilidad.volcada, Habilidad.finalizacionContacto, Habilidad.flotadora]),
+              0.0004,
+            ) -
             0.006;
       case AccionTactica.tirarTriple:
-        return _k(y.h(Habilidad.triple), 0.0009) - 0.01;
+        return _k(y.prom([Habilidad.triple, Habilidad.triple, Habilidad.tiroDeEsquina, Habilidad.tiroEnMovimiento]), 0.0009) - 0.01;
       case AccionTactica.takeover:
         return 0.02 + _k(y.ataque, 0.0005, base: 80).clamp(-0.01, 0.02);
       case AccionTactica.yoAislamiento:
         return _k(y.a(Atributo.iq), 0.0004) +
+            _k(y.h(Habilidad.clutch), 0.0005) +
             0.008 * y.nivel(Insignia.clutch) +
             0.004 * y.nivel(Insignia.sangreFria) -
             0.01;
       case AccionTactica.yoTriple:
         return _k(y.h(Habilidad.triple), 0.0008) +
+            _k(y.h(Habilidad.clutch), 0.0005) +
             0.008 * y.nivel(Insignia.clutch) +
             0.004 * y.nivel(Insignia.sangreFria) -
             0.014;
@@ -1239,7 +1247,7 @@ class DirectorDecisiones {
           mods: const ModificadoresEquipo(tripleExtra: 0.004),
         );
       case AccionTactica.buscarAbierto:
-        final pase = (y.h(Habilidad.pase) + y.h(Habilidad.vision)) / 2;
+        final pase = y.prom([Habilidad.pase, Habilidad.vision, Habilidad.iqOfensivo]);
         return EfectoEnVivo(
           foco: y.id,
           focoPeso: 0.5,
@@ -1255,20 +1263,33 @@ class DirectorDecisiones {
         );
       case AccionTactica.cerrarMarca:
         return EfectoEnVivo(
-          tripleRival: 1 - lim(_k(y.h(Habilidad.defPerimetral), 0.0025, base: 70), 0.0, 0.08) - 0.01,
-          interiorRival: 1 - lim(_k(y.h(Habilidad.defInterior), 0.002, base: 70), 0.0, 0.05),
+          tripleRival:
+              1 -
+              lim(
+                _k(y.prom([Habilidad.defPerimetral, Habilidad.velocidadLateral, Habilidad.ayudaDefensiva]), 0.0025, base: 70),
+                0.0,
+                0.08,
+              ) -
+              0.01,
+          interiorRival:
+              1 - lim(_k(y.prom([Habilidad.defInterior, Habilidad.defensaDePoste]), 0.002, base: 70), 0.0, 0.05),
           fatigaFactor: 1.08,
         );
       case AccionTactica.apostarRobo:
         return EfectoEnVivo(
-          robosFactor: 1 + lim(_k(y.h(Habilidad.robo), 0.008, base: 60), 0.05, 0.4),
-          interiorRival: lim(1.05 - _k(y.h(Habilidad.robo), 0.001, base: 70), 1.01, 1.08),
+          robosFactor:
+              1 + lim(_k(y.prom([Habilidad.robo, Habilidad.robo, Habilidad.iqDefensivo, Habilidad.garra]), 0.008, base: 60), 0.05, 0.4),
+          interiorRival: lim(1.05 - _k(y.prom([Habilidad.robo, Habilidad.iqDefensivo]), 0.001, base: 70), 1.01, 1.08),
         );
       case AccionTactica.guardarEnergia:
         return EfectoEnVivo(
           foco: y.id,
           focoPeso: 0.85,
-          fatigaFactor: lim(0.78 - _k(y.h(Habilidad.resistencia), 0.001, base: 70), 0.6, 0.9),
+          fatigaFactor: lim(
+            0.78 - _k(y.prom([Habilidad.resistencia, Habilidad.recuperacion, Habilidad.durabilidad]), 0.001, base: 70),
+            0.6,
+            0.9,
+          ),
         );
       case AccionTactica.yoAislamiento:
       case AccionTactica.yoTriple:

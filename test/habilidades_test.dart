@@ -8,6 +8,7 @@ import 'package:dinastia_nba/domain/entities/posicion.dart';
 import 'package:dinastia_nba/domain/entities/rol_cancha.dart';
 import 'package:dinastia_nba/domain/liga.dart';
 import 'package:dinastia_nba/domain/modos/carrera_jugador.dart';
+import 'package:dinastia_nba/domain/modos/vida_carrera.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -22,12 +23,47 @@ void main() {
   EstadoCarrera nuevo({int ph = 200, int potencial = 90}) =>
       carrera.estadoCreado(raiz: 'h1', creado: creado, pick: 12, franquiciaId: 'CHI', potencial: potencial).copyWith(phBanco: ph);
 
-  test('hay 18 habilidades en los 5 atributos y más de 25 insignias', () {
-    expect(Habilidad.values.length, greaterThanOrEqualTo(18));
+  test('hay unas 34 habilidades técnicas y 4 rasgos mentales en los 5 atributos, y 30+ insignias', () {
+    expect(Habilidad.values.length, greaterThanOrEqualTo(38));
+    expect(Habilidad.mentales.length, 4);
     for (final a in Atributo.values) {
-      expect(Habilidad.de(a), isNotEmpty, reason: a.name);
+      expect(Habilidad.de(a).length, greaterThanOrEqualTo(5), reason: a.name);
+      expect(Habilidad.de(a).any((h) => h.esMental), isFalse, reason: 'los mentales van aparte');
     }
-    expect(Insignia.values.length, greaterThanOrEqualTo(25));
+    expect(Habilidad.values.where((h) => !h.esMental).length, greaterThanOrEqualTo(34));
+    expect(Insignia.values.length, greaterThanOrEqualTo(33));
+  });
+
+  test('cada habilidad mueve alguna estadística y las nuevas también', () {
+    for (final h in Habilidad.values) {
+      final e = Habilidad.efectoPorPunto(h);
+      final suma = e.ppp.abs() + e.rpp.abs() + e.app.abs() + e.robP.abs() + e.tapP.abs() + e.pctTc.abs() + e.pctT3.abs() + e.pctTl.abs() + e.minP.abs() + e.perP.abs();
+      expect(suma, greaterThan(0), reason: h.name);
+    }
+  });
+
+  test('las habilidades nuevas se compran, cuestan menos que un atributo y mueven la carta', () {
+    var e = nuevo(ph: 100000);
+    final base = e.carta.stats;
+    for (var i = 0; i < 15; i++) {
+      for (final h in [Habilidad.tiroDeEsquina, Habilidad.flotadora, Habilidad.reboteOfensivo, Habilidad.creacionDeTiro]) {
+        e = carrera.subirHabilidad(e, h);
+      }
+    }
+    expect(e.espec[Habilidad.flotadora], 15);
+    expect(e.carta.stats.ppp, greaterThan(base.ppp));
+    expect(e.carta.stats.rpp, greaterThan(base.rpp));
+  });
+
+  test('la durabilidad baja la probabilidad de lesión y la baja del todo lo contrario', () {
+    final e = nuevo().copyWith(atributos: nuevo().atributos.con(Atributo.fisico, 75));
+    final base = VidaCarrera.factorLesion(e);
+    final fuerte = VidaCarrera.factorLesion(e.copyWith(espec: {Habilidad.durabilidad: 20}));
+    final debil = VidaCarrera.factorLesion(e.copyWith(atributos: e.atributos.con(Atributo.fisico, 45)));
+    expect(fuerte, lessThan(base));
+    expect(debil, greaterThan(base));
+    expect(fuerte, greaterThanOrEqualTo(0.7));
+    expect(debil, lessThanOrEqualTo(1.3));
   });
 
   test('sumar a una habilidad cuesta menos que subir el atributo y mueve su valor', () {

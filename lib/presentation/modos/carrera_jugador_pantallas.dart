@@ -173,6 +173,29 @@ class PanelAtributos extends StatelessWidget {
                 ),
               ),
             ),
+          Material(
+            type: MaterialType.transparency,
+            child: Theme(
+              data: tema.copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                dense: true,
+                title: Text('Rasgos mentales', style: tema.textTheme.bodyMedium),
+                children: [
+                  for (final h in Habilidad.mentales)
+                    _FilaHabilidad(
+                      habilidad: h,
+                      valor: Habilidad.valor(h, estado.atributos, estado.espec),
+                      espec: estado.espec[h] ?? 0,
+                      costo: carrera.costoHabilidad(estado, h),
+                      puede: carrera.puedeSubirHabilidad(estado, h),
+                      onSubir: () => onSubirHabilidad!(h),
+                    ),
+                ],
+              ),
+            ),
+          ),
         ],
         const SizedBox(height: 12),
         Text('INSIGNIAS', style: tema.textTheme.labelLarge),

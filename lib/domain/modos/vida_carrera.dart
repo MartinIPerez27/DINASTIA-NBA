@@ -143,7 +143,13 @@ class VidaCarrera {
   }
 
   /// Probabilidad de lesión grave multiplicada por la rutina (Recuperación casi la elimina).
-  static double factorLesion(EstadoCarrera e) => rutinaDe(e) == Rutina.recuperacion ? 0.35 : 1.0;
+  static double factorLesion(EstadoCarrera e) {
+    final rutina = rutinaDe(e) == Rutina.recuperacion ? 0.35 : 1.0;
+    // La durabilidad pesa: 95 casi no se lesiona (×0,7); 50, bastante más (×1,3).
+    final dur = Habilidad.valor(Habilidad.durabilidad, e.atributos, e.espec);
+    final porDurabilidad = (1 - (dur - 75) * 0.015).clamp(0.7, 1.3).toDouble();
+    return rutina * porDurabilidad;
+  }
 
   // ---- eventos ----
 

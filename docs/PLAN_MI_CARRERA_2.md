@@ -104,6 +104,12 @@ estadísticas avanzadas.
   - Balance: recargo del techo blando ×(1+0,75·exceso), máx. ×5. Con potencial 88 y gasto óptimo se llega a ~96;
     con potencial 99 se mantiene en 99 hasta los ~35 años.
   - Faltan del punto 4: concurso de volcadas y de triples (dependen de la barra de tiro).
+- **Bloque 3 (habilidades estilo 2K) — hecho.** 34 habilidades técnicas (tiro 5, finalización 7, defensa 7, físico 8,
+  IQ y pase 7) y 4 rasgos mentales (Consistencia, Clutch, Durabilidad, Garra) bajo los 5 atributos; 7 insignias nuevas
+  (33 en total). Cada habilidad mueve la carta que usa el motor; Durabilidad baja o sube la probabilidad de lesión
+  (×0,7 a ×1,3) y las acciones del partido en vivo (triple, aro, pelota, última jugada, marca, robo, energía) usan las
+  habilidades nuevas y el rasgo Clutch. Las partidas viejas cargan sin migración (las nuevas arrancan en el valor del
+  atributo).
 
 ## Orden sugerido
 1. Puntos y costos (1, 3) · 2. Objetivos y premios (2, 4) · 3. Habilidades 2K (5) · 4. Año, edad y plantilla (6)
