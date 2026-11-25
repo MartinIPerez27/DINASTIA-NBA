@@ -145,3 +145,15 @@ Temporada partidaImportada(Map<String, dynamic> json, {String? idNuevo}) {
   }
   return Temporada.fromJson(copia).copyWith(importada: true, origenId: json['origenId'] as String? ?? viejo);
 }
+
+/// Un punto de guardado: copia de la partida con id (y raíz) nuevos que sigue siendo "de verdad"
+/// (da premios y marcas), para probar otro camino sin perder el actual. Si la original era de
+/// exhibición, la copia también.
+Temporada partidaDuplicada(Temporada t, {String? idNuevo}) {
+  final copia = partidaImportada(t.toJson(), idNuevo: idNuevo);
+  if (t.importada) return copia;
+  final json = copia.toJson()
+    ..remove('importada')
+    ..remove('origenId');
+  return Temporada.fromJson(json);
+}

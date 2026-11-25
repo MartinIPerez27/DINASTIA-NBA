@@ -17,6 +17,7 @@ import '../compartir/tarjeta_compartir.dart';
 import '../../domain/entities/modo_juego.dart';
 import '../../domain/modos/amigos.dart';
 import '../../domain/modos/competitivo.dart';
+import '../../domain/modos/carrera_jugador.dart';
 import '../../domain/modos/dinastia.dart';
 import '../../domain/modos/epocas.dart';
 import '../../domain/modos/escalera.dart';
@@ -42,7 +43,7 @@ class PartidasPantalla extends StatefulWidget {
   State<PartidasPantalla> createState() => _PartidasPantallaState();
 }
 
-enum _Accion { compartir, exportar, borrar }
+enum _Accion { compartir, exportar, duplicar, borrar }
 
 class _PartidasPantallaState extends State<PartidasPantalla> {
   List<Temporada>? _partidas;
@@ -204,6 +205,15 @@ class _PartidasPantallaState extends State<PartidasPantalla> {
     await db.guardarTemporada(partidaImportada(json));
   }
 
+  // ------------------------------------------------------------------ duplicar
+
+  /// Punto de guardado: otra partida igual, con id nuevo, para probar otro camino.
+  Future<void> _duplicar(Temporada t) async {
+    await widget.db?.guardarTemporada(partidaDuplicada(t));
+    _avisar('Partida duplicada: la copia aparece primera en la lista.');
+    await _recargar();
+  }
+
   // ------------------------------------------------------------------ borrar
 
   Future<void> _borrar(Temporada t) async {
@@ -280,6 +290,7 @@ class _PartidasPantallaState extends State<PartidasPantalla> {
                               : (a) => switch (a) {
                                   _Accion.compartir => _compartirTarjeta(t),
                                   _Accion.exportar => _exportar(t),
+                                  _Accion.duplicar => _duplicar(t),
                                   _Accion.borrar => _borrar(t),
                                 },
                         ),
@@ -372,6 +383,7 @@ class _FilaPartida extends StatelessWidget {
     }
     if (faseCompetitiva(t) case final f?) return f;
     if (EstadoUniv.de(t) case final u?) return u.etiquetaFase;
+    if (_carrera(t) case final c?) return '${c.edad} años · MED ${c.media} · ${c.etiquetaTemporada} · ${_faseClasica(t)}';
     if (faseDeModoPropio(t) case final f?) return f;
     if (t.modoJuego == ModoJuego.extremo && Variantes.extremoPerdido(t)) return 'Perdida';
     final fase = _faseClasica(t);
@@ -401,6 +413,8 @@ class _FilaPartida extends StatelessWidget {
     final r = t.registroUsuario;
     return '${r.victorias}-${r.derrotas}';
   }
+
+  static EstadoCarrera? _carrera(Temporada t) => t.modoJuego == ModoJuego.carreraJugador ? EstadoCarrera.de(t) : null;
 
   static String _faseClasica(Temporada t) => switch (t.fase) {
     FaseTemporada.draft => 'Draft',
@@ -452,7 +466,7 @@ class _FilaPartida extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          f.nombreCompleto,
+                          _carrera(t)?.nombre ?? f.nombreCompleto,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: tema.textTheme.titleMedium,
@@ -477,6 +491,7 @@ class _FilaPartida extends StatelessWidget {
                         if (sePuedeCompartir(t))
                           const PopupMenuItem(value: _Accion.compartir, child: Text('Compartir')),
                         const PopupMenuItem(value: _Accion.exportar, child: Text('Exportar')),
+                        const PopupMenuItem(value: _Accion.duplicar, child: Text('Duplicar (punto de guardado)')),
                         const PopupMenuItem(value: _Accion.borrar, child: Text('Borrar')),
                       ],
                     )

@@ -124,6 +124,13 @@ estadísticas avanzadas.
   - Pendiente de este punto: que el jugador "salga" mid-season por una decisión del club (hoy solo se mueven
     compañeros; el traspaso propio se negocia en el receso).
 
+- **Bloque 10 (slots y exportación) — hecho.**
+  - Las partidas guardadas ya permitían varias carreras en paralelo, exportar e importar (la importada queda de
+    exhibición y con raíz nueva). Se sumó lo que faltaba para Mi carrera: la fila muestra **tu jugador** (nombre, edad,
+    media, temporada, fase y récord) en vez del nombre de la franquicia.
+  - Nueva acción **Duplicar (punto de guardado)**: copia la partida con id y raíz nuevos, sigue dando premios y marcas;
+    sirve para probar otro camino sin perder el actual.
+
 - **Bloque 9 (cuerpo y salud) — hecho.**
   - **Carga de partidos** (0-100): cada partido suma según los minutos (≈ +1 con 36 min) y con descanso baja; pasando
     40 las lesiones son más probables (hasta ×1,8). Podés **descansar el próximo partido** (baja de 1 PJ, carga a la mitad).
